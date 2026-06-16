@@ -25,7 +25,7 @@ const api = {
   browseZapretPath: () => ipcRenderer.invoke('browse-zapret-path'),
   validatePath: () => ipcRenderer.invoke('validate-path'),
   runDiagnostics: () => ipcRenderer.invoke('run-diagnostics'),
-  checkUpdates: () => ipcRenderer.invoke('check-updates'),
+  checkUpdates: (options) => ipcRenderer.invoke('check-updates', options),
   applyUpdate: (remoteVersion) => ipcRenderer.invoke('apply-update', remoteVersion),
   runTests: () => ipcRenderer.invoke('run-tests'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
@@ -56,6 +56,9 @@ const api = {
   windowCloseChoice: (choice) => ipcRenderer.invoke('window-close-choice', choice),
   onShowCloseDialog: (cb) => {
     ipcRenderer.on('show-close-dialog', () => cb());
+  },
+  onStartupUpdateAvailable: (cb) => {
+    ipcRenderer.on('startup-update-available', (_, data) => cb(data));
   },
   onTgProxyChanged: (cb) => {
     ipcRenderer.on('tg-proxy-changed', (_, data) => cb(data));

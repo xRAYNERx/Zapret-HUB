@@ -102,17 +102,17 @@
                   <h3>Прокси для Telegram</h3>
                   <p class="card-hint">Локальный SOCKS5 через WebSocket</p>
                 </div>
-                <span class="tg-proxy-badge" id="tgProxyBadge">Выключен</span>
+                <span class="panel-version-badge" id="tgProxyVersion" title="Версия прокси">—</span>
               </header>
 
-              <div class="tg-proxy-status" id="tgProxyStatusBlock">
-                <div class="tg-proxy-address">
-                  <span class="tg-proxy-label">Адрес</span>
-                  <code id="tgProxyAddress">127.0.0.1:1443</code>
+              <div class="panel-meta-grid tg-proxy-status" id="tgProxyStatusBlock">
+                <div class="tg-proxy-status-cell">
+                  <span class="panel-meta-label">Статус</span>
+                  <span class="tg-proxy-badge" id="tgProxyBadge">Выключен</span>
                 </div>
-                <div class="tg-proxy-version">
-                  <span class="tg-proxy-label">Версия</span>
-                  <span id="tgProxyVersion">—</span>
+                <div class="tg-proxy-address">
+                  <span class="panel-meta-label">Адрес</span>
+                  <code class="panel-meta-value" id="tgProxyAddress">127.0.0.1:1443</code>
                 </div>
               </div>
 
@@ -142,12 +142,8 @@
                   <h3>Смена стратегии обхода блокировки YouTube и Discord</h3>
                   <p class="card-hint">Если один вариант не работает — попробуйте другой</p>
                 </div>
+                <span class="panel-version-badge" id="engineVersion" title="Версия движка">—</span>
               </header>
-
-              <div class="strategy-engine-version">
-                <span class="strategy-engine-label">Движок zapret</span>
-                <span id="engineVersion">—</span>
-              </div>
 
               <select class="select" id="strategySelect"></select>
               <div class="strategy-shuffle">
@@ -299,9 +295,6 @@
 
           <div class="tools-grid">
             <div class="panel tool-card glass-card">
-              <div class="tool-icon tool-icon-diag">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              </div>
               <h3>Диагностика</h3>
               <p class="card-hint">Проверит конфликты и готовность системы</p>
               <button class="btn btn-primary btn-power-green" id="btnDiagnostics" type="button">Запустить</button>
@@ -309,18 +302,12 @@
             </div>
 
             <div class="panel tool-card glass-card">
-              <div class="tool-icon tool-icon-test">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6v7l5 9H4l5-9V3z"/></svg>
-              </div>
               <h3>Тесты доступности</h3>
-              <p class="card-hint">Откроет окно PowerShell с проверкой сайтов</p>
+              <p class="card-hint">Откроет окно PowerShell с проверкой сайтов. Для тестов нужен запуск программы от имени администратора</p>
               <button class="btn btn-primary btn-power-green" id="btnTests" type="button">Запустить тесты</button>
             </div>
 
             <div class="panel tool-card glass-card">
-              <div class="tool-icon tool-icon-update">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-              </div>
               <h3>Проверка обновлений</h3>
               <p class="card-hint">Сравнит вашу версию с GitHub</p>
               <button class="btn btn-primary btn-power-green" id="btnCheckUpdates" type="button">Проверить</button>
@@ -328,9 +315,6 @@
             </div>
 
             <div class="panel tool-card tool-card-about glass-card">
-              <div class="tool-icon tool-icon-about tool-icon-logo">
-                <img src="../assets/logo.png" alt="Zapret HUB" width="32" height="32">
-              </div>
               <h3>О программе</h3>
               <div class="about-body">
                 <p class="about-tagline">Zapret HUB — панель обхода блокировок</p>
@@ -452,6 +436,17 @@
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btnCloseRememberNo" type="button">Нет</button>
         <button class="btn btn-primary" id="btnCloseRememberYes" type="button">Да</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="confirmModal">
+    <div class="modal-card">
+      <h2 id="confirmModalTitle">Подтверждение</h2>
+      <p class="modal-text" id="confirmModalText"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnConfirmCancel" type="button">Отмена</button>
+        <button class="btn btn-danger" id="btnConfirmOk" type="button">Удалить</button>
       </div>
     </div>
   </div>

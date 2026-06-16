@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <title>Zapret HUB — ошибка</title>
+  <style>
+    :root {
+      --bg: #2a2f38;
+      --surface: #394250;
+      --border: #4f5969;
+      --border-accent: rgba(34, 211, 168, 0.55);
+      --text: #e8ecf2;
+      --text-muted: #a4afc0;
+      --accent: #22d3a8;
+      --danger: #bf616a;
+      --radius: 10px;
+      --radius-xl: 20px;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      user-select: none;
+    }
+
+    .error-app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .error-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag;
+    }
+
+    .error-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+    }
+
+    .error-brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(34, 211, 168, 0.12);
+      border: 1px solid var(--border-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-weight: 800;
+    }
+
+    .win-btn {
+      width: 32px;
+      height: 28px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .win-btn:hover {
+      background: rgba(191, 97, 106, 0.2);
+      color: var(--danger);
+    }
+
+    .error-body {
+      flex: 1;
+      padding: 28px 26px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .error-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(191, 97, 106, 0.15);
+      border: 1px solid rgba(191, 97, 106, 0.45);
+      color: var(--danger);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .error-title {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .error-message {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .error-detail {
+      margin-top: 4px;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      background: rgba(0, 0, 0, 0.18);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 120px;
+      overflow: auto;
+    }
+
+    .error-actions {
+      margin-top: auto;
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 8px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(145deg, #22d3a8 0%, #14a87f 100%);
+      color: #0b1412;
+      box-shadow: 0 4px 16px rgba(34, 211, 168, 0.25);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.06);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="error-app">
+    <header class="error-topbar">
+      <div class="error-brand">
+        <span class="error-brand-mark" aria-hidden="true">Z</span>
+        <span>Zapret HUB</span>
+      </div>
+      <button class="win-btn" id="btnClose" type="button" aria-label="Закрыть" title="Закрыть">
+        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+          <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
+    </header>
+
+    <main class="error-body">
+      <div class="error-icon" aria-hidden="true">!</div>
+      <h1 class="error-title" id="errorTitle">Ошибка</h1>
+      <p class="error-message" id="errorMessage"></p>
+      <pre class="error-detail hidden" id="errorDetail"></pre>
+      <div class="error-actions">
+        <button class="btn btn-primary" id="btnQuit" type="button">Закрыть</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const quit = () => window.errorAPI?.quit();
+
+    document.getElementById('btnQuit')?.addEventListener('click', quit);
+    document.getElementById('btnClose')?.addEventListener('click', quit);
+
+    window.errorAPI?.onContent((data) => {
+      if (data.title) document.getElementById('errorTitle').textContent = data.title;
+      if (data.message) document.getElementById('errorMessage').textContent = data.message;
+      const detailEl = document.getElementById('errorDetail');
+      if (data.detail) {
+        detailEl.textContent = data.detail;
+        detailEl.classList.remove('hidden');
+      } else {
+        detailEl.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

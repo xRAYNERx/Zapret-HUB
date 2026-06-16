@@ -11,8 +11,7 @@
     "icon:ico": "node scripts/png-to-ico.mjs",
     "prebuild": "node scripts/png-to-ico.mjs && node scripts/fetch-bundled.mjs",
     "fetch-bundled": "node scripts/fetch-bundled.mjs",
-    "build": "electron-builder --win",
-    "build:portable": "electron-builder --win portable",
+    "build": "electron-builder --win nsis",
     "postinstall": "node install-electron.js"
   },
   "build": {
@@ -62,19 +61,10 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "assets/icon.ico",
       "signAndEditExecutable": false
-    },
-    "portable": {
-      "artifactName": "ZapretHub-Portable-${version}.${ext}"
     },
     "afterPack": "scripts/after-pack-icon.cjs",
     "nsis": {

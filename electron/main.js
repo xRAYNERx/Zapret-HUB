@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -36,18 +36,11 @@ app.disableHardwareAcceleration();
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
-  app.whenReady().then(() => {
-    dialog.showMessageBoxSync({
-      type: 'info',
-      title: 'Zapret HUB',
-      message: 'Zapret HUB уже запущен',
-      detail: 'Проверьте иконку в трее (возле часов) или откройте окно из меню Пуск.'
-    });
-    app.quit();
-  });
+  app.quit();
 }
 
 let mainWindow = null;
+let fatalErrorWindow = null;
 let tray = null;
 let zapret = null;
 let tgProxy = null;
@@ -115,6 +108,53 @@ function sendInAppNotify(message) {
   mainWindow.webContents.send('notify', message);
 }
 
+function showFatalErrorWindow(title, message, detail) {
+  if (fatalErrorWindow && !fatalErrorWindow.isDestroyed()) {
+    fatalErrorWindow.webContents.send('error-content', { title, message, detail });
+    fatalErrorWindow.show();
+    fatalErrorWindow.focus();
+    return;
+  }
+
+  const icon = loadWindowIcon();
+  fatalErrorWindow = new BrowserWindow({
+    width: 480,
+    height: 380,
+    center: true,
+    show: false,
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    backgroundColor: '#2a2f38',
+    title: 'Zapret HUB',
+    icon,
+    webPreferences: {
+      preload: path.join(__dirname, 'error-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+
+  fatalErrorWindow.loadFile(resolveAppFile('src', 'error.html')).then(() => {
+    if (fatalErrorWindow.isDestroyed()) return;
+    fatalErrorWindow.webContents.send('error-content', { title, message, detail });
+    fatalErrorWindow.show();
+  }).catch(() => {
+    app.isQuitting = true;
+    app.quit();
+  });
+
+  fatalErrorWindow.on('closed', () => {
+    fatalErrorWindow = null;
+    if (!app.isQuitting) {
+      app.isQuitting = true;
+      app.quit();
+    }
+  });
+}
+
 function showMainWindow() {
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -151,14 +191,11 @@ function createWindow() {
 
   mainWindow.loadFile(indexPath).catch((err) => {
     logStartup(`loadFile failed: ${err.message}`);
-    dialog.showErrorBox(
-      'Zapret HUB',
-      `Не удалось открыть интерфейс.\n\n${err.message}\n\n` +
-        'Закройте все копии Zapret HUB в диспетчере задач и запустите снова из:\n' +
-        'Папка установки Zapret HUB'
+    showFatalErrorWindow(
+      'Не удалось открыть интерфейс',
+      'Закройте все копии Zapret HUB в диспетчере задач и запустите снова из папки установки.',
+      err.message
     );
-    app.isQuitting = true;
-    app.quit();
   });
 
   mainWindow.once('ready-to-show', () => {
@@ -388,47 +425,10 @@ async function checkUpdatesOnStartup() {
     zapret.removeLegacyUpdateFlag();
     const info = await zapret.checkForUpdates();
     if (!info.updateAvailable || !mainWindow || mainWindow.isDestroyed()) return;
-
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Доступно обновление Zapret',
-      message: `Вышла новая версия ${info.remote}`,
-      detail: `У вас установлена ${info.local}. Обновить автоматически?`,
-      buttons: ['Обновить', 'Позже'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true
-    });
-
-    if (response !== 0) return;
-
-    const result = await zapret.applyUpdate(info.remote, (progress) => {
-      mainWindow?.webContents.send('update-progress', progress);
-    });
-
-    const status = await zapret.getStatus();
-    mainWindow.webContents.send('status-changed', status);
-
-    await dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Обновление завершено',
-      message: `Zapret обновлён до версии ${result.local}`,
-      detail: result.restarted
-        ? 'Zapret был остановлен для обновления. Включите его снова, если нужно.'
-        : 'Можно продолжать работу.',
-      buttons: ['OK']
-    });
+    mainWindow.webContents.send('startup-update-available', info);
   } catch (err) {
-    logStartup(`Startup update failed: ${err.message}`);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      dialog.showMessageBox(mainWindow, {
-        type: 'error',
-        title: 'Ошибка обновления',
-        message: 'Не удалось установить обновление',
-        detail: err.message,
-        buttons: ['OK']
-      });
-    }
+    logStartup(`Startup update check failed: ${err.message}`);
+    sendInAppNotify(`Не удалось проверить обновления: ${err.message}`);
   }
 }
 
@@ -522,7 +522,7 @@ function registerIpc() {
     'browse-zapret-path': () => zapret.browseFolder(),
     'validate-path': () => zapret.validateZapretPath(),
     'run-diagnostics': () => zapret.runDiagnostics(),
-    'check-updates': () => zapret.checkForUpdates(),
+    'check-updates': (_, options) => zapret.checkForUpdates(options || {}),
     'apply-update': async (_, remoteVersion) => {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('update-progress', progress);
@@ -550,6 +550,11 @@ function registerIpc() {
     'open-tg-proxy-telegram': () => tgProxy.openInTelegram(),
     'copy-tg-proxy-link': () => tgProxy.copyProxyLink(),
     'open-tg-proxy-settings': () => tgProxy.openSettings(),
+    'fatal-error-quit': () => {
+      app.isQuitting = true;
+      app.quit();
+      return true;
+    },
     'relaunch-app': async () => {
       app.isQuitting = true;
       try {
@@ -584,6 +589,7 @@ function registerIpc() {
 
 app.on('second-instance', () => {
   showMainWindow();
+  sendInAppNotify('Zapret HUB уже запущен — окно восстановлено');
 });
 
 app.whenReady().then(() => {
@@ -618,8 +624,7 @@ app.whenReady().then(() => {
     startTgProxyPolling();
   } catch (err) {
     logStartup(`Startup error: ${err.message}`);
-    dialog.showErrorBox('Zapret HUB', `Ошибка запуска:\n${err.message}`);
-    app.quit();
+    showFatalErrorWindow('Ошибка запуска', 'Не удалось запустить Zapret HUB.', err.message);
     return;
   }
 

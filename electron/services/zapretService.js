@@ -3,7 +3,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const https = require('https');
-const { exec, spawn } = require('child_process');
+const { exec, execSync, spawn } = require('child_process');
 const { promisify } = require('util');
 
 const execAsync = promisify(exec);
@@ -322,21 +322,40 @@ class ZapretService {
     }
   }
 
+  normalizeVersion(version) {
+    return String(version || '')
+      .trim()
+      .replace(/^\uFEFF/, '')
+      .replace(/[\u0441\u0441]/gi, 'c')
+      .replace(/[\u0430]/gi, 'a')
+      .replace(/[\u0435]/gi, 'e')
+      .replace(/[\u043e]/gi, 'o')
+      .replace(/[\u0440]/gi, 'p')
+      .replace(/[\u0445]/gi, 'x')
+      .replace(/[\u0443]/gi, 'y')
+      .replace(/[\u0432]/gi, 'b');
+  }
+
   parseVersion(version) {
-    const match = String(version || '').trim().match(/^(\d+)\.(\d+)\.(\d+)([a-z]*)$/i);
+    const normalized = this.normalizeVersion(version);
+    const match = normalized.match(/^(\d+)\.(\d+)\.(\d+)([a-z]*)$/i);
     if (!match) return null;
     return {
       major: Number(match[1]),
       minor: Number(match[2]),
       patch: Number(match[3]),
-      suffix: match[4] || ''
+      suffix: (match[4] || '').toLowerCase()
     };
   }
 
   compareVersions(left, right) {
     const a = this.parseVersion(left);
     const b = this.parseVersion(right);
-    if (!a || !b) return String(left).trim() === String(right).trim() ? 0 : -1;
+    if (!a || !b) {
+      return this.normalizeVersion(left).toLowerCase() === this.normalizeVersion(right).toLowerCase()
+        ? 0
+        : -1;
+    }
 
     if (a.major !== b.major) return a.major - b.major;
     if (a.minor !== b.minor) return a.minor - b.minor;
@@ -345,6 +364,10 @@ class ZapretService {
     if (!a.suffix) return -1;
     if (!b.suffix) return 1;
     return a.suffix.localeCompare(b.suffix);
+  }
+
+  invalidateUpdateCache() {
+    this._updateCheckCache = null;
   }
 
   getLocalVersion() {
@@ -632,6 +655,7 @@ class ZapretService {
         : `Обновлено до ${local}`;
 
       this.emitProgress(onProgress, { phase: 'done', percent: 100, message: doneMessage });
+      this.invalidateUpdateCache();
       return {
         success: true,
         local,
@@ -1011,6 +1035,15 @@ class ZapretService {
     return Buffer.from(value, 'utf16le').toString('base64');
   }
 
+  isProcessElevated() {
+    try {
+      execSync('net session', { windowsHide: true, stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   runElevated(command, args = []) {
     return new Promise((resolve, reject) => {
       const argList = args.map((a) => `'${a.replace(/'/g, "''")}'`).join(', ');
@@ -1329,6 +1362,22 @@ class ZapretService {
     return results;
   }
 
+  buildUpdateResult(local, remote, extra = {}) {
+    const normalizedRemote = this.normalizeVersion(remote);
+    const updateAvailable =
+      Boolean(normalizedRemote) && this.compareVersions(local, normalizedRemote) < 0;
+    return {
+      local,
+      remote: normalizedRemote || null,
+      updateAvailable,
+      downloadUrl: normalizedRemote ? this.getReleaseDownloadUrl(normalizedRemote) : null,
+      releaseUrl: normalizedRemote
+        ? `https://github.com/Flowseal/zapret-discord-youtube/releases/tag/${normalizedRemote}`
+        : 'https://github.com/Flowseal/zapret-discord-youtube/releases/latest',
+      ...extra
+    };
+  }
+
   async checkForUpdates({ force = false } = {}) {
     const local = this.getLocalVersion();
     const cacheTtlMs = 30 * 60 * 1000;
@@ -1337,7 +1386,14 @@ class ZapretService {
       this._updateCheckCache &&
       Date.now() - this._updateCheckCache.at < cacheTtlMs
     ) {
-      return { ...this._updateCheckCache.result, local, cached: true };
+      const cached = this._updateCheckCache.result;
+      return {
+        ...cached,
+        local,
+        updateAvailable:
+          Boolean(cached.remote) && this.compareVersions(local, cached.remote) < 0,
+        cached: true
+      };
     }
 
     try {
@@ -1345,17 +1401,8 @@ class ZapretService {
         `powershell -NoProfile -Command "(Invoke-WebRequest -Uri '${VERSION_URL}' -Headers @{ 'Cache-Control' = 'no-cache' } -UseBasicParsing -TimeoutSec 5).Content.Trim()"`,
         { windowsHide: true, timeout: 8000 }
       );
-      const remote = stdout.trim();
-      const updateAvailable = Boolean(remote) && this.compareVersions(local, remote) < 0;
-      const result = {
-        local,
-        remote,
-        updateAvailable,
-        downloadUrl: remote ? this.getReleaseDownloadUrl(remote) : null,
-        releaseUrl: remote
-          ? `https://github.com/Flowseal/zapret-discord-youtube/releases/tag/${remote}`
-          : 'https://github.com/Flowseal/zapret-discord-youtube/releases/latest'
-      };
+      const remote = this.normalizeVersion(stdout);
+      const result = this.buildUpdateResult(local, remote);
       this._updateCheckCache = { at: Date.now(), result };
       return result;
     } catch (e) {
@@ -1375,21 +1422,25 @@ class ZapretService {
       throw new Error('Скрипт тестов не найден');
     }
 
+    const elevated = this.isProcessElevated();
     const workDir = path.dirname(script);
     const scriptB64 = this.encodePsPath(script);
     const wdB64 = this.encodePsPath(workDir);
+    const startProcess = elevated
+      ? `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File',$script) -WorkingDirectory $wd -WindowStyle Normal`
+      : `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File',$script) -WorkingDirectory $wd -Verb RunAs -WindowStyle Normal`;
     const ps = [
       `$script = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptB64}'))`,
       `$wd = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${wdB64}'))`,
       `$env:NO_UPDATE_CHECK='1'`,
-      `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File',$script) -WorkingDirectory $wd -Verb RunAs -WindowStyle Normal`
+      startProcess
     ].join('; ');
 
     spawn('powershell', ['-NoProfile', '-Command', ps], {
       detached: true,
       windowsHide: true
     }).unref();
-    return { started: true };
+    return { started: true, elevated };
   }
 
   browseFolder() {

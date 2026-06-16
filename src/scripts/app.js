@@ -113,7 +113,24 @@ const NOTIFY_DISPLAY_MS = 4000;
 const NOTIFY_FADE_MS = 300;
 const NOTIFY_MAX_STACK = 4;
 
-function toast(message) {
+function formatEngineVersion(version) {
+  if (!version || version === '—' || version === 'unknown') return '—';
+  return String(version).trim().replace(/^\uFEFF/, '') || '—';
+}
+
+const TOAST_OFF_MESSAGES = new Set([
+  'Выключение обхода',
+  'TG Proxy выключен'
+]);
+
+function toastKindForMessage(message, kind = 'success') {
+  if (kind === 'off') return 'off';
+  if (kind !== 'success' || !message) return kind;
+  if (TOAST_OFF_MESSAGES.has(message)) return 'off';
+  return kind;
+}
+
+function toast(message, kind = 'success') {
   const container = $('#toastContainer');
   if (!container || !message) return;
 
@@ -121,8 +138,9 @@ function toast(message) {
     container.firstElementChild?.remove();
   }
 
+  const resolvedKind = toastKindForMessage(message, kind);
   const el = document.createElement('div');
-  el.className = 'toast';
+  el.className = `toast${resolvedKind && resolvedKind !== 'success' ? ` toast-${resolvedKind}` : ''}`;
   el.setAttribute('role', 'status');
   el.setAttribute('aria-live', 'polite');
   el.textContent = message;
@@ -171,6 +189,38 @@ function showCloseRememberModal() {
 
 function hideCloseRememberModal() {
   $('#closeRememberModal')?.classList.add('hidden');
+}
+
+let confirmResolver = null;
+
+function hideConfirmModal() {
+  $('#confirmModal')?.classList.add('hidden');
+}
+
+function showConfirmModal({ title, text, confirmLabel = 'Удалить' }) {
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+    $('#confirmModalTitle').textContent = title || 'Подтверждение';
+    $('#confirmModalText').textContent = text || '';
+    $('#btnConfirmOk').textContent = confirmLabel;
+    $('#confirmModal')?.classList.remove('hidden');
+  });
+}
+
+function resolveConfirmModal(confirmed) {
+  if (!confirmResolver) return;
+  const resolve = confirmResolver;
+  confirmResolver = null;
+  hideConfirmModal();
+  resolve(confirmed);
+}
+
+function setupConfirmModal() {
+  $('#btnConfirmCancel')?.addEventListener('click', () => resolveConfirmModal(false));
+  $('#btnConfirmOk')?.addEventListener('click', () => resolveConfirmModal(true));
+  $('#confirmModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#confirmModal')) resolveConfirmModal(false);
+  });
 }
 
 function setupCloseModals() {
@@ -247,7 +297,7 @@ function updateUI(status) {
 
   $('#infoVersion').textContent = status.appVersion ? `v${status.appVersion}` : '—';
   const engineVersion = $('#engineVersion');
-  if (engineVersion) engineVersion.textContent = status.version || '—';
+  if (engineVersion) engineVersion.textContent = formatEngineVersion(status.version);
 
   state.autoCheckUpdates = status.autoUpdate?.enabled !== false;
   updateHomeControls(status);
@@ -722,7 +772,12 @@ async function onCustomListSelectChange() {
 async function deleteSelectedCustomList() {
   if (!state.customListEditing) return;
   const id = state.customListEditing;
-  if (!confirm(`Удалить список «${id}»?`)) return;
+  const confirmed = await showConfirmModal({
+    title: 'Удалить список?',
+    text: `Список «${id}» и все его домены будут удалены без возможности восстановления.`,
+    confirmLabel: 'Удалить'
+  });
+  if (!confirmed) return;
 
   try {
     const meta = await api('deleteCustomList', id);
@@ -757,11 +812,16 @@ function showUpdateModal(info, options = {}) {
   state.pendingStartStrategy = options.strategy || null;
 
   const beforeStart = state.updateContext === 'beforeStart';
+  const onStartup = state.updateContext === 'startup';
   $('#updateModalText').textContent = beforeStart
     ? `Перед запуском рекомендуем обновить Zapret: доступна версия ${info.remote} (у вас ${info.local}).`
     : `Доступна версия ${info.remote}. У вас установлена ${info.local}. Обновить автоматически?`;
 
   $('#btnUpdateLater').textContent = beforeStart ? 'Запустить без обновления' : 'Позже';
+  if (onStartup) {
+    $('#updateModalText').textContent =
+      `Вышла новая версия ${info.remote}. У вас установлена ${info.local}. Обновить автоматически?`;
+  }
   $('#btnUpdateNow').textContent = 'Обновить';
   $('#updateProgressBlock').classList.add('hidden');
   $('#updateModalActions').classList.remove('hidden');
@@ -962,6 +1022,7 @@ async function init() {
   setupAppRestartModal();
   setupUpdateModal();
   setupCloseModals();
+  setupConfirmModal();
 
   try {
     const pathCheck = await api('validatePath');
@@ -1164,8 +1225,12 @@ async function init() {
 
   $('#btnTests').addEventListener('click', async () => {
     try {
-      await api('runTests');
-      toast('Подтвердите UAC — откроется окно тестов', 'info');
+      const result = await api('runTests');
+      if (result.elevated) {
+        toast('Тесты доступности запущены', 'info');
+      } else {
+        toast('Для прохождения тестов запустите программу от имени администратора', 'info');
+      }
     } catch (e) {
       toast(e.message, 'error');
     }
@@ -1176,7 +1241,7 @@ async function init() {
     const el = $('#updateResult');
     el.innerHTML = '<span style="color:var(--text-muted)">Проверяем...</span>';
     try {
-      const info = await api('checkUpdates');
+      const info = await api('checkUpdates', { force: true });
       if (info.error) {
         el.innerHTML = `<span class="diag-warn">Не удалось проверить: ${info.error}</span>`;
       } else if (info.updateAvailable) {
@@ -1210,6 +1275,9 @@ async function init() {
       if (state.tgProxy.running) {
         const status = await api('stopTgProxy');
         updateTgProxyUI(status);
+        if (!status.running) {
+          toast('TG Proxy выключен', 'off');
+        }
       } else {
         const status = await api('startTgProxy');
         updateTgProxyUI(status);
@@ -1273,6 +1341,11 @@ async function init() {
   window.zapretAPI.onTgProxyChanged((status) => updateTgProxyUI(status));
   window.zapretAPI.onError((msg) => toast(msg));
   window.zapretAPI.onNotify((msg) => toast(msg));
+  window.zapretAPI.onStartupUpdateAvailable((info) => {
+    if (info?.updateAvailable) {
+      showUpdateModal(info, { context: 'startup' });
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
