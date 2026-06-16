@@ -1,0 +1,96 @@
+{
+  "name": "zapret-hub",
+  "version": "1.0.0",
+  "description": "Zapret HUB — панель обхода блокировок Discord, YouTube, Telegram",
+  "main": "electron/main.js",
+  "author": "RAYNER",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "icon:ico": "node scripts/png-to-ico.mjs",
+    "prebuild": "node scripts/png-to-ico.mjs",
+    "build": "electron-builder --win",
+    "build:portable": "electron-builder --win portable",
+    "postinstall": "node install-electron.js"
+  },
+  "build": {
+    "appId": "com.rayner.zapret-hub",
+    "productName": "Zapret HUB",
+    "directories": {
+      "output": "dist"
+    },
+    "asarUnpack": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "assets/**/*",
+      "config.default.json",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "../Запрет",
+        "to": "zapret",
+        "filter": [
+          "**/*",
+          "!**/.git/**",
+          "!**/backups/**"
+        ]
+      }
+    ],
+    "artifactName": "ZapretHub-Setup-${version}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "ZapretHub-Portable-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Zapret HUB",
+      "runAfterFinish": true,
+      "displayLanguageSelector": false,
+      "installerLanguages": [
+        "ru_RU",
+        "en_US"
+      ],
+      "language": "1049",
+      "installerHeaderIcon": "assets/icon.ico",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.1"
+  }
+}

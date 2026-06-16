@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self';">
+  <title>Zapret HUB</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">
+          <img src="../assets/icon.png" alt="Zapret HUB" width="36" height="36">
+        </div>
+        <div class="logo-text">
+          <span class="logo-title">Zapret</span>
+          <span class="logo-sub">HUB</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-page="home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+          Главная
+        </button>
+        <button class="nav-item" data-page="sites">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          Мои сайты
+        </button>
+        <button class="nav-item" data-page="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Настройки
+        </button>
+        <button class="nav-item" data-page="tools">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+          Обслуживание
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-mini" id="statusMini">
+          <span class="status-dot off"></span>
+          <span>Выключено</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <!-- HOME -->
+      <section class="page active" id="page-home">
+        <header class="page-header">
+          <h1>Управление обходом</h1>
+          <p class="subtitle">Включите Zapret и выберите подходящую стратегию</p>
+        </header>
+
+        <div class="hero-card" id="heroCard">
+          <div class="hero-status">
+            <div class="status-ring" id="statusRing">
+              <div class="status-ring-inner">
+                <span class="status-dot-core" id="statusDot"></span>
+              </div>
+            </div>
+            <div class="hero-info">
+              <h2 id="statusTitle">Выключено</h2>
+              <p id="statusDesc">Нажмите кнопку, чтобы включить обход блокировок</p>
+            </div>
+          </div>
+          <button class="btn-power" id="btnPower" type="button">
+            <span class="btn-power-label">Включить</span>
+          </button>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Стратегия подключения</h3>
+            <p class="card-hint">Если один вариант не работает — попробуйте другой</p>
+            <select class="select" id="strategySelect"></select>
+            <p class="strategy-desc" id="strategyDesc"></p>
+          </div>
+
+          <div class="card">
+            <h3>Быстрая информация</h3>
+            <div class="info-list">
+              <div class="info-row">
+                <span>Версия Zapret</span>
+                <span id="infoVersion">—</span>
+              </div>
+              <div class="info-row">
+                <span>Игровой фильтр</span>
+                <span id="infoGameFilter">—</span>
+              </div>
+              <div class="info-row">
+                <span>IPSet фильтр</span>
+                <span id="infoIpset">—</span>
+              </div>
+              <div class="info-row">
+                <span>Автозапуск</span>
+                <span id="infoService">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SITES -->
+      <section class="page" id="page-sites">
+        <header class="page-header">
+          <h1>Мои сайты</h1>
+          <p class="subtitle">Домены, которые нужно пропускать через обход</p>
+        </header>
+
+        <div class="card">
+          <div class="sites-toolbar">
+            <input type="text" class="input" id="siteInput" placeholder="Например: example.com">
+            <button class="btn btn-primary" id="btnAddSite" type="button">Добавить</button>
+          </div>
+          <div class="sites-list" id="sitesList"></div>
+          <div class="sites-actions">
+            <button class="btn btn-ghost" id="btnSaveSites" type="button">Сохранить список</button>
+            <span class="sites-count" id="sitesCount">0 сайтов</span>
+          </div>
+        </div>
+
+        <div class="hint-box">
+          <strong>Подсказка:</strong> вводите только домен без https:// — например <code>twitter.com</code> или <code>discord.com</code>. Файл не должен оставаться пустым.
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="page" id="page-settings">
+        <header class="page-header">
+          <h1>Настройки</h1>
+          <p class="subtitle">Фильтры и путь к программе Zapret</p>
+        </header>
+
+        <div class="card">
+          <h3>Игровой фильтр</h3>
+          <p class="card-hint">Расширяет обход на игровой трафик (может помочь в онлайн-играх)</p>
+          <div class="toggle-group" id="gameFilterGroup">
+            <button class="toggle-btn" data-value="disabled">Выкл</button>
+            <button class="toggle-btn" data-value="all">TCP + UDP</button>
+            <button class="toggle-btn" data-value="tcp">Только TCP</button>
+            <button class="toggle-btn" data-value="udp">Только UDP</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>IPSet фильтр</h3>
+          <p class="card-hint">Управляет списком IP-адресов для обхода</p>
+          <div class="toggle-group" id="ipsetGroup">
+            <button class="toggle-btn" data-value="loaded">Загружен</button>
+            <button class="toggle-btn" data-value="none">Отключён</button>
+            <button class="toggle-btn" data-value="any">Любые IP</button>
+          </div>
+        </div>
+
+        <div class="card card-row">
+          <div>
+            <h3>Автопроверка обновлений</h3>
+            <p class="card-hint">При запуске Zapret проверять новую версию</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="autoUpdateToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="card">
+          <h3>Папка Zapret</h3>
+          <p class="card-hint">Путь к установленной программе (где лежит winws.exe)</p>
+          <div class="path-row">
+            <input type="text" class="input" id="zapretPathInput" readonly>
+            <button class="btn btn-ghost" id="btnBrowsePath" type="button">Обзор</button>
+          </div>
+          <p class="path-status" id="pathStatus"></p>
+        </div>
+      </section>
+
+      <!-- TOOLS -->
+      <section class="page" id="page-tools">
+        <header class="page-header">
+          <h1>Обслуживание</h1>
+          <p class="subtitle">Диагностика, тесты и обновления</p>
+        </header>
+
+        <div class="grid-2">
+          <div class="card tool-card">
+            <h3>Диагностика</h3>
+            <p class="card-hint">Проверит конфликты и готовность системы</p>
+            <button class="btn btn-primary" id="btnDiagnostics" type="button">Запустить</button>
+            <div class="diag-results" id="diagResults"></div>
+          </div>
+
+          <div class="card tool-card">
+            <h3>Тесты доступности</h3>
+            <p class="card-hint">Откроет окно PowerShell с проверкой сайтов</p>
+            <button class="btn btn-primary" id="btnTests" type="button">Запустить тесты</button>
+          </div>
+
+          <div class="card tool-card">
+            <h3>Проверка обновлений</h3>
+            <p class="card-hint">Сравнит вашу версию с GitHub</p>
+            <button class="btn btn-primary" id="btnCheckUpdates" type="button">Проверить</button>
+            <div class="update-result" id="updateResult"></div>
+          </div>
+
+          <div class="card tool-card">
+            <h3>О программе</h3>
+            <p class="card-hint">Основано на <a href="#" id="linkGithub" class="link">zapret-discord-youtube</a></p>
+            <p class="about-text">Zapret HUB — панель обхода блокировок. Discord · YouTube · Telegram</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="scripts/app.js"></script>
+</body>
+</html>

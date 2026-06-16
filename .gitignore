@@ -1,0 +1,11 @@
+node_modules/
+config.json
+install-log.txt
+dist/
+dist/_asar*/
+*.log
+.verstak/
+delete
+bundled/
+Thumbs.db
+.DS_Store

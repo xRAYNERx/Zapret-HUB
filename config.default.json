@@ -1,0 +1,10 @@
+{
+  "zapretPath": "D:\\PROGRAMMS\\Запрет",
+  "lastStrategy": "general.bat",
+  "startMinimized": false,
+  "closeBehavior": null,
+  "autoCheckUpdates": true,
+  "autostartZapretEnabled": false,
+  "autostartTgProxyEnabled": false,
+  "activeCustomList": null
+}

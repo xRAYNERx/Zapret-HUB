@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self';">
+  <title>Zapret HUB</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div class="aurora-bg" aria-hidden="true">
+    <div class="aurora-blob aurora-blob-1"></div>
+    <div class="aurora-blob aurora-blob-2"></div>
+    <div class="aurora-blob aurora-blob-3"></div>
+  </div>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-logo" src="../assets/logo.png" alt="" width="36" height="36" aria-hidden="true">
+        <div class="brand-text">
+          <span class="logo-title">Zapret</span>
+          <span class="logo-sub">HUB</span>
+        </div>
+      </div>
+
+      <nav class="topnav">
+        <button class="nav-item active" data-page="home" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+          Главная
+        </button>
+        <button class="nav-item" data-page="sites" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          Сайты
+        </button>
+        <button class="nav-item" data-page="tools" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+          Сервис
+        </button>
+      </nav>
+
+      <div class="topbar-end">
+        <span class="app-version" id="infoVersion" title="Версия движка">—</span>
+        <div class="topbar-status" id="statusMini">
+          <span class="status-dot off"></span>
+          <span>Выключено</span>
+        </div>
+        <div class="window-controls" aria-label="Управление окном">
+          <button class="win-btn win-btn-min" id="btnWinMinimize" type="button" aria-label="Свернуть" title="Свернуть">
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <button class="win-btn win-btn-close" id="btnWinClose" type="button" aria-label="Закрыть" title="Закрыть">
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="shell shell--home">
+      <main class="content">
+        <!-- HOME -->
+        <section class="page active" id="page-home">
+          <div class="control-theater pulse-hero" id="heroCard">
+            <div class="pulse-scanlines" aria-hidden="true"></div>
+            <div class="pulse-inner">
+              <div class="pulse-status-col">
+                <div class="hex-frame">
+                  <div class="status-ring" id="statusRing">
+                    <div class="status-ring-inner">
+                      <span class="status-dot-core" id="statusDot"></span>
+                    </div>
+                  </div>
+                  <div class="hex-glow" aria-hidden="true"></div>
+                </div>
+
+                <div class="pulse-copy">
+                  <p class="pulse-eyebrow">Статус обхода YouTube и Discord</p>
+                  <h2 id="statusTitle">Выключено</h2>
+                  <p id="statusDesc">Переключите рычаг, чтобы включить обход блокировок YouTube и Discord</p>
+                </div>
+              </div>
+
+              <div class="power-switch-col">
+                <button class="btn-power" id="btnPower" type="button" aria-label="Включить или выключить обход">
+                  <span class="btn-power-dock">
+                    <span class="btn-power-glider" aria-hidden="true"></span>
+                    <span class="btn-power-seg btn-power-off">ВЫКЛ</span>
+                    <span class="btn-power-seg btn-power-on">ВКЛ</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-row">
+            <article class="panel panel-tg card-tg-proxy glass-card">
+              <header class="panel-head">
+                <div class="panel-icon panel-icon-tg">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </div>
+                <div class="panel-head-text">
+                  <h3>Прокси для Telegram</h3>
+                  <p class="card-hint">Локальный SOCKS5 через WebSocket</p>
+                </div>
+                <span class="tg-proxy-badge" id="tgProxyBadge">Выключен</span>
+              </header>
+
+              <div class="tg-proxy-status" id="tgProxyStatusBlock">
+                <div class="tg-proxy-address">
+                  <span class="tg-proxy-label">Адрес</span>
+                  <code id="tgProxyAddress">127.0.0.1:1443</code>
+                </div>
+                <div class="tg-proxy-version">
+                  <span class="tg-proxy-label">Версия</span>
+                  <span id="tgProxyVersion">—</span>
+                </div>
+              </div>
+
+              <button class="btn btn-primary btn-tg-proxy-toggle" id="btnTgProxyToggle" type="button">
+                Включить прокси
+              </button>
+
+              <div class="tg-proxy-update hidden" id="tgProxyUpdateBlock">
+                <span class="diag-warn" id="tgProxyUpdateText"></span>
+                <button class="btn btn-ghost btn-sm" id="btnTgProxyUpdate" type="button">Обновить</button>
+              </div>
+            </article>
+
+            <article class="panel panel-strategy glass-card">
+              <header class="panel-head">
+                <div class="panel-icon panel-icon-strategy">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
+                </div>
+                <div class="panel-head-text">
+                  <h3>Смена стратегии обхода блокировки YouTube и Discord</h3>
+                  <p class="card-hint">Если один вариант не работает — попробуйте другой</p>
+                </div>
+              </header>
+
+              <select class="select" id="strategySelect"></select>
+              <div class="strategy-shuffle">
+                <button class="btn btn-ghost btn-strategy-shuffle" id="btnStrategyShuffle" type="button">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+                  </svg>
+                  Случайная стратегия
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- SITES -->
+        <section class="page" id="page-sites">
+          <header class="page-header">
+            <div class="page-header-badge">Списки</div>
+            <h1>Мои сайты</h1>
+            <p class="subtitle">Основной список обхода и дополнительные списки по выбору</p>
+          </header>
+
+          <div class="sites-stack" role="group" aria-label="Списки доменов">
+            <article class="panel sites-card glass-card">
+              <header class="panel-head">
+                <div class="panel-icon panel-icon-sites">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+                  </svg>
+                </div>
+                <div class="panel-head-text">
+                  <h3>Основной список</h3>
+                  <p class="card-hint">Файл <code>list-general.txt</code> — Discord, YouTube и остальные домены обхода</p>
+                </div>
+              </header>
+
+              <form class="sites-add-row" id="sitesAddForm" autocomplete="off">
+                <input type="text" class="input" id="siteInput" placeholder="discord.com" spellcheck="false">
+                <button class="btn btn-primary btn-power-green sites-add-btn" id="btnAddSite" type="submit" title="Добавить домен">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  <span>Добавить</span>
+                </button>
+              </form>
+              <p class="sites-add-hint">Только домен, без <code>https://</code> — например <code>youtube.com</code></p>
+
+              <div class="sites-accordion" id="sitesAccordion">
+                <button class="sites-accordion-toggle" id="sitesAccordionToggle" type="button" aria-expanded="true" aria-controls="sitesAccordionBody">
+                  <span class="sites-accordion-label">
+                    <svg class="sites-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                    <span>Все домены</span>
+                  </span>
+                  <span class="sites-count-badge" id="sitesCount">0</span>
+                </button>
+                <div class="sites-accordion-body" id="sitesAccordionBody">
+                  <div class="sites-list" id="sitesList"></div>
+                  <p class="sites-empty" id="sitesEmpty" hidden>Список пуст — добавьте хотя бы один домен</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel sites-card glass-card sites-card-extra">
+              <header class="panel-head">
+                <div class="panel-icon panel-icon-extra">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M4 6h16M4 12h16M4 18h10"/>
+                  </svg>
+                </div>
+                <div class="panel-head-text">
+                  <h3>Дополнительный список</h3>
+                  <p class="card-hint">Свои списки в <code>lists/custom/</code>; активный подключается как <code>list-general-user.txt</code></p>
+                </div>
+              </header>
+
+              <div class="custom-list-toolbar">
+                <label class="custom-list-field">
+                  <span class="custom-list-label">Активный список</span>
+                  <select class="input custom-list-select" id="customListSelect">
+                    <option value="">Не использовать</option>
+                  </select>
+                </label>
+                <button class="btn btn-secondary btn-sm" id="btnCreateCustomList" type="button">Создать</button>
+                <button class="btn btn-ghost btn-sm custom-list-delete" id="btnDeleteCustomList" type="button" title="Удалить выбранный список" hidden>Удалить</button>
+              </div>
+
+              <form class="custom-list-create-row" id="customListCreateForm" hidden autocomplete="off">
+                <input type="text" class="input" id="customListNameInput" placeholder="Название списка" spellcheck="false" maxlength="48">
+                <button class="btn btn-primary btn-power-green btn-sm" type="submit">OK</button>
+                <button class="btn btn-ghost btn-sm" id="btnCancelCustomList" type="button">Отмена</button>
+              </form>
+
+              <div class="custom-list-editor" id="customListEditor" hidden>
+                <form class="sites-add-row" id="customSitesAddForm" autocomplete="off">
+                  <input type="text" class="input" id="customSiteInput" placeholder="example.com" spellcheck="false">
+                  <button class="btn btn-primary btn-power-green sites-add-btn" id="btnAddCustomSite" type="submit" title="Добавить домен">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                      <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    <span>Добавить</span>
+                  </button>
+                </form>
+
+                <div class="sites-accordion" id="customSitesAccordion">
+                  <button class="sites-accordion-toggle" id="customSitesAccordionToggle" type="button" aria-expanded="true" aria-controls="customSitesAccordionBody">
+                    <span class="sites-accordion-label">
+                      <svg class="sites-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M6 9l6 6 6-6"/>
+                      </svg>
+                      <span id="customSitesAccordionLabel">Домены списка</span>
+                    </span>
+                    <span class="sites-count-badge" id="customSitesCount">0</span>
+                  </button>
+                  <div class="sites-accordion-body" id="customSitesAccordionBody">
+                    <div class="sites-list" id="customSitesList"></div>
+                    <p class="sites-empty" id="customSitesEmpty" hidden>Список пуст — добавьте домены</p>
+                  </div>
+                </div>
+              </div>
+
+              <p class="sites-empty custom-list-placeholder" id="customListPlaceholder">Создайте список или выберите существующий</p>
+            </article>
+          </div>
+        </section>
+
+        <!-- TOOLS -->
+        <section class="page" id="page-tools">
+          <header class="page-header">
+            <div class="page-header-badge">Инструменты</div>
+            <h1>Обслуживание</h1>
+            <p class="subtitle">Диагностика, тесты и расширенные настройки</p>
+          </header>
+
+          <div class="panel glass-card tools-ipset-panel">
+            <h3 class="card-title-row">
+              IPSet фильтр
+              <button class="help-btn" type="button" aria-label="Что такое IPSet фильтр" data-help="ipset-filter">?</button>
+            </h3>
+            <p class="card-hint">Второй слой обхода по IP-адресам. Для большинства пользователей оставьте «Отключён».</p>
+            <div class="toggle-group" id="ipsetGroup">
+              <button class="toggle-btn" data-value="loaded" type="button">Загружен</button>
+              <button class="toggle-btn" data-value="none" type="button">Отключён</button>
+              <button class="toggle-btn" data-value="any" type="button">Любые IP</button>
+            </div>
+          </div>
+
+          <div class="tools-grid">
+            <div class="panel tool-card glass-card">
+              <div class="tool-icon tool-icon-diag">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              </div>
+              <h3>Диагностика</h3>
+              <p class="card-hint">Проверит конфликты и готовность системы</p>
+              <button class="btn btn-primary btn-power-green" id="btnDiagnostics" type="button">Запустить</button>
+              <div class="diag-results" id="diagResults"></div>
+            </div>
+
+            <div class="panel tool-card glass-card">
+              <div class="tool-icon tool-icon-test">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6v7l5 9H4l5-9V3z"/></svg>
+              </div>
+              <h3>Тесты доступности</h3>
+              <p class="card-hint">Откроет окно PowerShell с проверкой сайтов</p>
+              <button class="btn btn-primary btn-power-green" id="btnTests" type="button">Запустить тесты</button>
+            </div>
+
+            <div class="panel tool-card glass-card">
+              <div class="tool-icon tool-icon-update">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              </div>
+              <h3>Проверка обновлений</h3>
+              <p class="card-hint">Сравнит вашу версию с GitHub</p>
+              <button class="btn btn-primary btn-power-green" id="btnCheckUpdates" type="button">Проверить</button>
+              <div class="update-result" id="updateResult"></div>
+            </div>
+
+            <div class="panel tool-card tool-card-about glass-card">
+              <div class="tool-icon tool-icon-about tool-icon-logo">
+                <img src="../assets/logo.png" alt="Zapret HUB" width="32" height="32">
+              </div>
+              <h3>О программе</h3>
+              <div class="about-body">
+                <p class="about-tagline">Zapret HUB — панель обхода блокировок</p>
+                <p class="about-services">Discord · YouTube · Telegram</p>
+                <ul class="about-links">
+                  <li>
+                    <span class="about-link-label">Движок</span>
+                    <a href="#" id="linkGithub" class="link">zapret-discord-youtube</a>
+                  </li>
+                  <li>
+                    <span class="about-link-label">Прокси TG</span>
+                    <a href="#" id="linkTgGithub" class="link">tg-ws-proxy</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="quick-bar">
+        <div class="info-list sidebar-info-list">
+          <div class="info-chip info-chip-control">
+            <span class="info-label">
+              Игровой фильтр
+              <button class="help-btn" type="button" aria-label="Что такое игровой фильтр" data-help="game-filter">?</button>
+            </span>
+            <label class="switch">
+              <input type="checkbox" id="gameFilterToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="info-chip info-chip-control">
+            <span class="info-label">
+              Автозапуск обхода
+              <button class="help-btn" type="button" aria-label="Что такое автозапуск обхода" data-help="autostart-zapret">?</button>
+            </span>
+            <label class="switch">
+              <input type="checkbox" id="autostartZapretToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="info-chip info-chip-control">
+            <span class="info-label">
+              Автозапуск TG Proxy
+              <button class="help-btn" type="button" aria-label="Что такое автозапуск TG Proxy" data-help="autostart-tg">?</button>
+            </span>
+            <label class="switch">
+              <input type="checkbox" id="autostartTgToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <div class="help-popover hidden" id="helpPopover" role="tooltip">
+    <button class="help-popover-close" id="helpPopoverClose" type="button" aria-label="Закрыть">×</button>
+    <h4 class="help-popover-title" id="helpPopoverTitle"></h4>
+    <div class="help-popover-body" id="helpPopoverBody"></div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="modal-overlay hidden" id="restartModal">
+    <div class="modal-card">
+      <h2>Нужен перезапуск</h2>
+      <p class="modal-text" id="restartModalText"></p>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btnRestartOk" type="button">Понятно</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="appRestartModal">
+    <div class="modal-card">
+      <h2>Перезапуск</h2>
+      <p class="modal-text">Чтобы изменения вступили в силу нужно перезапустить приложение. Перезапустить сейчас?</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnAppRestartLater" type="button">Позже</button>
+        <button class="btn btn-primary" id="btnAppRestartNow" type="button">Перезапустить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="updateModal">
+    <div class="modal-card">
+      <h2>Обновление Zapret</h2>
+      <p class="modal-text" id="updateModalText">Доступна новая версия.</p>
+      <div class="update-progress hidden" id="updateProgressBlock">
+        <div class="update-progress-bar">
+          <div class="update-progress-fill" id="updateProgressFill"></div>
+        </div>
+        <p class="update-progress-label" id="updateProgressLabel">Подготовка...</p>
+      </div>
+      <div class="modal-actions" id="updateModalActions">
+        <button class="btn btn-primary" id="btnUpdateNow" type="button">Обновить</button>
+        <button class="btn btn-ghost" id="btnUpdateLater" type="button">Позже</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts/app.js"></script>
+</body>
+</html>
