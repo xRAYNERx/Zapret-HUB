@@ -62,12 +62,13 @@
           ]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "signAndEditExecutable": false
     },
     "portable": {
       "artifactName": "ZapretHub-Portable-${version}.${ext}"
     },
+    "afterPack": "scripts/after-pack-icon.cjs",
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -91,6 +92,7 @@
   "devDependencies": {
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
-    "png-to-ico": "^3.0.1"
+    "png-to-ico": "^3.0.1",
+    "rcedit": "^5.0.2"
   }
 }

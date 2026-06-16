@@ -101,6 +101,21 @@ class TgProxyService {
 
   downloadFile(url, destPath, onProgress) {
     return new Promise((resolve, reject) => {
+      let lastReportedPercent = -1;
+
+      const reportProgress = (percent, phase) => {
+        if (typeof onProgress !== 'function') return;
+        const safePercent = Math.min(100, Math.max(0, percent));
+        if (phase !== 'start' && phase !== 'done' && safePercent === lastReportedPercent) return;
+        lastReportedPercent = safePercent;
+        onProgress({
+          percent: safePercent,
+          message: phase === 'done'
+            ? 'TG WS Proxy установлен'
+            : `Скачивание TG WS Proxy… ${safePercent}%`
+        });
+      };
+
       const request = (targetUrl) => {
         const client = targetUrl.startsWith('https') ? https : http;
         client
@@ -119,18 +134,23 @@ class TgProxyService {
             let downloaded = 0;
             const file = fs.createWriteStream(destPath);
 
+            reportProgress(0, 'start');
+
             response.on('data', (chunk) => {
               downloaded += chunk.length;
-              if (total > 0 && typeof onProgress === 'function') {
-                onProgress({
-                  percent: Math.min(100, Math.round((downloaded / total) * 100)),
-                  message: 'Скачивание TG WS Proxy...'
-                });
+              if (total > 0) {
+                const percent = Math.round((downloaded / total) * 100);
+                if (percent >= lastReportedPercent + 10 || percent === 100) {
+                  reportProgress(percent);
+                }
               }
             });
 
             response.pipe(file);
-            file.on('finish', () => file.close(() => resolve()));
+            file.on('finish', () => file.close(() => {
+              reportProgress(100, 'done');
+              resolve();
+            }));
             file.on('error', (err) => {
               fs.unlink(destPath, () => reject(err));
             });

@@ -50,6 +50,10 @@ const api = {
   relaunchApp: () => ipcRenderer.invoke('relaunch-app'),
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
+  windowCloseChoice: (choice) => ipcRenderer.invoke('window-close-choice', choice),
+  onShowCloseDialog: (cb) => {
+    ipcRenderer.on('show-close-dialog', () => cb());
+  },
   onTgProxyChanged: (cb) => {
     ipcRenderer.on('tg-proxy-changed', (_, data) => cb(data));
   },

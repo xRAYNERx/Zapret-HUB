@@ -120,6 +120,13 @@
                 Включить прокси
               </button>
 
+              <div class="tg-proxy-download hidden" id="tgProxyDownloadBlock">
+                <div class="tg-proxy-download-bar">
+                  <div class="tg-proxy-download-fill" id="tgProxyDownloadFill"></div>
+                </div>
+                <p class="tg-proxy-download-label" id="tgProxyDownloadLabel">Скачивание…</p>
+              </div>
+
               <div class="tg-proxy-update hidden" id="tgProxyUpdateBlock">
                 <span class="diag-warn" id="tgProxyUpdateText"></span>
                 <button class="btn btn-ghost btn-sm" id="btnTgProxyUpdate" type="button">Обновить</button>
@@ -418,6 +425,28 @@
       <div class="modal-actions" id="updateModalActions">
         <button class="btn btn-primary" id="btnUpdateNow" type="button">Обновить</button>
         <button class="btn btn-ghost" id="btnUpdateLater" type="button">Позже</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="closeChoiceModal">
+    <div class="modal-card">
+      <h2>Закрыть Zapret HUB?</h2>
+      <p class="modal-text">Программа может свернуться в трей и продолжить работу в фоне.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnCloseToTray" type="button">Свернуть в трей</button>
+        <button class="btn btn-primary" id="btnCloseQuit" type="button">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="closeRememberModal">
+    <div class="modal-card">
+      <h2>Запомнить выбор?</h2>
+      <p class="modal-text">Если выберете «Да», при нажатии на крестик программа будет сразу закрываться.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnCloseRememberNo" type="button">Нет</button>
+        <button class="btn btn-primary" id="btnCloseRememberYes" type="button">Да</button>
       </div>
     </div>
   </div>

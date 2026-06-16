@@ -121,6 +121,77 @@ function toast(message, type = 'info') {
   }, 3500);
 }
 
+function showTgDownloadProgress(percent, message) {
+  const block = $('#tgProxyDownloadBlock');
+  const fill = $('#tgProxyDownloadFill');
+  const label = $('#tgProxyDownloadLabel');
+  if (!block || !fill || !label) return;
+
+  block.classList.remove('hidden');
+  fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+  if (message) label.textContent = message;
+}
+
+function hideTgDownloadProgress() {
+  const block = $('#tgProxyDownloadBlock');
+  const fill = $('#tgProxyDownloadFill');
+  if (!block || !fill) return;
+
+  block.classList.add('hidden');
+  fill.style.width = '0';
+  $('#tgProxyDownloadLabel').textContent = 'Скачивание…';
+}
+
+function showCloseChoiceModal() {
+  $('#closeChoiceModal')?.classList.remove('hidden');
+}
+
+function hideCloseChoiceModal() {
+  $('#closeChoiceModal')?.classList.add('hidden');
+}
+
+function showCloseRememberModal() {
+  $('#closeRememberModal')?.classList.remove('hidden');
+}
+
+function hideCloseRememberModal() {
+  $('#closeRememberModal')?.classList.add('hidden');
+}
+
+function setupCloseModals() {
+  const sendChoice = (choice) => {
+    hideCloseChoiceModal();
+    hideCloseRememberModal();
+    window.zapretAPI.windowCloseChoice(choice);
+  };
+
+  $('#btnCloseToTray')?.addEventListener('click', () => sendChoice('tray'));
+
+  $('#btnCloseQuit')?.addEventListener('click', () => {
+    hideCloseChoiceModal();
+    showCloseRememberModal();
+  });
+
+  $('#btnCloseRememberNo')?.addEventListener('click', () => sendChoice('quit'));
+  $('#btnCloseRememberYes')?.addEventListener('click', () => sendChoice('quit-remember'));
+
+  $('#closeChoiceModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#closeChoiceModal')) sendChoice('cancel');
+  });
+
+  $('#closeRememberModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#closeRememberModal')) {
+      hideCloseRememberModal();
+      showCloseChoiceModal();
+    }
+  });
+
+  window.zapretAPI.onShowCloseDialog(() => {
+    hideCloseRememberModal();
+    showCloseChoiceModal();
+  });
+}
+
 function setBusy(busy) {
   state.busy = busy;
   $('#btnPower').disabled = busy;
@@ -870,6 +941,7 @@ async function init() {
   setupRestartModal();
   setupAppRestartModal();
   setupUpdateModal();
+  setupCloseModals();
 
   try {
     const pathCheck = await api('validatePath');
@@ -1123,9 +1195,12 @@ async function init() {
         updateTgProxyUI(status);
         if (!status.running) {
           toast('Не удалось запустить прокси', 'error');
+        } else if (status.installed) {
+          toast('TG Proxy включён', 'success');
         }
       }
     } catch (e) {
+      hideTgDownloadProgress();
       toast(e.message, 'error');
     } finally {
       setTgProxyBusy(false);
@@ -1139,11 +1214,14 @@ async function init() {
       const result = await api('applyTgProxyUpdate');
       const status = await api('getTgProxyStatus');
       updateTgProxyUI(status);
-      toast(result.updated ? `Прокси обновлён до ${result.local}` : 'Уже актуальная версия', 'success');
+      if (!result.updated) {
+        toast('Уже актуальная версия', 'success');
+      }
       if (result.wasRunning) {
         toast('Перезапустите прокси, если он был активен', 'info');
       }
     } catch (e) {
+      hideTgDownloadProgress();
       toast(e.message, 'error');
     } finally {
       setTgProxyBusy(false);
@@ -1151,7 +1229,16 @@ async function init() {
   });
 
   window.zapretAPI.onTgProxyProgress((progress) => {
-    if (progress?.message) toast(progress.message, 'info');
+    if (!progress) return;
+
+    if (progress.percent >= 100) {
+      hideTgDownloadProgress();
+      toast('TG WS Proxy скачан — можно включать', 'success');
+      return;
+    }
+
+    const label = progress.message || `Скачивание… ${progress.percent}%`;
+    showTgDownloadProgress(progress.percent, label);
   });
 
   $('#btnWinMinimize')?.addEventListener('click', () => {

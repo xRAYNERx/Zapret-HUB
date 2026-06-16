@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const http = require('http');
 const https = require('https');
@@ -1087,11 +1088,30 @@ class ZapretService {
 
   runElevatedScript(scriptBody) {
     return new Promise((resolve, reject) => {
-      const scriptB64 = this.encodePsPath(scriptBody);
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zapret-'));
+      const scriptPath = path.join(tmpDir, 'elevated.ps1');
+
+      const cleanup = () => {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch {
+          // ignore cleanup errors
+        }
+      };
+
+      try {
+        fs.writeFileSync(scriptPath, scriptBody, 'utf8');
+      } catch (err) {
+        cleanup();
+        reject(err);
+        return;
+      }
+
+      const scriptPathB64 = this.encodePsPath(scriptPath);
       const ps = [
-        `$script = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptB64}'))`,
+        `$scriptPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptPathB64}'))`,
         `$env:NO_UPDATE_CHECK='1'`,
-        `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-Command',$script) -Verb RunAs -PassThru -WindowStyle Hidden`,
+        `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$scriptPath) -Verb RunAs -PassThru -WindowStyle Hidden`,
         '$p.WaitForExit()',
         'exit $p.ExitCode'
       ].join('; ');
@@ -1100,10 +1120,14 @@ class ZapretService {
       let stderr = '';
       child.stderr.on('data', (d) => { stderr += d; });
       child.on('close', (code) => {
+        cleanup();
         if (code === 0) resolve({ success: true });
         else reject(new Error(stderr || `Команда завершилась с кодом ${code}`));
       });
-      child.on('error', reject);
+      child.on('error', (err) => {
+        cleanup();
+        reject(err);
+      });
     });
   }
 

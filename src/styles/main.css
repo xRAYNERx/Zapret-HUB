@@ -1025,6 +1025,32 @@ body {
 
 .btn-tg-proxy-toggle { width: 100%; }
 
+.tg-proxy-download {
+  margin-top: 10px;
+}
+
+.tg-proxy-download.hidden { display: none; }
+
+.tg-proxy-download-bar {
+  height: 6px;
+  background: var(--bg-hover);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.tg-proxy-download-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent-dim), var(--frost));
+  transition: width 0.2s ease;
+}
+
+.tg-proxy-download-label {
+  margin-top: 6px;
+  font-size: var(--fs-caption);
+  color: var(--text-muted);
+}
+
 .btn-tg-proxy-toggle.btn-danger {
   background: var(--danger);
   color: white;

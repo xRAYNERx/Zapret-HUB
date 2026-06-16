@@ -51,6 +51,7 @@ let mainWindow = null;
 let tray = null;
 let zapret = null;
 let tgProxy = null;
+let closeDialogResolver = null;
 let statusTimer = null;
 let tgProxyTimer = null;
 let shutdownDone = false;
@@ -200,6 +201,19 @@ function createWindow() {
   });
 }
 
+function waitForCloseDialogChoice() {
+  return new Promise((resolve) => {
+    closeDialogResolver = resolve;
+  });
+}
+
+function resolveCloseDialogChoice(choice) {
+  if (!closeDialogResolver) return;
+  const resolve = closeDialogResolver;
+  closeDialogResolver = null;
+  resolve(choice);
+}
+
 async function handleWindowClose(e) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -210,40 +224,23 @@ async function handleWindowClose(e) {
   }
 
   e.preventDefault();
+  mainWindow.webContents.send('show-close-dialog');
+  const choice = await waitForCloseDialogChoice();
 
-  const { response } = await dialog.showMessageBox(mainWindow, {
-    type: 'question',
-    title: 'Zapret HUB',
-    message: 'Закрыть программу или свернуть в трей?',
-    buttons: ['Свернуть в трей', 'Закрыть'],
-    defaultId: 0,
-    cancelId: 0,
-    noLink: true
-  });
-
-  if (response === 0) {
+  if (choice === 'tray') {
     mainWindow.hide();
     return;
   }
 
-  const { response: remember } = await dialog.showMessageBox(mainWindow, {
-    type: 'question',
-    title: 'Zapret HUB',
-    message: 'Запомнить выбор в будущем?',
-    detail: 'Если выберете «Да», при нажатии на крестик программа будет сразу закрываться.',
-    buttons: ['Да', 'Нет'],
-    defaultId: 1,
-    cancelId: 1,
-    noLink: true
-  });
-
-  if (remember === 0) {
+  if (choice === 'quit-remember') {
     zapret.config.closeBehavior = 'quit';
     zapret.saveConfig();
   }
 
-  app.isQuitting = true;
-  app.quit();
+  if (choice === 'quit' || choice === 'quit-remember') {
+    app.isQuitting = true;
+    app.quit();
+  }
 }
 
 function createTray() {
@@ -377,12 +374,10 @@ async function runAutostartTgProxy() {
     if (status.running) return;
     const result = await tgProxy.start();
     if (result.running) {
-      showAppNotification('Zapret HUB', 'Автозапуск: включение TG Proxy');
       mainWindow?.webContents.send('tg-proxy-changed', result);
     }
   } catch (err) {
     logStartup(`Autostart tg-proxy failed: ${err.message}`);
-    showAppNotification('Zapret HUB', 'Ошибка автозапуска TG Proxy');
   }
 }
 
@@ -471,6 +466,10 @@ function registerIpc() {
       mainWindow?.close();
       return true;
     },
+    'window-close-choice': (_, choice) => {
+      resolveCloseDialogChoice(choice);
+      return true;
+    },
     'get-status': () => zapret.getStatus(),
     'get-strategies': () => zapret.getStrategies(),
     'start': async (_, strategy) => {
@@ -542,20 +541,9 @@ function registerIpc() {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('tg-proxy-progress', progress);
       };
-      const result = await tgProxy.start(sendProgress);
-      if (result.running) {
-        showAppNotification('Zapret HUB', 'Включение TG Proxy');
-      }
-      return result;
+      return tgProxy.start(sendProgress);
     },
-    'stop-tg-proxy': async () => {
-      const before = await tgProxy.getStatus();
-      const result = await tgProxy.stop();
-      if (before.running) {
-        showAppNotification('Zapret HUB', 'Выключение TG Proxy');
-      }
-      return result;
-    },
+    'stop-tg-proxy': () => tgProxy.stop(),
     'check-tg-proxy-updates': () => tgProxy.checkForUpdates(),
     'apply-tg-proxy-update': async () => {
       const sendProgress = (progress) => {
