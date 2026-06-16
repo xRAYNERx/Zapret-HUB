@@ -109,16 +109,31 @@ async function api(method, ...args) {
   return result.data;
 }
 
-function toast(message, type = 'info') {
+const NOTIFY_DISPLAY_MS = 4000;
+const NOTIFY_FADE_MS = 300;
+const NOTIFY_MAX_STACK = 4;
+
+function toast(message) {
   const container = $('#toastContainer');
+  if (!container || !message) return;
+
+  while (container.children.length >= NOTIFY_MAX_STACK) {
+    container.firstElementChild?.remove();
+  }
+
   const el = document.createElement('div');
-  el.className = `toast toast-${type}`;
+  el.className = 'toast';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
   el.textContent = message;
   container.appendChild(el);
-  setTimeout(() => {
-    el.style.opacity = '0';
-    setTimeout(() => el.remove(), 300);
-  }, 3500);
+
+  const hide = () => {
+    el.classList.add('toast-out');
+    setTimeout(() => el.remove(), NOTIFY_FADE_MS);
+  };
+
+  setTimeout(hide, NOTIFY_DISPLAY_MS);
 }
 
 function showTgDownloadProgress(percent, message) {
@@ -230,7 +245,9 @@ function updateUI(status) {
     mini.innerHTML = '<span class="status-dot off"></span><span>Выключено</span>';
   }
 
-  $('#infoVersion').textContent = status.version || '—';
+  $('#infoVersion').textContent = status.appVersion ? `v${status.appVersion}` : '—';
+  const engineVersion = $('#engineVersion');
+  if (engineVersion) engineVersion.textContent = status.version || '—';
 
   state.autoCheckUpdates = status.autoUpdate?.enabled !== false;
   updateHomeControls(status);
@@ -260,7 +277,9 @@ function updateIpsetToggles(status) {
 }
 
 function updateShellForPage(page) {
-  $('.shell')?.classList.toggle('shell--home', page === 'home');
+  const isHome = page === 'home';
+  $('.shell')?.classList.toggle('shell--home', isHome);
+  document.body.classList.toggle('page-home', isHome);
 }
 
 function navigateTo(page) {
@@ -936,6 +955,7 @@ function setupHelpTooltips() {
 }
 
 async function init() {
+  updateShellForPage('home');
   setupNavigation();
   setupHelpTooltips();
   setupRestartModal();
@@ -1251,7 +1271,8 @@ async function init() {
 
   window.zapretAPI.onStatusChanged((status) => updateUI(status));
   window.zapretAPI.onTgProxyChanged((status) => updateTgProxyUI(status));
-  window.zapretAPI.onError((msg) => toast(msg, 'error'));
+  window.zapretAPI.onError((msg) => toast(msg));
+  window.zapretAPI.onNotify((msg) => toast(msg));
 }
 
 document.addEventListener('DOMContentLoaded', init);

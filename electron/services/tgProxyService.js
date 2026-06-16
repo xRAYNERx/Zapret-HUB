@@ -21,12 +21,43 @@ const DEFAULT_PROXY = {
 };
 
 class TgProxyService {
-  constructor(userDataPath) {
+  constructor(userDataPath, options = {}) {
     this.userDataPath = userDataPath;
+    this.appPath = options.appPath || '';
+    this.isPackaged = Boolean(options.isPackaged);
+    this.resourcesPath = options.resourcesPath || '';
     this.installDir = path.join(userDataPath, 'tg-proxy');
     this.exePath = path.join(this.installDir, EXE_NAME);
     this.versionPath = path.join(this.installDir, 'version.txt');
     this._child = null;
+    this._seedFromBundled();
+  }
+
+  getBundledDir() {
+    if (this.isPackaged && this.resourcesPath) {
+      const packaged = path.join(this.resourcesPath, 'tg-proxy');
+      if (fs.existsSync(path.join(packaged, EXE_NAME))) return packaged;
+    }
+
+    const bundled = path.join(this.appPath, 'bundled', 'tg-proxy');
+    if (fs.existsSync(path.join(bundled, EXE_NAME))) return bundled;
+
+    return null;
+  }
+
+  _seedFromBundled() {
+    if (fs.existsSync(this.exePath)) return;
+
+    const bundled = this.getBundledDir();
+    if (!bundled) return;
+
+    fs.mkdirSync(this.installDir, { recursive: true });
+    fs.copyFileSync(path.join(bundled, EXE_NAME), this.exePath);
+
+    const bundledVersion = path.join(bundled, 'version.txt');
+    if (fs.existsSync(bundledVersion)) {
+      fs.copyFileSync(bundledVersion, this.versionPath);
+    }
   }
 
   getLocalVersion() {

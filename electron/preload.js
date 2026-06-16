@@ -36,6 +36,9 @@ const api = {
   onError: (cb) => {
     ipcRenderer.on('error', (_, msg) => cb(msg));
   },
+  onNotify: (cb) => {
+    ipcRenderer.on('notify', (_, msg) => cb(msg));
+  },
   onUpdateProgress: (cb) => {
     ipcRenderer.on('update-progress', (_, data) => cb(data));
   },

@@ -7,6 +7,7 @@ const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 
 const execAsync = promisify(exec);
+const appPkg = require('../../package.json');
 
 const VERSION_URL =
   'https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/version.txt';
@@ -571,6 +572,8 @@ class ZapretService {
   }
 
   findExtractedRoot(extractDir, version) {
+    if (fs.existsSync(path.join(extractDir, 'bin', 'winws.exe'))) return extractDir;
+
     const expected = path.join(extractDir, `zapret-discord-youtube-${version}`);
     if (fs.existsSync(path.join(expected, 'bin', 'winws.exe'))) return expected;
 
@@ -995,6 +998,7 @@ class ZapretService {
       windivertService,
       installedStrategy,
       lastStrategy: this.config.lastStrategy,
+      appVersion: appPkg.version,
       version: this.getLocalVersion(),
       zapretPath: this.getZapretPath(),
       gameFilter: this.getGameFilterStatus(),

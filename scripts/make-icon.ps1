@@ -1,7 +1,7 @@
 param(
     [string]$Source = "C:\Users\RAYNER\.grok\sessions\C%3A%5CUsers%5CRAYNER%5C.grok%5Cclients%5Czapret\019ecae2-a24d-7a93-8ba4-4d1904913270\images\1.jpg",
-    [string]$PreviewOut = "D:\PROGRAMMS\Zapret NEW\assets\icon-preview.png",
-    [string]$IconOut = "D:\PROGRAMMS\Zapret NEW\assets\icon.png",
+    [string]$PreviewOut = "D:\PROGRAMMS\Zapret Build\assets\icon-preview.png",
+    [string]$IconOut = "D:\PROGRAMMS\Zapret Build\assets\icon.png",
     [switch]$Apply
 )
 

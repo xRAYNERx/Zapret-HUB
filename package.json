@@ -9,7 +9,8 @@
     "start": "electron .",
     "dev": "electron .",
     "icon:ico": "node scripts/png-to-ico.mjs",
-    "prebuild": "node scripts/png-to-ico.mjs",
+    "prebuild": "node scripts/png-to-ico.mjs && node scripts/fetch-bundled.mjs",
+    "fetch-bundled": "node scripts/fetch-bundled.mjs",
     "build": "electron-builder --win",
     "build:portable": "electron-builder --win portable",
     "postinstall": "node install-electron.js"
@@ -37,12 +38,19 @@
         "to": "icon.png"
       },
       {
-        "from": "../Запрет",
+        "from": "bundled/zapret",
         "to": "zapret",
         "filter": [
           "**/*",
           "!**/.git/**",
           "!**/backups/**"
+        ]
+      },
+      {
+        "from": "bundled/tg-proxy",
+        "to": "tg-proxy",
+        "filter": [
+          "**/*"
         ]
       }
     ],

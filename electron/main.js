@@ -4,7 +4,7 @@ const os = require('os');
 const path = require('path');
 const { ZapretService } = require('./services/zapretService');
 const { TgProxyService } = require('./services/tgProxyService');
-const { showAppNotification: showOverlayNotification } = require('./notificationManager');
+
 
 function ensureUserDataPath() {
   const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
@@ -110,13 +110,9 @@ function loadWindowIcon() {
   return icon;
 }
 
-function showAppNotification(title, message) {
-  showOverlayNotification({
-    title,
-    message,
-    resolveAppFile,
-    iconPath: getIconPath()
-  });
+function sendInAppNotify(message) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('notify', message);
 }
 
 function showMainWindow() {
@@ -290,7 +286,7 @@ async function updateTrayMenu(running) {
           } else {
             const status = await zapret.start(zapret.config.lastStrategy || 'general.bat');
             if (status.running) {
-              showAppNotification('Zapret HUB', 'Включение обхода');
+              sendInAppNotify('Включение обхода');
             }
           }
           const status = await zapret.getStatus();
@@ -357,13 +353,13 @@ async function runAutostartZapret() {
     const strategy = zapret.config.lastStrategy || 'general.bat';
     const result = await zapret.start(strategy);
     if (result.running) {
-      showAppNotification('Zapret HUB', 'Автозапуск: включение обхода');
+      sendInAppNotify('Автозапуск: включение обхода');
       mainWindow?.webContents.send('status-changed', result);
       updateTrayMenu(true);
     }
   } catch (err) {
     logStartup(`Autostart zapret failed: ${err.message}`);
-    showAppNotification('Zapret HUB', 'Ошибка автозапуска обхода');
+    sendInAppNotify('Ошибка автозапуска обхода');
   }
 }
 
@@ -475,7 +471,7 @@ function registerIpc() {
     'start': async (_, strategy) => {
       const status = await zapret.start(strategy);
       if (status.running) {
-        showAppNotification('Zapret HUB', 'Включение обхода');
+        sendInAppNotify('Включение обхода');
       }
       return status;
     },
@@ -483,13 +479,13 @@ function registerIpc() {
     'restart': async (_, strategy) => {
       const status = await zapret.restart(strategy);
       if (status.running) {
-        showAppNotification('Zapret HUB', 'Смена стратегии обхода');
+        sendInAppNotify('Смена стратегии обхода');
       }
       return status;
     },
     'stop': async () => {
       const status = await zapret.stop();
-      showAppNotification('Zapret HUB', 'Выключение обхода');
+      sendInAppNotify('Выключение обхода');
       return status;
     },
     'get-sites': () => zapret.getGeneralSites(),
@@ -600,7 +596,11 @@ app.whenReady().then(() => {
       resourcesPath: process.resourcesPath,
       userDataPath
     });
-    tgProxy = new TgProxyService(userDataPath);
+    tgProxy = new TgProxyService(userDataPath, {
+      appPath: getAppPath(),
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath
+    });
     zapret.removeLegacyUpdateFlag();
     zapret.migrateAutostartConfig()
       .then(() => syncLoginItem())
