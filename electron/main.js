@@ -592,7 +592,7 @@ app.on('second-instance', () => {
   sendInAppNotify('Zapret HUB уже запущен — окно восстановлено');
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
     logStartup('App ready');
     const userDataPath = app.getPath('userData');
@@ -607,16 +607,10 @@ app.whenReady().then(() => {
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath
     });
-    zapret.removeLegacyUpdateFlag();
     zapret.migrateAutostartConfig()
       .then(() => syncLoginItem())
       .catch((err) => logStartup(`Autostart migrate failed: ${err.message}`));
-    try {
-      zapret.syncActiveCustomList();
-    } catch (err) {
-      logStartup(`Custom list sync failed: ${err.message}`);
-    }
-    zapret.applyPendingUpdates().catch((err) => logStartup(`Pending update apply failed: ${err.message}`));
+    await zapret.prepareStartup();
     createWindow();
     createTray();
     registerIpc();

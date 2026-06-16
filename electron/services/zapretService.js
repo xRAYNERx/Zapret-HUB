@@ -104,6 +104,47 @@ class ZapretService {
     return path.join(this.userDataPath || this.appPath, 'engine');
   }
 
+  isLockedDriverFile(relPath) {
+    const normalized = relPath.replace(/\\/g, '/').toLowerCase();
+    return normalized.endsWith('bin/windivert64.sys') || normalized.endsWith('bin/windivert.dll');
+  }
+
+  copyEngineTree(sourceDir, targetDir, engineRoot = targetDir) {
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const sourcePath = path.join(sourceDir, entry.name);
+      const targetPath = path.join(targetDir, entry.name);
+      const relPath = path.relative(engineRoot, targetPath);
+
+      if (entry.isDirectory()) {
+        fs.mkdirSync(targetPath, { recursive: true });
+        this.copyEngineTree(sourcePath, targetPath, engineRoot);
+        continue;
+      }
+
+      if (fs.existsSync(targetPath)) {
+        try {
+          const srcStat = fs.statSync(sourcePath);
+          const destStat = fs.statSync(targetPath);
+          if (srcStat.size === destStat.size) continue;
+        } catch {
+          // continue with copy attempt
+        }
+      }
+
+      try {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.copyFileSync(sourcePath, targetPath);
+      } catch (err) {
+        if ((err.code === 'EBUSY' || err.code === 'EPERM') && this.isLockedDriverFile(relPath)) {
+          if (fs.existsSync(targetPath)) continue;
+        }
+        throw err;
+      }
+    }
+  }
+
   ensurePackagedEngine() {
     const runtimePath = this.getRuntimeEnginePath();
     if (this.isValidEnginePath(runtimePath)) {
@@ -116,7 +157,7 @@ class ZapretService {
     }
 
     fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
-    fs.cpSync(bundled, runtimePath, { recursive: true, force: true });
+    this.copyEngineTree(bundled, runtimePath);
     this.ensureUserLists(runtimePath);
 
     if (!this.isValidEnginePath(runtimePath)) {
@@ -124,6 +165,13 @@ class ZapretService {
     }
 
     return runtimePath;
+  }
+
+  async prepareStartup() {
+    this.removeLegacyUpdateFlag();
+    this.ensurePackagedEngine();
+    await this.applyPendingUpdates();
+    this.syncActiveCustomList();
   }
 
   resolveZapretPath() {
