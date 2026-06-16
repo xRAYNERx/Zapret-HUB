@@ -1,8 +1,19 @@
 # Zapret HUB
 
-Программа для Windows, которая помогает открывать **Discord**, **YouTube** и **Telegram**, когда они не работают из‑за блокировок.
+**Графическая оболочка** для Windows — удобная панель управления обходом блокировок. Сама программа не реализует обход: она запускает и настраивает два открытых проекта из GitHub.
 
-Всё управляется из одного окна: включил — работает, выключил — всё как было.
+| Компонент | Репозиторий | Назначение |
+|-----------|-------------|------------|
+| Движок обхода | [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube) | Discord, YouTube и другие сайты |
+| Прокси Telegram | [Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy) | Локальный SOCKS5 для Telegram |
+
+**Автор оболочки:** [xRAYNERx](https://github.com/xRAYNERx) · **Автор движков:** [Flowseal](https://github.com/Flowseal)
+
+Zapret HUB не является официальным продуктом Flowseal. Подробнее о сторонних компонентах — [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+Программа помогает открывать **Discord**, **YouTube** и **Telegram**, когда они не работают из‑за блокировок. Всё управляется из одного окна: включил — работает, выключил — всё как было.
 
 ## Скриншоты
 
