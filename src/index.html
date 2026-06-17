@@ -146,6 +146,7 @@
               </header>
 
               <select class="select" id="strategySelect"></select>
+              <div class="strategy-probe-badge hidden" id="strategyProbeBadge" title="Результат последнего подбора"></div>
               <div class="strategy-probe">
                 <button class="btn btn-primary btn-power-green btn-strategy-probe" id="btnStrategyProbe" type="button">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -154,7 +155,6 @@
                   </svg>
                   <span id="btnStrategyProbeLabel">Подбор рабочей стратегии</span>
                 </button>
-                <p class="strategy-probe-hint">Проверит стратегии на вашем ПК — все или одну на выбор</p>
               </div>
             </article>
           </div>
@@ -182,6 +182,15 @@
                   <p class="card-hint">Файл <code>list-general.txt</code> — Discord, YouTube и остальные домены обхода</p>
                 </div>
               </header>
+
+              <div class="sites-toolbar">
+                <input type="search" class="input sites-search" id="sitesSearch" placeholder="Поиск по доменам…" spellcheck="false" autocomplete="off">
+                <div class="sites-toolbar-actions">
+                  <button class="btn btn-ghost btn-sm" id="btnSitesImport" type="button" title="Импорт из .txt">Импорт</button>
+                  <button class="btn btn-ghost btn-sm" id="btnSitesExport" type="button" title="Экспорт в .txt">Экспорт</button>
+                  <button class="btn btn-ghost btn-sm" id="btnSitesPaste" type="button" title="Вставить домены из буфера">Из буфера</button>
+                </div>
+              </div>
 
               <form class="sites-add-row" id="sitesAddForm" autocomplete="off">
                 <input type="text" class="input" id="siteInput" placeholder="discord.com" spellcheck="false">
@@ -242,6 +251,14 @@
               </form>
 
               <div class="custom-list-editor" id="customListEditor" hidden>
+                <div class="sites-toolbar">
+                  <input type="search" class="input sites-search" id="customSitesSearch" placeholder="Поиск по доменам…" spellcheck="false" autocomplete="off">
+                  <div class="sites-toolbar-actions">
+                    <button class="btn btn-ghost btn-sm" id="btnCustomSitesImport" type="button">Импорт</button>
+                    <button class="btn btn-ghost btn-sm" id="btnCustomSitesExport" type="button">Экспорт</button>
+                    <button class="btn btn-ghost btn-sm" id="btnCustomSitesPaste" type="button">Из буфера</button>
+                  </div>
+                </div>
                 <form class="sites-add-row" id="customSitesAddForm" autocomplete="off">
                   <input type="text" class="input" id="customSiteInput" placeholder="example.com" spellcheck="false">
                   <button class="btn btn-primary btn-power-green sites-add-btn" id="btnAddCustomSite" type="submit" title="Добавить домен">
@@ -299,6 +316,27 @@
               <button class="toggle-btn" data-value="loaded" type="button">Загружен</button>
               <button class="toggle-btn" data-value="none" type="button">Отключён</button>
               <button class="toggle-btn" data-value="any" type="button">Любые IP</button>
+            </div>
+          </div>
+
+          <div class="panel glass-card tools-settings-panel">
+            <h3 class="card-title-row">Поведение программы</h3>
+            <p class="card-hint">Крестик окна и проверка обновлений при запуске</p>
+            <div class="settings-block">
+              <span class="settings-label">Крестик окна</span>
+              <div class="toggle-group" id="closeBehaviorGroup">
+                <button class="toggle-btn" data-value="ask" type="button">Спрашивать</button>
+                <button class="toggle-btn" data-value="tray" type="button">В трей</button>
+                <button class="toggle-btn" data-value="quit" type="button">Закрывать</button>
+              </div>
+            </div>
+            <div class="settings-divider" role="separator"></div>
+            <div class="settings-block settings-block-inline">
+              <span class="settings-label">Проверять обновления при запуске</span>
+              <label class="switch">
+                <input type="checkbox" id="autoCheckUpdatesToggle">
+                <span class="slider"></span>
+              </label>
             </div>
           </div>
 
@@ -474,9 +512,13 @@
           <span class="strategy-probe-choice-title">Все стратегии</span>
           <span class="strategy-probe-choice-desc">Полная проверка всех конфигов</span>
         </button>
+        <button class="btn strategy-probe-choice-btn" id="btnStrategyProbeCurrent" type="button">
+          <span class="strategy-probe-choice-title">Текущую стратегию</span>
+          <span class="strategy-probe-choice-desc">Проверить выбранную в списке</span>
+        </button>
         <button class="btn strategy-probe-choice-btn" id="btnStrategyProbeOne" type="button">
-          <span class="strategy-probe-choice-title">Одну стратегию</span>
-          <span class="strategy-probe-choice-desc">Проверить выбранный конфиг</span>
+          <span class="strategy-probe-choice-title">Другую стратегию</span>
+          <span class="strategy-probe-choice-desc">Выбрать конфиг из списка</span>
         </button>
       </div>
       <div class="modal-actions">
@@ -511,6 +553,31 @@
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btnStrategyProbeCancel" type="button">Прервать проверку</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="bypassDropModal">
+    <div class="modal-card">
+      <h2>Обход остановился</h2>
+      <p class="modal-text" id="bypassDropText">Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnBypassDropClose" type="button">Понятно</button>
+        <button class="btn btn-primary" id="btnBypassDropRestart" type="button">Включить снова</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="onboardingModal">
+    <div class="modal-card modal-card-wide onboarding-card">
+      <button class="modal-close-btn" id="btnOnboardingClose" type="button" aria-label="Закрыть обучение" title="Закрыть обучение">&times;</button>
+      <div class="onboarding-progress" id="onboardingProgress" aria-hidden="true"></div>
+      <h2 id="onboardingTitle">Добро пожаловать в Zapret HUB</h2>
+      <p class="modal-text" id="onboardingText">Короткий путеводитель поможет настроить обход за пару минут.</p>
+      <div class="onboarding-body" id="onboardingBody"></div>
+      <div class="modal-actions onboarding-actions">
+        <button class="btn btn-ghost" id="btnOnboardingSkip" type="button">Пропустить</button>
+        <button class="btn btn-primary" id="btnOnboardingNext" type="button">Далее</button>
       </div>
     </div>
   </div>

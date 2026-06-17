@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard } = require('electron');
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
@@ -55,6 +55,9 @@ let closeDialogResolver = null;
 let statusTimer = null;
 let tgProxyTimer = null;
 let shutdownDone = false;
+let bypassWasRunning = false;
+let trayZapretRunning = false;
+let trayTgRunning = false;
 
 const isAutostartLaunch = process.argv.includes('--autostart');
 
@@ -263,6 +266,12 @@ async function handleWindowClose(e) {
     return;
   }
 
+  if (zapret?.config?.closeBehavior === 'tray') {
+    e.preventDefault();
+    mainWindow.hide();
+    return;
+  }
+
   e.preventDefault();
   mainWindow.webContents.send('show-close-dialog');
   const choice = await waitForCloseDialogChoice();
@@ -302,30 +311,34 @@ function createTray() {
     }
   });
 
-  updateTrayMenu(false);
+  updateTrayMenu(false, false);
 }
 
-async function updateTrayMenu(running) {
+async function updateTrayMenu(zapretRunning, tgRunning) {
   if (!tray) return;
+
+  trayZapretRunning = Boolean(zapretRunning);
+  trayTgRunning = Boolean(tgRunning);
+  tray.setToolTip(
+    trayZapretRunning && trayTgRunning
+      ? 'Zapret HUB — обход и TG Proxy работают'
+      : trayZapretRunning
+        ? 'Zapret HUB — обход работает'
+        : trayTgRunning
+          ? 'Zapret HUB — TG Proxy работает'
+          : 'Zapret HUB — выключено'
+  );
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: running ? '● Zapret работает' : '○ Zapret выключен',
+      label: trayZapretRunning ? '● Обход: работает' : '○ Обход: выключен',
       enabled: false
     },
-    { type: 'separator' },
     {
-      label: 'Открыть',
-      click: () => {
-        mainWindow?.show();
-        mainWindow?.focus();
-      }
-    },
-    {
-      label: running ? 'Выключить' : 'Включить',
+      label: trayZapretRunning ? 'Выключить обход' : 'Включить обход',
       click: async () => {
         try {
-          if (running) {
+          if (trayZapretRunning) {
             await zapret.stop();
           } else {
             const status = await zapret.start(zapret.config.lastStrategy || 'general.bat');
@@ -334,14 +347,51 @@ async function updateTrayMenu(running) {
             }
           }
           const status = await zapret.getStatus();
+          bypassWasRunning = status.running;
           mainWindow?.webContents.send('status-changed', status);
-          updateTrayMenu(status.running);
+          const tgStatus = tgProxy ? await tgProxy.getStatus() : { running: trayTgRunning };
+          updateTrayMenu(status.running, tgStatus.running);
         } catch (err) {
           mainWindow?.webContents.send('error', err.message);
         }
       }
     },
     { type: 'separator' },
+    {
+      label: trayTgRunning ? '● TG Proxy: работает' : '○ TG Proxy: выключен',
+      enabled: false
+    },
+    {
+      label: trayTgRunning ? 'Выключить TG Proxy' : 'Включить TG Proxy',
+      click: async () => {
+        if (!tgProxy) return;
+        try {
+          if (trayTgRunning) {
+            const status = await tgProxy.stop();
+            mainWindow?.webContents.send('tg-proxy-changed', status);
+            updateTrayMenu(trayZapretRunning, status.running);
+          } else {
+            const status = await tgProxy.start();
+            mainWindow?.webContents.send('tg-proxy-changed', status);
+            if (status.running) {
+              tgProxy.openInTelegram();
+              sendInAppNotify('TG Proxy включён');
+            }
+            updateTrayMenu(trayZapretRunning, status.running);
+          }
+        } catch (err) {
+          mainWindow?.webContents.send('error', err.message);
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Открыть окно',
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+      }
+    },
     {
       label: 'Выход',
       click: () => {
@@ -354,14 +404,30 @@ async function updateTrayMenu(running) {
   tray.setContextMenu(contextMenu);
 }
 
+function notifyBypassDropped(status) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('bypass-dropped', {
+    lastStrategy: status.lastStrategy,
+    at: new Date().toISOString()
+  });
+  if (mainWindow.isMinimized() || !mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  mainWindow.focus();
+}
+
 function startStatusPolling() {
   if (statusTimer) clearInterval(statusTimer);
   statusTimer = setInterval(async () => {
     if (!zapret || !mainWindow) return;
     try {
       const status = await zapret.getStatus();
+      if (bypassWasRunning && !status.running && !app.isQuitting) {
+        notifyBypassDropped(status);
+      }
+      bypassWasRunning = status.running;
       mainWindow.webContents.send('status-changed', status);
-      updateTrayMenu(status.running);
+      updateTrayMenu(status.running, trayTgRunning);
     } catch { /* ignore */ }
   }, 3000);
 }
@@ -373,6 +439,7 @@ function startTgProxyPolling() {
     try {
       const status = await tgProxy.getStatus();
       mainWindow.webContents.send('tg-proxy-changed', status);
+      updateTrayMenu(trayZapretRunning, status.running);
     } catch { /* ignore */ }
   }, 3000);
 }
@@ -398,8 +465,9 @@ async function runAutostartZapret() {
     const result = await zapret.start(strategy);
     if (result.running) {
       sendInAppNotify('Автозапуск: включение обхода');
+      bypassWasRunning = true;
       mainWindow?.webContents.send('status-changed', result);
-      updateTrayMenu(true);
+      updateTrayMenu(true, trayTgRunning);
     }
   } catch (err) {
     logStartup(`Autostart zapret failed: ${err.message}`);
@@ -645,6 +713,7 @@ function registerIpc() {
     'get-strategies': () => zapret.getStrategies(),
     'start': async (_, strategy) => {
       const status = await zapret.start(strategy);
+      bypassWasRunning = status.running;
       if (status.running) {
         sendInAppNotify('Включение обхода');
       }
@@ -653,6 +722,7 @@ function registerIpc() {
     'set-strategy': (_, strategy) => zapret.setLastStrategy(strategy),
     'restart': async (_, strategy) => {
       const status = await zapret.restart(strategy);
+      bypassWasRunning = status.running;
       if (status.running) {
         sendInAppNotify('Смена стратегии обхода');
       }
@@ -660,6 +730,7 @@ function registerIpc() {
     },
     'stop': async () => {
       const status = await zapret.stop();
+      bypassWasRunning = false;
       sendInAppNotify('Выключение обхода');
       return status;
     },
@@ -739,6 +810,43 @@ function registerIpc() {
     'open-tg-proxy-telegram': () => tgProxy.openInTelegram(),
     'copy-tg-proxy-link': () => tgProxy.copyProxyLink(),
     'open-tg-proxy-settings': () => tgProxy.openSettings(),
+    'set-close-behavior': (_, mode) => zapret.setCloseBehavior(mode ?? null),
+    'set-onboarding-completed': (_, completed) => zapret.setOnboardingCompleted(completed),
+    'read-clipboard-text': () => clipboard.readText(),
+    'export-sites-dialog': async (_, options = {}) => {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Экспорт списка доменов',
+        defaultPath: options.defaultName || 'list-general.txt',
+        filters: [{ name: 'Текстовые файлы', extensions: ['txt'] }]
+      });
+      if (canceled || !filePath) return { saved: false };
+      const text = options.listId
+        ? zapret.exportCustomListSitesText(options.listId)
+        : zapret.exportGeneralSitesText();
+      fs.writeFileSync(filePath, text, 'utf8');
+      return { saved: true, filePath, count: text.trim() ? text.trim().split('\n').length : 0 };
+    },
+    'import-sites-dialog': async (_, options = {}) => {
+      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: 'Импорт списка доменов',
+        filters: [{ name: 'Текстовые файлы', extensions: ['txt'] }],
+        properties: ['openFile']
+      });
+      if (canceled || !filePaths?.[0]) return { imported: false };
+      const text = fs.readFileSync(filePaths[0], 'utf8');
+      const mode = options.mode === 'replace' ? 'replace' : 'merge';
+      const sites = options.listId
+        ? zapret.importCustomListSites(options.listId, text, mode)
+        : zapret.importGeneralSites(text, mode);
+      return { imported: true, filePath: filePaths[0], sites, mode };
+    },
+    'import-sites-text': (_, payload = {}) => {
+      const mode = payload.mode === 'replace' ? 'replace' : 'merge';
+      const sites = payload.listId
+        ? zapret.importCustomListSites(payload.listId, payload.text, mode)
+        : zapret.importGeneralSites(payload.text, mode);
+      return { sites, mode };
+    },
     'fatal-error-quit': () => {
       app.isQuitting = true;
       app.quit();
@@ -800,11 +908,18 @@ app.whenReady().then(async () => {
       .then(() => syncLoginItem())
       .catch((err) => logStartup(`Autostart migrate failed: ${err.message}`));
     await zapret.prepareStartup();
+    const initialStatus = await zapret.getStatus();
+    bypassWasRunning = initialStatus.running;
     createWindow();
     createTray();
     registerIpc();
     startStatusPolling();
     startTgProxyPolling();
+    if (tgProxy) {
+      tgProxy.getStatus()
+        .then((tgStatus) => updateTrayMenu(initialStatus.running, tgStatus.running))
+        .catch(() => updateTrayMenu(initialStatus.running, false));
+    }
   } catch (err) {
     logStartup(`Startup error: ${err.message}`);
     showFatalErrorWindow('Ошибка запуска', 'Не удалось запустить Zapret HUB.', err.message);

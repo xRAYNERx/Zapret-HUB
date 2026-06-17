@@ -42,10 +42,12 @@ let state = {
   running: false,
   strategies: [],
   sites: [],
+  sitesSearchQuery: '',
   sitesExpanded: true,
   sitesSaving: false,
   customLists: { lists: [], activeId: null },
   customSites: [],
+  customSitesSearchQuery: '',
   customListEditing: null,
   customSitesExpanded: true,
   customSitesSaving: false,
@@ -57,8 +59,46 @@ let state = {
   updateContext: 'manual',
   pendingStartStrategy: null,
   autoCheckUpdates: true,
+  closeBehavior: null,
+  lastStrategyProbe: null,
+  onboardingCompleted: true,
   tgProxy: { running: false, installed: false, busy: false }
 };
+
+const ONBOARDING_STEPS = [
+  {
+    title: 'Добро пожаловать в Zapret HUB',
+    text: 'Панель для обхода блокировок YouTube, Discord и прокси Telegram. Пройдём быструю настройку.',
+    body: '<ul class="onboarding-step-list"><li>Подберём рабочую стратегию под ваш провайдер</li><li>Включим обход одним переключателем</li><li>При желании — TG Proxy и автозапуск</li></ul>'
+  },
+  {
+    title: 'Шаг 1 — подбор стратегии',
+    text: 'Стратегии отличаются способом обхода DPI. Лучше проверить, какая работает на вашем ПК.',
+    action: 'probe'
+  },
+  {
+    title: 'Шаг 2 — включите обход',
+    text: 'После подбора примените лучшую стратегию и включите переключатель «ВКЛ» на главной.',
+    action: 'power'
+  },
+  {
+    title: 'Шаг 3 — TG Proxy (по желанию)',
+    text: 'Локальный прокси для Telegram. При включении откроется Telegram с настройками — останется нажать «Применить».',
+    action: 'tg'
+  },
+  {
+    title: 'Шаг 4 — автозапуск (по желанию)',
+    text: 'Можно включить автозапуск обхода и/или TG Proxy — программа стартует свёрнутой в трей.',
+    action: 'autostart'
+  },
+  {
+    title: 'Готово',
+    text: 'Настройка завершена. Обновления HUB, движка и TG Proxy проверяются при каждом запуске.',
+    action: 'done'
+  }
+];
+
+let onboardingStep = 0;
 
 let suppressStrategyChange = false;
 let strategyProbeRunning = false;
@@ -96,7 +136,25 @@ const NOTIFY_MAX_STACK = 4;
 
 function formatEngineVersion(version) {
   if (!version || version === '—' || version === 'unknown') return '—';
-  return String(version).trim().replace(/^\uFEFF/, '') || '—';
+  const normalized = String(version).trim().replace(/^\uFEFF/, '');
+  const match = normalized.match(/^(\d+\.\d+\.\d+[a-z]*)$/i);
+  return match ? match[1] : '—';
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatUpdateVersion(version) {
+  const normalized = String(version || '').trim().replace(/^\uFEFF/, '');
+  const match = normalized.match(/^(\d+\.\d+\.\d+[a-z]*)$/i);
+  if (match) return match[1];
+  if (!normalized || normalized === 'unknown' || normalized === 'не установлен') return normalized || '—';
+  return null;
 }
 
 const TOAST_OFF_MESSAGES = new Set([
@@ -281,8 +339,14 @@ function updateUI(status) {
   if (engineVersion) engineVersion.textContent = formatEngineVersion(status.version);
 
   state.autoCheckUpdates = status.autoUpdate?.enabled !== false;
+  state.closeBehavior = status.closeBehavior ?? null;
+  state.lastStrategyProbe = status.lastStrategyProbe || null;
+  state.onboardingCompleted = Boolean(status.onboardingCompleted);
   updateHomeControls(status);
   updateIpsetToggles(status);
+  updateCloseBehaviorToggles(status.closeBehavior);
+  updateAutoCheckUpdatesToggle(status);
+  updateStrategyProbeBadge();
 }
 
 function updateHomeControls(status) {
@@ -371,6 +435,26 @@ function renderStrategies(strategies, selectedFile) {
   }
 
   updateStrategyProbeButton();
+  updateStrategyProbeBadge();
+}
+
+function updateStrategyProbeBadge() {
+  const badge = $('#strategyProbeBadge');
+  if (!badge) return;
+
+  const probe = state.lastStrategyProbe;
+  if (!probe?.strategyName) {
+    badge.classList.add('hidden');
+    badge.textContent = '';
+    return;
+  }
+
+  const sitesPart = probe.sitesTotal
+    ? `${probe.sitesOk}/${probe.sitesTotal} сайтов`
+    : 'проверено';
+  badge.textContent = `Рекомендовано: ${probe.strategyName}, ${sitesPart}`;
+  badge.classList.toggle('partial', !probe.working);
+  badge.classList.remove('hidden');
 }
 
 function updateStrategyProbeButton() {
@@ -576,6 +660,7 @@ function setupStrategyProbeModal() {
   });
 
   $('#btnStrategyProbeAll')?.addEventListener('click', () => resolveStrategyProbeChoice('all'));
+  $('#btnStrategyProbeCurrent')?.addEventListener('click', () => resolveStrategyProbeChoice('current'));
   $('#btnStrategyProbeOne')?.addEventListener('click', () => resolveStrategyProbeChoice('single'));
   $('#btnStrategyProbeChoiceCancel')?.addEventListener('click', () => resolveStrategyProbeChoice(null));
   $('#strategyProbeChoiceModal')?.addEventListener('click', (e) => {
@@ -603,22 +688,30 @@ function setupStrategyProbeModal() {
 }
 
 async function runStrategyProbeFlow() {
-  if (state.busy || strategyProbeRunning || state.strategies.length <= 1) return;
+  if (state.busy || strategyProbeRunning || state.strategies.length <= 1) return false;
 
   const choice = await showStrategyProbeChoiceModal();
-  if (!choice) return;
+  if (!choice) return false;
 
-  const options = { mode: choice };
+  const options = { mode: 'single' };
   if (choice === 'all') {
+    options.mode = 'all';
     const confirmed = await showConfirmModal({
       title: 'Проверка всех стратегий',
       text: 'Будут проверены все доступные конфиги. Это может занять несколько минут. Продолжить?',
       confirmLabel: 'Начать проверку'
     });
-    if (!confirmed) return;
+    if (!confirmed) return false;
+  } else if (choice === 'current') {
+    const strategyFile = $('#strategySelect')?.value;
+    if (!strategyFile) {
+      toast('Сначала выберите стратегию', 'error');
+      return false;
+    }
+    options.strategyFile = strategyFile;
   } else {
     const strategyFile = await showStrategyProbePickModal();
-    if (!strategyFile) return;
+    if (!strategyFile) return false;
     options.strategyFile = strategyFile;
   }
 
@@ -634,15 +727,19 @@ async function runStrategyProbeFlow() {
   try {
     const result = await api('runStrategyProbe', options);
     const status = await api('getStatus');
+    state.lastStrategyProbe = status.lastStrategyProbe || null;
     updateUI(status);
+    updateStrategyProbeBadge();
     hideStrategyProbeProgressModal();
     showStrategyProbeModal(result);
     if (result.cancelled) {
       toast('Проверка прервана', 'info');
     }
+    return true;
   } catch (e) {
     hideStrategyProbeProgressModal();
     toast(e.message, 'error');
+    return false;
   } finally {
     strategyProbeRunning = false;
     updateStrategyProbeButton();
@@ -726,18 +823,25 @@ function updateSitesAccordion(accordionId, expanded) {
   toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
 }
 
-function renderSiteItems({ sites, listEl, emptyEl, countEl, onRemove, allowEmpty = false }) {
+function renderSiteItems({ sites, listEl, emptyEl, countEl, onRemove, allowEmpty = false, searchQuery = '' }) {
   if (!listEl) return;
 
   listEl.innerHTML = '';
+  const query = String(searchQuery || '').trim().toLowerCase();
+  const visibleSites = query
+    ? sites.filter((site) => site.toLowerCase().includes(query))
+    : sites;
 
   if (sites.length === 0) {
     if (emptyEl) emptyEl.hidden = false;
   } else {
-    if (emptyEl) emptyEl.hidden = true;
+    if (emptyEl) emptyEl.hidden = visibleSites.length > 0;
     for (const site of sites) {
       const item = document.createElement('div');
       item.className = 'site-item';
+      if (query && !site.toLowerCase().includes(query)) {
+        item.classList.add('hidden-by-search');
+      }
       item.innerHTML = `
         <svg class="site-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/>
@@ -763,7 +867,9 @@ function renderSiteItems({ sites, listEl, emptyEl, countEl, onRemove, allowEmpty
     }
   }
 
-  if (countEl) countEl.textContent = String(sites.length);
+  if (countEl) {
+    countEl.textContent = query ? `${visibleSites.length}/${sites.length}` : String(sites.length);
+  }
 }
 
 function renderSites(sites) {
@@ -774,7 +880,8 @@ function renderSites(sites) {
     emptyEl: $('#sitesEmpty'),
     countEl: $('#sitesCount'),
     onRemove: removeSite,
-    allowEmpty: true
+    allowEmpty: true,
+    searchQuery: state.sitesSearchQuery
   });
   updateSitesAccordion('#sitesAccordion', state.sitesExpanded);
 }
@@ -787,7 +894,8 @@ function renderCustomSites(sites) {
     emptyEl: $('#customSitesEmpty'),
     countEl: $('#customSitesCount'),
     onRemove: removeCustomSite,
-    allowEmpty: true
+    allowEmpty: true,
+    searchQuery: state.customSitesSearchQuery
   });
   updateSitesAccordion('#customSitesAccordion', state.customSitesExpanded);
 }
@@ -1063,19 +1171,24 @@ function renderUpdateCheckResults(all) {
 
   const rows = [all.hub, all.zapret, all.tg].filter(Boolean);
   el.innerHTML = rows.map((info) => {
-    const label = info.label || info.product || 'Компонент';
+    const label = escapeHtml(info.label || info.product || 'Компонент');
     if (info.error) {
-      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Ошибка: ${info.error}</span></div>`;
+      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Ошибка: ${escapeHtml(info.error)}</span></div>`;
     }
-    if (info.updateAvailable) {
+    const local = formatUpdateVersion(info.local) || 'неизвестно';
+    const remote = formatUpdateVersion(info.remote);
+    if (info.updateAvailable && remote) {
       const action = info.product === 'hub'
-        ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-release-url="${info.releaseUrl || ''}">Скачать</button>`
+        ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-release-url="${escapeHtml(info.releaseUrl || '')}">Скачать</button>`
         : info.product === 'zapret'
           ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="zapret">Обновить</button>`
           : `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="tg">Обновить</button>`;
-      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Доступна ${info.remote} (у вас ${info.local})</span>${action}</div>`;
+      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Доступна ${escapeHtml(remote)} (у вас ${escapeHtml(local)})</span>${action}</div>`;
     }
-    return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-ok">✓ Актуально (${info.local})</span></div>`;
+    if (info.updateAvailable && !remote) {
+      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Доступно обновление, но версия не распознана</span></div>`;
+    }
+    return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-ok">✓ Актуально (${escapeHtml(local)})</span></div>`;
   }).join('');
 
   el.querySelectorAll('[data-release-url]').forEach((btn) => {
@@ -1419,6 +1532,289 @@ function showHelpPopover(key, anchor) {
   activeHelpBtn = anchor;
 }
 
+function updateCloseBehaviorToggles(mode) {
+  const value = mode || 'ask';
+  $$('#closeBehaviorGroup .toggle-btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.value === value);
+  });
+}
+
+function updateAutoCheckUpdatesToggle(status) {
+  const toggle = $('#autoCheckUpdatesToggle');
+  if (!toggle || toggle.dataset.busy) return;
+  toggle.checked = status.autoUpdate?.enabled !== false;
+}
+
+async function importSitesFromDialog({ listId = null } = {}) {
+  const mode = await showConfirmModal({
+    title: 'Импорт доменов',
+    text: 'Добавить домены к существующим или заменить список целиком?',
+    confirmLabel: 'Заменить список'
+  }) ? 'replace' : 'merge';
+
+  const result = await api('importSitesDialog', { listId, mode });
+  if (!result.imported) return;
+
+  if (listId) {
+    renderCustomSites(result.sites);
+    const meta = await api('getCustomLists');
+    state.customLists = meta;
+    renderCustomListUI();
+  } else {
+    renderSites(result.sites);
+  }
+
+  notifySitesRestartIfNeeded();
+  toast(`Импортировано ${result.sites.length} доменов`, 'success');
+}
+
+async function exportSitesToDialog({ listId = null, defaultName = 'list-general.txt' } = {}) {
+  const result = await api('exportSitesDialog', { listId, defaultName });
+  if (!result.saved) return;
+  toast(`Экспортировано ${result.count} доменов`, 'success');
+}
+
+async function pasteSitesFromClipboard({ listId = null } = {}) {
+  let text = '';
+  try {
+    text = await api('readClipboardText');
+  } catch {
+    if (navigator.clipboard?.readText) {
+      text = await navigator.clipboard.readText();
+    }
+  }
+
+  if (!text?.trim()) return toast('Буфер обмена пуст', 'info');
+
+  const lines = text.trim().split(/\r?\n/).filter(Boolean).length;
+  const mode = await showConfirmModal({
+    title: 'Вставка из буфера',
+    text: `Найдено ${lines} строк. Добавить к списку или заменить целиком?`,
+    confirmLabel: 'Заменить список'
+  }) ? 'replace' : 'merge';
+
+  const result = await api('importSitesText', { text, listId, mode });
+  if (listId) {
+    renderCustomSites(result.sites);
+    const meta = await api('getCustomLists');
+    state.customLists = meta;
+    renderCustomListUI();
+  } else {
+    renderSites(result.sites);
+  }
+
+  notifySitesRestartIfNeeded();
+  toast(`Добавлено из буфера: ${result.sites.length} доменов`, 'success');
+}
+
+function showBypassDropModal(payload = {}) {
+  const text = $('#bypassDropText');
+  if (text) {
+    const strategy = payload.lastStrategy || state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
+    text.textContent = strategy
+      ? `Обход (${strategy}) неожиданно остановился. Включите снова или подберите другую стратегию.`
+      : 'Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.';
+  }
+  $('#bypassDropModal')?.classList.remove('hidden');
+}
+
+function hideBypassDropModal() {
+  $('#bypassDropModal')?.classList.add('hidden');
+}
+
+function setupBypassDropModal() {
+  $('#btnBypassDropClose')?.addEventListener('click', hideBypassDropModal);
+  $('#btnBypassDropRestart')?.addEventListener('click', async () => {
+    hideBypassDropModal();
+    $('#btnPower')?.click();
+  });
+  $('#bypassDropModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#bypassDropModal')) hideBypassDropModal();
+  });
+}
+
+function renderOnboardingStep() {
+  const step = ONBOARDING_STEPS[onboardingStep];
+  if (!step) return;
+
+  $('#onboardingTitle').textContent = step.title;
+  $('#onboardingText').textContent = step.text;
+
+  const body = $('#onboardingBody');
+  if (body) {
+    let html = step.body || '';
+    if (step.action === 'probe') {
+      html = '<div class="onboarding-highlight">Нажмите «Запустить подбор» — откроется проверка стратегий.</div>';
+    } else if (step.action === 'power') {
+      html = '<div class="onboarding-highlight">Переключатель ВКЛ/ВЫКЛ — в центре главной страницы.</div>';
+    } else if (step.action === 'tg') {
+      html = '<div class="onboarding-highlight">Карточка «Прокси для Telegram» на главной. Telegram откроется сам.</div>';
+    } else if (step.action === 'autostart') {
+      html = '<div class="onboarding-highlight">Тумблеры автозапуска — внизу главной страницы.</div>';
+    }
+    body.innerHTML = html;
+  }
+
+  const progress = $('#onboardingProgress');
+  if (progress) {
+    progress.innerHTML = ONBOARDING_STEPS.map((_, index) => {
+      const cls = index === onboardingStep ? 'active' : index < onboardingStep ? 'done' : '';
+      return `<span class="onboarding-dot ${cls}"></span>`;
+    }).join('');
+  }
+
+  const nextBtn = $('#btnOnboardingNext');
+  if (nextBtn) {
+    if (step.action === 'probe') nextBtn.textContent = 'Запустить подбор';
+    else if (step.action === 'done') nextBtn.textContent = 'Завершить';
+    else nextBtn.textContent = 'Далее';
+  }
+}
+
+function openOnboardingModal() {
+  renderOnboardingStep();
+  $('#onboardingModal')?.classList.remove('hidden');
+}
+
+function startOnboarding() {
+  onboardingStep = 0;
+  openOnboardingModal();
+}
+
+function hideOnboardingModal() {
+  $('#onboardingModal')?.classList.add('hidden');
+}
+
+async function completeOnboarding() {
+  await api('setOnboardingCompleted', true);
+  state.onboardingCompleted = true;
+  hideOnboardingModal();
+}
+
+function advanceOnboardingStep() {
+  if (onboardingStep >= ONBOARDING_STEPS.length - 1) {
+    completeOnboarding();
+    return;
+  }
+  onboardingStep += 1;
+  renderOnboardingStep();
+}
+
+function skipOnboardingStep() {
+  advanceOnboardingStep();
+}
+
+async function handleOnboardingNext() {
+  const step = ONBOARDING_STEPS[onboardingStep];
+  if (!step) return;
+
+  if (step.action === 'probe') {
+    hideOnboardingModal();
+    const completed = await runStrategyProbeFlow();
+    if (completed) onboardingStep += 1;
+    openOnboardingModal();
+    return;
+  }
+
+  if (step.action === 'power') {
+    hideOnboardingModal();
+    navigateTo('home');
+    $('#heroCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    onboardingStep += 1;
+    setTimeout(openOnboardingModal, 400);
+    return;
+  }
+
+  if (step.action === 'tg' || step.action === 'autostart') {
+    hideOnboardingModal();
+    navigateTo('home');
+    onboardingStep += 1;
+    setTimeout(openOnboardingModal, 300);
+    return;
+  }
+
+  if (onboardingStep >= ONBOARDING_STEPS.length - 1) {
+    await completeOnboarding();
+    return;
+  }
+
+  onboardingStep += 1;
+  renderOnboardingStep();
+}
+
+function setupOnboardingModal() {
+  $('#btnOnboardingClose')?.addEventListener('click', () => completeOnboarding());
+  $('#btnOnboardingSkip')?.addEventListener('click', () => skipOnboardingStep());
+  $('#btnOnboardingNext')?.addEventListener('click', () => handleOnboardingNext());
+}
+
+function setupSitesTools() {
+  $('#sitesSearch')?.addEventListener('input', (e) => {
+    state.sitesSearchQuery = e.target.value;
+    renderSites(state.sites);
+  });
+
+  $('#customSitesSearch')?.addEventListener('input', (e) => {
+    state.customSitesSearchQuery = e.target.value;
+    renderCustomSites(state.customSites);
+  });
+
+  $('#btnSitesImport')?.addEventListener('click', () => importSitesFromDialog());
+  $('#btnSitesExport')?.addEventListener('click', () => exportSitesToDialog());
+  $('#btnSitesPaste')?.addEventListener('click', () => pasteSitesFromClipboard());
+
+  $('#btnCustomSitesImport')?.addEventListener('click', () => {
+    if (!state.customListEditing) return toast('Выберите список', 'error');
+    importSitesFromDialog({ listId: state.customListEditing });
+  });
+  $('#btnCustomSitesExport')?.addEventListener('click', () => {
+    if (!state.customListEditing) return toast('Выберите список', 'error');
+    exportSitesToDialog({
+      listId: state.customListEditing,
+      defaultName: `${state.customListEditing}.txt`
+    });
+  });
+  $('#btnCustomSitesPaste')?.addEventListener('click', () => {
+    if (!state.customListEditing) return toast('Выберите список', 'error');
+    pasteSitesFromClipboard({ listId: state.customListEditing });
+  });
+}
+
+function setupBehaviorSettings() {
+  $$('#closeBehaviorGroup .toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const value = btn.dataset.value;
+      const mode = value === 'ask' ? null : value;
+      try {
+        const result = await api('setCloseBehavior', mode);
+        state.closeBehavior = result.closeBehavior ?? null;
+        updateCloseBehaviorToggles(state.closeBehavior);
+        toast('Настройка сохранена', 'success');
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    });
+  });
+
+  $('#autoCheckUpdatesToggle')?.addEventListener('change', async (e) => {
+    const toggle = e.target;
+    toggle.dataset.busy = '1';
+    toggle.disabled = true;
+    try {
+      await api('setAutoUpdate', toggle.checked);
+      const status = await api('getStatus');
+      updateUI(status);
+      toast(toggle.checked ? 'Автопроверка обновлений включена' : 'Автопроверка обновлений выключена', 'success');
+    } catch (err) {
+      toggle.checked = !toggle.checked;
+      toast(err.message, 'error');
+    } finally {
+      delete toggle.dataset.busy;
+      toggle.disabled = false;
+    }
+  });
+}
+
 function setupHelpTooltips() {
   $$('.help-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -1455,6 +1851,10 @@ async function init() {
   setupCloseModals();
   setupConfirmModal();
   setupStrategyProbeModal();
+  setupBypassDropModal();
+  setupOnboardingModal();
+  setupSitesTools();
+  setupBehaviorSettings();
 
   window.zapretAPI.onStrategyProbeProgress?.((progress) => {
     if (!strategyProbeRunning || !progress) return;
@@ -1479,6 +1879,10 @@ async function init() {
 
     const tgStatus = await api('getTgProxyStatus');
     updateTgProxyUI(tgStatus);
+
+    if (!status.onboardingCompleted) {
+      setTimeout(startOnboarding, 600);
+    }
   } catch (e) {
     toast(e.message, 'error');
   }
@@ -1685,8 +2089,13 @@ async function init() {
         updateTgProxyUI(status);
         if (!status.running) {
           toast('Не удалось запустить прокси', 'error');
-        } else if (status.installed) {
-          toast('TG Proxy включён', 'success');
+        } else {
+          try {
+            await api('openTgProxyTelegram');
+          } catch {
+            // Telegram may be unavailable
+          }
+          toast('TG Proxy включён — примените настройки в Telegram', 'success');
         }
       }
     } catch (e) {
@@ -1747,6 +2156,17 @@ async function init() {
     if (getPendingUpdateItems(all).length) {
       showStartupUpdatesModal(all);
     }
+  });
+
+  window.zapretAPI.onBypassDropped?.(async (payload) => {
+    try {
+      const status = await api('getStatus');
+      updateUI(status);
+    } catch {
+      state.running = false;
+    }
+    showBypassDropModal(payload);
+    toast('Обход неожиданно остановился', 'error');
   });
 }
 

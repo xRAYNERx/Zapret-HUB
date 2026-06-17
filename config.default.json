@@ -6,5 +6,7 @@
   "autoCheckUpdates": true,
   "autostartZapretEnabled": false,
   "autostartTgProxyEnabled": false,
-  "activeCustomList": null
+  "activeCustomList": null,
+  "onboardingCompleted": false,
+  "lastStrategyProbe": null
 }

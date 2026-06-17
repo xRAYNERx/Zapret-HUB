@@ -2290,6 +2290,153 @@ body:not(.page-home) .toast-container {
   color: var(--text-muted);
 }
 
+.strategy-probe-badge {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(163, 190, 140, 0.12);
+  border: 1px solid rgba(163, 190, 140, 0.35);
+  color: #c8e6b8;
+  font-size: var(--fs-body);
+  line-height: 1.45;
+}
+
+.strategy-probe-badge.partial {
+  background: rgba(235, 203, 139, 0.12);
+  border-color: rgba(235, 203, 139, 0.35);
+  color: #f0d9a8;
+}
+
+.sites-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.sites-search {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.sites-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.site-item.hidden-by-search {
+  display: none;
+}
+
+.tools-settings-panel {
+  margin-bottom: 16px;
+}
+
+.settings-block {
+  margin-top: 14px;
+}
+
+.settings-divider {
+  margin-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.settings-block-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+}
+
+.settings-block-inline .settings-label {
+  margin-bottom: 0;
+}
+
+.onboarding-card {
+  max-width: 560px;
+  position: relative;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.modal-close-btn:hover {
+  background: rgba(136, 192, 208, 0.12);
+  color: var(--nord-6);
+}
+
+.onboarding-progress {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.onboarding-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(136, 192, 208, 0.25);
+}
+
+.onboarding-dot.active {
+  background: var(--frost);
+}
+
+.onboarding-dot.done {
+  background: var(--accent);
+}
+
+.onboarding-body {
+  margin: 12px 0 4px;
+}
+
+.onboarding-step-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+}
+
+.onboarding-highlight {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(136, 192, 208, 0.08);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.onboarding-actions {
+  justify-content: space-between;
+}
+
 .hidden { display: none !important; }
 
 /* Legacy aliases */

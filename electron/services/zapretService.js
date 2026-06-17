@@ -13,6 +13,10 @@ const VERSION_URL =
   'https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/version.txt';
 const RELEASE_BASE =
   'https://github.com/Flowseal/zapret-discord-youtube/releases/download';
+const ZAPRET_RELEASE_API =
+  'https://api.github.com/repos/Flowseal/zapret-discord-youtube/releases/latest';
+const ZAPRET_RELEASE_PAGE =
+  'https://github.com/Flowseal/zapret-discord-youtube/releases/latest';
 
 const PRESERVE_RELATIVE_PATHS = [
   'lists/list-general.txt',
@@ -25,26 +29,86 @@ const PRESERVE_RELATIVE_PATHS = [
 ];
 
 const STRATEGY_LABELS = {
-  'general.bat': { name: 'Основная', desc: 'Стандартная стратегия, подходит большинству' },
-  'general (ALT).bat': { name: 'ALT', desc: 'Альтернативный метод обхода DPI' },
-  'general (ALT2).bat': { name: 'ALT 2', desc: 'Вторая альтернатива' },
-  'general (ALT3).bat': { name: 'ALT 3', desc: 'Третья альтернатива' },
-  'general (ALT4).bat': { name: 'ALT 4', desc: 'Четвёртая альтернатива' },
-  'general (ALT5).bat': { name: 'ALT 5', desc: 'Пятая альтернатива' },
-  'general (ALT6).bat': { name: 'ALT 6', desc: 'Шестая альтернатива' },
-  'general (ALT7).bat': { name: 'ALT 7', desc: 'Седьмая альтернатива' },
-  'general (ALT8).bat': { name: 'ALT 8', desc: 'Восьмая альтернатива' },
-  'general (ALT9).bat': { name: 'ALT 9', desc: 'Девятая альтернатива' },
-  'general (ALT10).bat': { name: 'ALT 10', desc: 'Десятая альтернатива' },
-  'general (ALT11).bat': { name: 'ALT 11', desc: 'Одиннадцатая альтернатива' },
-  'general (ALT12).bat': { name: 'ALT 12', desc: 'Двенадцатая альтернатива' },
-  'general (FAKE TLS AUTO).bat': { name: 'FAKE TLS AUTO', desc: 'Автоматический поддельный TLS' },
-  'general (FAKE TLS AUTO ALT).bat': { name: 'FAKE TLS AUTO ALT', desc: 'FAKE TLS — альтернатива' },
-  'general (FAKE TLS AUTO ALT2).bat': { name: 'FAKE TLS AUTO ALT 2', desc: 'FAKE TLS — альтернатива 2' },
-  'general (FAKE TLS AUTO ALT3).bat': { name: 'FAKE TLS AUTO ALT 3', desc: 'FAKE TLS — альтернатива 3' },
-  'general (SIMPLE FAKE).bat': { name: 'SIMPLE FAKE', desc: 'Простой поддельный пакет' },
-  'general (SIMPLE FAKE ALT).bat': { name: 'SIMPLE FAKE ALT', desc: 'SIMPLE FAKE — альтернатива' },
-  'general (SIMPLE FAKE ALT2).bat': { name: 'SIMPLE FAKE ALT 2', desc: 'SIMPLE FAKE — альтернатива 2' }
+  'general.bat': {
+    name: 'Основная',
+    desc: 'Multisplit — разбивает TCP-пакеты. Базовая стратегия, с неё обычно начинают'
+  },
+  'general (ALT).bat': {
+    name: 'ALT',
+    desc: 'Fake + fakedsplit — поддельные пакеты и разделение. Часто лучший вариант на жёстком DPI'
+  },
+  'general (ALT2).bat': {
+    name: 'ALT 2',
+    desc: 'Fake + fakedsplit, вариант 2 — другие шаблоны TLS/HTTP'
+  },
+  'general (ALT3).bat': {
+    name: 'ALT 3',
+    desc: 'Fake + fakedsplit, вариант 3'
+  },
+  'general (ALT4).bat': {
+    name: 'ALT 4',
+    desc: 'Fake + fakedsplit, вариант 4'
+  },
+  'general (ALT5).bat': {
+    name: 'ALT 5',
+    desc: 'Fake + fakedsplit, вариант 5'
+  },
+  'general (ALT6).bat': {
+    name: 'ALT 6',
+    desc: 'Fake + fakedsplit, вариант 6'
+  },
+  'general (ALT7).bat': {
+    name: 'ALT 7',
+    desc: 'Fake + fakedsplit, вариант 7'
+  },
+  'general (ALT8).bat': {
+    name: 'ALT 8',
+    desc: 'Fake + fakedsplit, вариант 8'
+  },
+  'general (ALT9).bat': {
+    name: 'ALT 9',
+    desc: 'Fake + fakedsplit, вариант 9'
+  },
+  'general (ALT10).bat': {
+    name: 'ALT 10',
+    desc: 'Fake + fakedsplit, вариант 10'
+  },
+  'general (ALT11).bat': {
+    name: 'ALT 11',
+    desc: 'Fake + fakedsplit, вариант 11'
+  },
+  'general (ALT12).bat': {
+    name: 'ALT 12',
+    desc: 'Fake + fakedsplit, вариант 12'
+  },
+  'general (FAKE TLS AUTO).bat': {
+    name: 'FAKE TLS AUTO',
+    desc: 'Автогенерация поддельного TLS (multidisorder) — для провайдеров с глубоким анализом TLS'
+  },
+  'general (FAKE TLS AUTO ALT).bat': {
+    name: 'FAKE TLS AUTO ALT',
+    desc: 'FAKE TLS AUTO — альтернативные параметры генерации'
+  },
+  'general (FAKE TLS AUTO ALT2).bat': {
+    name: 'FAKE TLS AUTO ALT 2',
+    desc: 'FAKE TLS AUTO — альтернатива 2'
+  },
+  'general (FAKE TLS AUTO ALT3).bat': {
+    name: 'FAKE TLS AUTO ALT 3',
+    desc: 'FAKE TLS AUTO — альтернатива 3'
+  },
+  'general (SIMPLE FAKE).bat': {
+    name: 'SIMPLE FAKE',
+    desc: 'Простой fake — подставляет готовые TLS-шаблоны без автогенерации'
+  },
+  'general (SIMPLE FAKE ALT).bat': {
+    name: 'SIMPLE FAKE ALT',
+    desc: 'SIMPLE FAKE — альтернативный набор шаблонов'
+  },
+  'general (SIMPLE FAKE ALT2).bat': {
+    name: 'SIMPLE FAKE ALT 2',
+    desc: 'SIMPLE FAKE — альтернатива 2'
+  }
 };
 
 class ZapretService {
@@ -427,10 +491,170 @@ class ZapretService {
       const serviceBat = path.join(this.getZapretPath(), 'service.bat');
       const content = fs.readFileSync(serviceBat, 'utf8');
       const match = content.match(/LOCAL_VERSION=["']?([^"'\r\n]+)["']?/i);
-      return match ? match[1].trim() : 'unknown';
+      return this.extractVersionFromText(match ? match[1] : '') || 'unknown';
     } catch {
       return 'unknown';
     }
+  }
+
+  extractVersionFromText(value) {
+    const normalized = this.normalizeVersion(value);
+    const match = normalized.match(/^(\d+\.\d+\.\d+[a-z]*)$/i);
+    return match ? match[1] : null;
+  }
+
+  humanizeUpdateError(err) {
+    const msg = String(err?.message || err || '');
+    if (/таймаут|timeout|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN/i.test(msg)) {
+      return 'Не удалось связаться с GitHub. Проверьте интернет и повторите.';
+    }
+    if (/HTTP 40[13]|403|rate limit/i.test(msg)) {
+      return 'GitHub временно ограничил запросы. Повторите позже.';
+    }
+    if (/не удалось определить версию/i.test(msg)) {
+      return msg;
+    }
+    return 'Не удалось проверить обновления. Повторите позже.';
+  }
+
+  fetchTextUrl(url, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+      const follow = (targetUrl, depth = 0) => {
+        const client = targetUrl.startsWith('https') ? https : http;
+        const request = client.get(
+          targetUrl,
+          {
+            headers: {
+              'User-Agent': 'ZapretHub',
+              'Cache-Control': 'no-cache',
+              Accept: 'text/plain, text/html, application/json, */*'
+            }
+          },
+          (response) => {
+            if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && depth < 6) {
+              const location = response.headers.location.startsWith('http')
+                ? response.headers.location
+                : `https://github.com${response.headers.location}`;
+              response.resume();
+              follow(location, depth + 1);
+              return;
+            }
+
+            if (response.statusCode !== 200) {
+              response.resume();
+              reject(new Error(`HTTP ${response.statusCode}`));
+              return;
+            }
+
+            const chunks = [];
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+          }
+        );
+
+        request.on('error', reject);
+        request.setTimeout(timeoutMs, () => {
+          request.destroy();
+          reject(new Error('Таймаут запроса к GitHub'));
+        });
+      };
+
+      follow(url);
+    });
+  }
+
+  fetchGithubRelease(apiUrl) {
+    return new Promise((resolve, reject) => {
+      const request = https.get(
+        apiUrl,
+        { headers: { 'User-Agent': 'ZapretHub', Accept: 'application/vnd.github+json' } },
+        (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            https
+              .get(response.headers.location, { headers: { 'User-Agent': 'ZapretHub' } }, (redirect) => {
+                const chunks = [];
+                redirect.on('data', (chunk) => chunks.push(chunk));
+                redirect.on('end', () => {
+                  try {
+                    resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })
+              .on('error', reject);
+            return;
+          }
+
+          const chunks = [];
+          response.on('data', (chunk) => chunks.push(chunk));
+          response.on('end', () => {
+            try {
+              const json = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+              if (response.statusCode >= 400 || (json.message && !json.tag_name)) {
+                reject(new Error(json.message || `HTTP ${response.statusCode}`));
+                return;
+              }
+              if (!json.tag_name) {
+                reject(new Error('Некорректный ответ GitHub'));
+                return;
+              }
+              resolve(json);
+            } catch (e) {
+              reject(e);
+            }
+          });
+        }
+      );
+
+      request.on('error', reject);
+      request.setTimeout(20000, () => {
+        request.destroy();
+        reject(new Error('Таймаут запроса к GitHub'));
+      });
+    });
+  }
+
+  parseReleaseTagFromHtml(html) {
+    const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/([^"]+)"/i);
+    if (canonical?.[1]) return canonical[1];
+
+    const og = html.match(/\/releases\/tag\/(v?[\d.]+[a-z]*)/i);
+    if (og?.[1]) return og[1];
+
+    const embedded = html.match(/"tag_name"\s*:\s*"(v?[\d.]+[a-z]*)"/i);
+    if (embedded?.[1]) return embedded[1];
+
+    return null;
+  }
+
+  async fetchRemoteVersion() {
+    try {
+      const text = await this.fetchTextUrl(VERSION_URL, 8000);
+      const version = this.extractVersionFromText(text);
+      if (version) return version;
+    } catch {
+      // fallback
+    }
+
+    try {
+      const release = await this.fetchGithubRelease(ZAPRET_RELEASE_API);
+      const version = this.extractVersionFromText(String(release.tag_name || '').replace(/^v/i, ''));
+      if (version) return version;
+    } catch {
+      // fallback
+    }
+
+    try {
+      const html = await this.fetchTextUrl(ZAPRET_RELEASE_PAGE, 15000);
+      const tag = this.parseReleaseTagFromHtml(html);
+      const version = this.extractVersionFromText(String(tag || '').replace(/^v/i, ''));
+      if (version) return version;
+    } catch {
+      // fallback
+    }
+
+    throw new Error('Не удалось определить версию на GitHub');
   }
 
   getReleaseDownloadUrl(version) {
@@ -789,6 +1013,88 @@ class ZapretService {
     return this.getGeneralSites();
   }
 
+  exportGeneralSitesText() {
+    const sites = this.getGeneralSites();
+    return sites.length ? `${sites.join('\n')}\n` : '';
+  }
+
+  parseSitesImportText(text) {
+    return this.cleanSites(this.parseListLines(String(text || '')));
+  }
+
+  importGeneralSites(text, mode = 'merge') {
+    const imported = this.parseSitesImportText(text);
+    if (mode === 'replace') {
+      return this.saveGeneralSites(imported);
+    }
+    const existing = this.getGeneralSites();
+    const merged = [...existing];
+    for (const site of imported) {
+      if (!merged.includes(site)) merged.push(site);
+    }
+    return this.saveGeneralSites(merged);
+  }
+
+  exportCustomListSitesText(listId) {
+    const sites = this.getCustomListSites(listId);
+    return sites.length ? `${sites.join('\n')}\n` : '';
+  }
+
+  importCustomListSites(listId, text, mode = 'merge') {
+    const imported = this.parseSitesImportText(text);
+    if (mode === 'replace') {
+      return this.saveCustomListSites(listId, imported);
+    }
+    const existing = this.getCustomListSites(listId);
+    const merged = [...existing];
+    for (const site of imported) {
+      if (!merged.includes(site)) merged.push(site);
+    }
+    return this.saveCustomListSites(listId, merged);
+  }
+
+  summarizeStrategyProbeResult(result) {
+    if (!result || result.cancelled || !result.bestStrategy) return null;
+    const best = result.strategies?.find((row) => row.file === result.bestStrategy);
+    if (!best) return null;
+
+    const sitesOk = (best.httpOk || 0) + (best.pingOk || 0);
+    const sitesTotal = sitesOk + (best.httpError || 0) + (best.pingFail || 0) + (best.httpUnsup || 0);
+    const meta = STRATEGY_LABELS[best.file] || { name: best.name || best.file.replace('.bat', '') };
+
+    return {
+      strategyFile: best.file,
+      strategyName: meta.name,
+      sitesOk,
+      sitesTotal: sitesTotal || sitesOk,
+      working: Boolean(best.working),
+      testedAt: result.finishedAt || new Date().toISOString(),
+      mode: result.mode || 'all'
+    };
+  }
+
+  saveLastStrategyProbe(result) {
+    const summary = this.summarizeStrategyProbeResult(result);
+    if (!summary) return null;
+    this.config.lastStrategyProbe = summary;
+    this.saveConfig();
+    return summary;
+  }
+
+  setCloseBehavior(mode) {
+    const allowed = new Set([null, 'tray', 'quit']);
+    const next = allowed.has(mode) ? mode : null;
+    this.config.closeBehavior = next;
+    this.saveConfig();
+    return { closeBehavior: this.config.closeBehavior };
+  }
+
+  setOnboardingCompleted(completed = true) {
+    this.config.onboardingCompleted = Boolean(completed);
+    this.saveConfig();
+    return { onboardingCompleted: this.config.onboardingCompleted };
+  }
+
   syncActiveCustomList() {
     this.ensureUserLists();
     const userFile = path.join(this.getListsPath(), 'list-general-user.txt');
@@ -1074,6 +1380,10 @@ class ZapretService {
       windivertService,
       installedStrategy,
       lastStrategy: this.config.lastStrategy,
+      lastStrategyProbe: this.config.lastStrategyProbe || null,
+      closeBehavior: this.config.closeBehavior ?? null,
+      onboardingCompleted: Boolean(this.config.onboardingCompleted),
+      startMinimized: Boolean(this.config.startMinimized),
       appVersion: appPkg.version,
       version: this.getLocalVersion(),
       zapretPath: this.getZapretPath(),
@@ -1624,17 +1934,18 @@ class ZapretService {
   }
 
   buildUpdateResult(local, remote, extra = {}) {
-    const normalizedRemote = this.normalizeVersion(remote);
+    const normalizedRemote = this.extractVersionFromText(remote);
+    const normalizedLocal = this.extractVersionFromText(local) || local;
     const updateAvailable =
-      Boolean(normalizedRemote) && this.compareVersions(local, normalizedRemote) < 0;
+      Boolean(normalizedRemote) && this.compareVersions(normalizedLocal, normalizedRemote) < 0;
     return {
-      local,
-      remote: normalizedRemote || null,
+      local: normalizedLocal,
+      remote: normalizedRemote,
       updateAvailable,
       downloadUrl: normalizedRemote ? this.getReleaseDownloadUrl(normalizedRemote) : null,
       releaseUrl: normalizedRemote
         ? `https://github.com/Flowseal/zapret-discord-youtube/releases/tag/${normalizedRemote}`
-        : 'https://github.com/Flowseal/zapret-discord-youtube/releases/latest',
+        : ZAPRET_RELEASE_PAGE,
       ...extra
     };
   }
@@ -1658,16 +1969,17 @@ class ZapretService {
     }
 
     try {
-      const { stdout } = await execAsync(
-        `powershell -NoProfile -Command "(Invoke-WebRequest -Uri '${VERSION_URL}' -Headers @{ 'Cache-Control' = 'no-cache' } -UseBasicParsing -TimeoutSec 5).Content.Trim()"`,
-        { windowsHide: true, timeout: 8000 }
-      );
-      const remote = this.normalizeVersion(stdout);
+      const remote = await this.fetchRemoteVersion();
       const result = this.buildUpdateResult(local, remote);
       this._updateCheckCache = { at: Date.now(), result };
       return result;
     } catch (e) {
-      const result = { local, remote: null, updateAvailable: false, error: e.message };
+      const result = {
+        local,
+        remote: null,
+        updateAvailable: false,
+        error: this.humanizeUpdateError(e)
+      };
       this._updateCheckCache = { at: Date.now(), result };
       return result;
     }
@@ -1958,13 +2270,15 @@ class ZapretService {
         message: parsed.cancelled ? 'Проверка прервана' : 'Проверка завершена',
         percent: 100
       });
-      return {
+      const probeResult = {
         ...parsed,
         cancelled: Boolean(parsed.cancelled || this._strategyProbeCancelRequested || exitCode === 2),
         exitCode,
         mode,
         strategyFile: mode === 'single' ? strategyFile : null
       };
+      this.saveLastStrategyProbe(probeResult);
+      return probeResult;
     } finally {
       stopProgressPolling();
       this._strategyProbeRunning = false;
