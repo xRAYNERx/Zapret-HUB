@@ -51,54 +51,35 @@ let state = {
   customSitesSaving: false,
   busy: false,
   pendingUpdate: null,
+  pendingStartupUpdates: null,
   updating: false,
+  startupUpdating: false,
   updateContext: 'manual',
   pendingStartStrategy: null,
   autoCheckUpdates: true,
   tgProxy: { running: false, installed: false, busy: false }
 };
 
-let strategyShuffleQueue = [];
 let suppressStrategyChange = false;
+let strategyProbeRunning = false;
+let strategyProbeResult = null;
 
-function shuffleStrategyFiles(files) {
-  const arr = [...files];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+function getStrategyProbeStatus(row) {
+  if (row.error) return { label: 'Ошибка', className: 'failed' };
+  if (row.working) return { label: 'Работает', className: 'working' };
+  if (row.httpOk > 0 || row.pingOk > 0) return { label: 'Частично', className: 'partial' };
+  return { label: 'Не работает', className: 'failed' };
 }
 
-function resetStrategyShuffleQueue() {
-  strategyShuffleQueue = [];
-}
-
-function ensureStrategyShuffleQueue(currentFile) {
-  if (strategyShuffleQueue.length > 0) return;
-
-  const all = state.strategies.map((s) => s.file);
-  if (all.length <= 1) return;
-
-  let queue = shuffleStrategyFiles(all);
-  if (queue[0] === currentFile) {
-    const swap = 1 + Math.floor(Math.random() * (queue.length - 1));
-    [queue[0], queue[swap]] = [queue[swap], queue[0]];
-  }
-  strategyShuffleQueue = queue;
-}
-
-function getNextShuffleStrategy(currentFile) {
-  if (state.strategies.length <= 1) return currentFile;
-
-  ensureStrategyShuffleQueue(currentFile);
-  if (!strategyShuffleQueue.length) return currentFile;
-
-  let next = strategyShuffleQueue.shift();
-  if (next === currentFile && strategyShuffleQueue.length) {
-    next = strategyShuffleQueue.shift();
-  }
-  return next || currentFile;
+function formatStrategyProbeMeta(row) {
+  const parts = [];
+  parts.push(`HTTP ✓ ${row.httpOk}`);
+  if (row.httpError > 0) parts.push(`HTTP ✗ ${row.httpError}`);
+  if (row.httpUnsup > 0) parts.push(`неподдерж. ${row.httpUnsup}`);
+  parts.push(`ping ✓ ${row.pingOk}`);
+  if (row.pingFail > 0) parts.push(`ping ✗ ${row.pingFail}`);
+  if (row.error) parts.push(row.error);
+  return parts.join(' · ');
 }
 
 async function api(method, ...args) {
@@ -260,7 +241,7 @@ function setupCloseModals() {
 function setBusy(busy) {
   state.busy = busy;
   $('#btnPower').disabled = busy;
-  updateStrategyShuffleButton();
+  updateStrategyProbeButton();
 }
 
 function playStatusAnimation(wasRunning, isRunning) {
@@ -389,14 +370,283 @@ function renderStrategies(strategies, selectedFile) {
     select.appendChild(opt);
   }
 
-  resetStrategyShuffleQueue();
-  updateStrategyShuffleButton();
+  updateStrategyProbeButton();
 }
 
-function updateStrategyShuffleButton() {
-  const btn = $('#btnStrategyShuffle');
+function updateStrategyProbeButton() {
+  const btn = $('#btnStrategyProbe');
+  const label = $('#btnStrategyProbeLabel');
   if (!btn) return;
-  btn.disabled = state.busy || state.strategies.length <= 1;
+  btn.disabled = state.busy || strategyProbeRunning || state.strategies.length <= 1;
+  btn.classList.toggle('loading', strategyProbeRunning);
+  if (label) {
+    label.textContent = strategyProbeRunning
+      ? 'Проверка стратегий…'
+      : 'Подбор рабочей стратегии';
+  }
+}
+
+let strategyProbeChoiceResolver = null;
+let strategyProbePickResolver = null;
+
+function hideStrategyProbeChoiceModal() {
+  $('#strategyProbeChoiceModal')?.classList.add('hidden');
+}
+
+function showStrategyProbeChoiceModal() {
+  return new Promise((resolve) => {
+    strategyProbeChoiceResolver = resolve;
+    $('#strategyProbeChoiceModal')?.classList.remove('hidden');
+  });
+}
+
+function resolveStrategyProbeChoice(value) {
+  if (!strategyProbeChoiceResolver) return;
+  const resolve = strategyProbeChoiceResolver;
+  strategyProbeChoiceResolver = null;
+  hideStrategyProbeChoiceModal();
+  resolve(value);
+}
+
+function hideStrategyProbePickModal() {
+  $('#strategyProbePickModal')?.classList.add('hidden');
+}
+
+function showStrategyProbePickModal() {
+  const list = $('#strategyProbePickList');
+  if (!list) return Promise.resolve(null);
+
+  list.innerHTML = '';
+  for (const strategy of state.strategies) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'strategy-probe-pick-item';
+    btn.innerHTML = `
+      <span class="strategy-probe-pick-name">${strategy.name}</span>
+      <span class="strategy-probe-pick-file">${strategy.file}</span>
+    `;
+    btn.addEventListener('click', () => resolveStrategyProbePick(strategy.file));
+    list.appendChild(btn);
+  }
+
+  return new Promise((resolve) => {
+    strategyProbePickResolver = resolve;
+    $('#strategyProbePickModal')?.classList.remove('hidden');
+  });
+}
+
+function resolveStrategyProbePick(file) {
+  if (!strategyProbePickResolver) return;
+  const resolve = strategyProbePickResolver;
+  strategyProbePickResolver = null;
+  hideStrategyProbePickModal();
+  resolve(file);
+}
+
+function showStrategyProbeProgressModal() {
+  updateStrategyProbeProgress({
+    phase: 'start',
+    message: 'Подготовка к проверке стратегий...',
+    current: 0,
+    total: 0,
+    percent: 0
+  });
+  $('#strategyProbeProgressModal')?.classList.remove('hidden');
+}
+
+function hideStrategyProbeProgressModal() {
+  $('#strategyProbeProgressModal')?.classList.add('hidden');
+}
+
+function updateStrategyProbeProgress(progress = {}) {
+  const text = $('#strategyProbeProgressText');
+  const fill = $('#strategyProbeProgressFill');
+  const meta = $('#strategyProbeProgressMeta');
+  const bar = $('#strategyProbeProgressBar');
+  const spinner = $('#strategyProbeSpinner');
+  const isDone = progress.phase === 'done';
+  let percent = Math.max(0, Math.min(100, Number(progress.percent) || 0));
+  if (!isDone) {
+    percent = Math.min(percent, 99);
+  }
+
+  if (text) {
+    text.textContent = progress.message || 'Проверяем стратегии...';
+  }
+  if (fill) {
+    fill.style.width = `${percent}%`;
+  }
+  if (bar) {
+    bar.classList.toggle('is-active', !isDone);
+  }
+  if (spinner) {
+    spinner.classList.toggle('hidden', isDone);
+  }
+  if (meta) {
+    if (progress.total > 0) {
+      const stage = isDone ? progress.total : Math.min(progress.current || 0, progress.total);
+      meta.textContent = `Этап ${stage} из ${progress.total}${progress.config ? ` · ${progress.config}` : ''}`;
+    } else if (progress.config) {
+      meta.textContent = progress.config;
+    } else {
+      meta.textContent = '';
+    }
+  }
+}
+
+function hideStrategyProbeModal() {
+  $('#strategyProbeModal')?.classList.add('hidden');
+}
+
+function showStrategyProbeModal(result) {
+  strategyProbeResult = result;
+  const working = result.strategies.filter((row) => row.working);
+  const summary = $('#strategyProbeSummary');
+  const list = $('#strategyProbeList');
+  const applyBtn = $('#btnStrategyProbeApply');
+  const title = $('#strategyProbeResultTitle');
+  const isSingle = result.mode === 'single' && result.strategies.length === 1;
+
+  if (title) {
+    title.textContent = isSingle ? 'Результат проверки' : 'Результаты проверки';
+  }
+
+  if (summary) {
+    if (result.cancelled) {
+      const checked = result.strategies.length;
+      summary.textContent = checked
+        ? `Проверка прервана. Показаны результаты ${checked} ${checked === 1 ? 'стратегии' : 'стратегий'}.`
+        : 'Проверка прервана до получения результатов.';
+    } else if (isSingle) {
+      const row = result.strategies[0];
+      const status = getStrategyProbeStatus(row);
+      summary.textContent = row.error
+        ? `${row.name}: ${row.error}`
+        : status.className === 'working'
+          ? `${row.name} подходит для вашего ПК.`
+          : status.className === 'partial'
+            ? `${row.name} работает частично — попробуйте другую стратегию.`
+            : `${row.name} не прошла проверку. Попробуйте другую стратегию или обновите движок.`;
+    } else if (working.length) {
+      const best = result.strategies.find((row) => row.file === result.bestStrategy);
+      summary.textContent = best
+        ? `На вашем ПК подходят ${working.length} из ${result.strategies.length} стратегий. Лучший вариант: ${best.name}.`
+        : `На вашем ПК подходят ${working.length} из ${result.strategies.length} стратегий.`;
+    } else {
+      summary.textContent = 'Ни одна стратегия не прошла проверку полностью. Попробуйте повторить тест или обновить движок.';
+    }
+  }
+
+  if (list) {
+    list.innerHTML = '';
+    for (const row of result.strategies) {
+      const status = getStrategyProbeStatus(row);
+      const item = document.createElement('div');
+      item.className = `strategy-probe-item ${status.className}${row.file === result.bestStrategy ? ' best' : ''}`;
+      item.innerHTML = `
+        <div>
+          <div class="strategy-probe-name">${row.name}</div>
+          <div class="strategy-probe-meta">${formatStrategyProbeMeta(row)}</div>
+        </div>
+        <div class="strategy-probe-status">${status.label}</div>
+      `;
+      list.appendChild(item);
+    }
+  }
+
+  if (applyBtn) {
+    applyBtn.disabled = !result.bestStrategy || !working.some((row) => row.file === result.bestStrategy);
+  }
+
+  $('#strategyProbeModal')?.classList.remove('hidden');
+}
+
+function setupStrategyProbeModal() {
+  $('#btnStrategyProbeClose')?.addEventListener('click', hideStrategyProbeModal);
+  $('#strategyProbeModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#strategyProbeModal')) hideStrategyProbeModal();
+  });
+  $('#btnStrategyProbeApply')?.addEventListener('click', async () => {
+    if (!strategyProbeResult?.bestStrategy) return;
+    hideStrategyProbeModal();
+    suppressStrategyChange = true;
+    $('#strategySelect').value = strategyProbeResult.bestStrategy;
+    suppressStrategyChange = false;
+    await applyStrategy(strategyProbeResult.bestStrategy);
+  });
+
+  $('#btnStrategyProbeAll')?.addEventListener('click', () => resolveStrategyProbeChoice('all'));
+  $('#btnStrategyProbeOne')?.addEventListener('click', () => resolveStrategyProbeChoice('single'));
+  $('#btnStrategyProbeChoiceCancel')?.addEventListener('click', () => resolveStrategyProbeChoice(null));
+  $('#strategyProbeChoiceModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#strategyProbeChoiceModal')) resolveStrategyProbeChoice(null);
+  });
+
+  $('#btnStrategyProbePickCancel')?.addEventListener('click', () => resolveStrategyProbePick(null));
+  $('#strategyProbePickModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#strategyProbePickModal')) resolveStrategyProbePick(null);
+  });
+
+  $('#btnStrategyProbeCancel')?.addEventListener('click', async () => {
+    const btn = $('#btnStrategyProbeCancel');
+    if (!strategyProbeRunning || !btn) return;
+    btn.disabled = true;
+    btn.textContent = 'Останавливаем…';
+    try {
+      await api('cancelStrategyProbe');
+    } catch (e) {
+      toast(e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Прервать проверку';
+    }
+  });
+}
+
+async function runStrategyProbeFlow() {
+  if (state.busy || strategyProbeRunning || state.strategies.length <= 1) return;
+
+  const choice = await showStrategyProbeChoiceModal();
+  if (!choice) return;
+
+  const options = { mode: choice };
+  if (choice === 'all') {
+    const confirmed = await showConfirmModal({
+      title: 'Проверка всех стратегий',
+      text: 'Будут проверены все доступные конфиги. Это может занять несколько минут. Продолжить?',
+      confirmLabel: 'Начать проверку'
+    });
+    if (!confirmed) return;
+  } else {
+    const strategyFile = await showStrategyProbePickModal();
+    if (!strategyFile) return;
+    options.strategyFile = strategyFile;
+  }
+
+  strategyProbeRunning = true;
+  updateStrategyProbeButton();
+  showStrategyProbeProgressModal();
+  const cancelBtn = $('#btnStrategyProbeCancel');
+  if (cancelBtn) {
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = 'Прервать проверку';
+  }
+
+  try {
+    const result = await api('runStrategyProbe', options);
+    const status = await api('getStatus');
+    updateUI(status);
+    hideStrategyProbeProgressModal();
+    showStrategyProbeModal(result);
+    if (result.cancelled) {
+      toast('Проверка прервана', 'info');
+    }
+  } catch (e) {
+    hideStrategyProbeProgressModal();
+    toast(e.message, 'error');
+  } finally {
+    strategyProbeRunning = false;
+    updateStrategyProbeButton();
+  }
 }
 
 function updateTgProxyUI(status) {
@@ -799,11 +1049,191 @@ function renderDiagnostics(results) {
   for (const r of results) {
     const item = document.createElement('div');
     item.className = 'diag-item';
-    const cls = r.ok ? 'diag-ok' : 'diag-fail';
-    const icon = r.ok ? '✓' : '✗';
+    const severity = r.severity || (r.ok ? 'ok' : 'fail');
+    const cls = severity === 'ok' ? 'diag-ok' : severity === 'warn' ? 'diag-warn' : 'diag-fail';
+    const icon = severity === 'ok' ? '✓' : severity === 'warn' ? '!' : '✗';
     item.innerHTML = `<span class="${cls}">${icon}</span><span>${r.name}: ${r.message}</span>`;
     container.appendChild(item);
   }
+}
+
+function renderUpdateCheckResults(all) {
+  const el = $('#updateResult');
+  if (!el) return;
+
+  const rows = [all.hub, all.zapret, all.tg].filter(Boolean);
+  el.innerHTML = rows.map((info) => {
+    const label = info.label || info.product || 'Компонент';
+    if (info.error) {
+      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Ошибка: ${info.error}</span></div>`;
+    }
+    if (info.updateAvailable) {
+      const action = info.product === 'hub'
+        ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-release-url="${info.releaseUrl || ''}">Скачать</button>`
+        : info.product === 'zapret'
+          ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="zapret">Обновить</button>`
+          : `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="tg">Обновить</button>`;
+      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Доступна ${info.remote} (у вас ${info.local})</span>${action}</div>`;
+    }
+    return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-ok">✓ Актуально (${info.local})</span></div>`;
+  }).join('');
+
+  el.querySelectorAll('[data-release-url]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const url = btn.getAttribute('data-release-url');
+      if (url) api('openExternal', url);
+    });
+  });
+
+  el.querySelector('[data-update="zapret"]')?.addEventListener('click', () => {
+    showUpdateModal(all.zapret);
+  });
+
+  el.querySelector('[data-update="tg"]')?.addEventListener('click', async () => {
+    try {
+      const result = await api('applyTgProxyUpdate');
+      const status = await api('getTgProxyStatus');
+      updateTgProxyUI(status);
+      toast(`TG Proxy обновлён до ${result.local || all.tg.remote}`, 'success');
+      renderUpdateCheckResults(await api('checkAllUpdates', { force: true }));
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+}
+
+function getPendingUpdateItems(all) {
+  if (!all) return [];
+  return [all.hub, all.zapret, all.tg].filter((info) => info?.updateAvailable && !info?.error);
+}
+
+function renderStartupUpdatesList(all) {
+  const el = $('#startupUpdatesList');
+  if (!el) return;
+
+  const rows = getPendingUpdateItems(all);
+  el.innerHTML = rows.map((info) => {
+    const label = info.label || info.product || 'Компонент';
+    return `<div class="update-row">
+      <span class="update-row-label">${label}</span>
+      <span class="diag-warn">${info.local} → ${info.remote}</span>
+    </div>`;
+  }).join('');
+}
+
+function setStartupUpdatesProgress(progress) {
+  $('#startupUpdatesProgress')?.classList.remove('hidden');
+  $('#startupUpdatesActions')?.classList.add('hidden');
+  const percent = Math.max(0, Math.min(100, progress.percent || 0));
+  const fill = $('#startupUpdatesProgressFill');
+  if (fill) fill.style.width = `${percent}%`;
+  const label = $('#startupUpdatesProgressLabel');
+  if (label) label.textContent = progress.message || 'Обновление...';
+}
+
+function hideStartupUpdatesModal() {
+  $('#startupUpdatesModal')?.classList.add('hidden');
+  $('#startupUpdatesProgress')?.classList.add('hidden');
+  $('#startupUpdatesActions')?.classList.remove('hidden');
+  const fill = $('#startupUpdatesProgressFill');
+  if (fill) fill.style.width = '0%';
+  state.pendingStartupUpdates = null;
+  state.startupUpdating = false;
+}
+
+function showStartupUpdatesModal(all) {
+  const rows = getPendingUpdateItems(all);
+  if (!rows.length) return;
+
+  state.pendingStartupUpdates = all;
+  renderStartupUpdatesList(all);
+
+  const hasHub = Boolean(all.hub?.updateAvailable && !all.hub?.error);
+  const hasAuto = Boolean(
+    (all.zapret?.updateAvailable && !all.zapret?.error)
+    || (all.tg?.updateAvailable && !all.tg?.error)
+  );
+  const btnAll = $('#btnStartupUpdateAll');
+  if (btnAll) {
+    if (hasHub && hasAuto) btnAll.textContent = 'Обновить всё';
+    else if (hasHub) btnAll.textContent = 'Скачать установщик HUB';
+    else btnAll.textContent = 'Обновить автоматически';
+  }
+
+  $('#startupUpdatesText').textContent = rows.length === 1
+    ? 'При запуске найдена новая версия одного компонента.'
+    : `При запуске найдены новые версии ${rows.length} компонентов.`;
+
+  $('#startupUpdatesProgress')?.classList.add('hidden');
+  $('#startupUpdatesActions')?.classList.remove('hidden');
+  $('#startupUpdatesModal')?.classList.remove('hidden');
+}
+
+async function runStartupUpdateAll(all) {
+  if (!all || state.startupUpdating) return;
+  state.startupUpdating = true;
+  setStartupUpdatesProgress({ percent: 0, message: 'Подготовка к обновлению...' });
+
+  try {
+    if (all.zapret?.updateAvailable && !all.zapret?.error) {
+      setStartupUpdatesProgress({ percent: 10, message: `Обновление движка до ${all.zapret.remote}...` });
+      const result = await api('applyUpdate', all.zapret.remote);
+      const status = await api('getStatus');
+      updateUI(status);
+      state.strategies = await api('getStrategies');
+      renderStrategies(state.strategies, status.lastStrategy || 'general.bat');
+      toast(`Движок обновлён до ${result.local}`, 'success');
+    }
+
+    if (all.tg?.updateAvailable && !all.tg?.error) {
+      setStartupUpdatesProgress({ percent: 55, message: `Обновление TG Proxy до ${all.tg.remote}...` });
+      const result = await api('applyTgProxyUpdate');
+      const tgStatus = await api('getTgProxyStatus');
+      updateTgProxyUI(tgStatus);
+      if (result.updated) {
+        toast(`TG Proxy обновлён до ${result.local || all.tg.remote}`, 'success');
+      }
+    }
+
+    if (all.hub?.updateAvailable && !all.hub?.error) {
+      setStartupUpdatesProgress({ percent: 85, message: `Скачивание Zapret HUB ${all.hub.remote}...` });
+      await api('applyHubUpdate');
+      toast('Установщик открыт — завершите установку и перезапустите HUB', 'info');
+    }
+
+    hideStartupUpdatesModal();
+    const el = $('#updateResult');
+    if (el) {
+      try {
+        renderUpdateCheckResults(await api('checkAllUpdates', { force: true }));
+      } catch {
+        el.innerHTML = '<span class="diag-ok">✓ Обновления установлены</span>';
+      }
+    }
+  } catch (e) {
+    state.startupUpdating = false;
+    $('#startupUpdatesActions')?.classList.remove('hidden');
+    toast(e.message, 'error');
+  }
+}
+
+function setupStartupUpdatesModal() {
+  $('#btnStartupUpdateLater')?.addEventListener('click', hideStartupUpdatesModal);
+  $('#btnStartupUpdateAll')?.addEventListener('click', () => {
+    if (state.pendingStartupUpdates) {
+      runStartupUpdateAll(state.pendingStartupUpdates);
+    }
+  });
+  $('#startupUpdatesModal')?.addEventListener('click', (e) => {
+    if (e.target === $('#startupUpdatesModal') && !state.startupUpdating) {
+      hideStartupUpdatesModal();
+    }
+  });
+
+  window.zapretAPI.onHubUpdateProgress?.((progress) => {
+    if (!state.startupUpdating) return;
+    setStartupUpdatesProgress(progress);
+  });
 }
 
 function showUpdateModal(info, options = {}) {
@@ -1021,8 +1451,15 @@ async function init() {
   setupRestartModal();
   setupAppRestartModal();
   setupUpdateModal();
+  setupStartupUpdatesModal();
   setupCloseModals();
   setupConfirmModal();
+  setupStrategyProbeModal();
+
+  window.zapretAPI.onStrategyProbeProgress?.((progress) => {
+    if (!strategyProbeRunning || !progress) return;
+    updateStrategyProbeProgress(progress);
+  });
 
   try {
     const pathCheck = await api('validatePath');
@@ -1048,25 +1485,11 @@ async function init() {
 
   $('#strategySelect').addEventListener('change', async () => {
     if (state.busy || suppressStrategyChange) return;
-    resetStrategyShuffleQueue();
     await applyStrategy($('#strategySelect').value);
   });
 
-  $('#btnStrategyShuffle')?.addEventListener('click', async () => {
-    if (state.busy || state.strategies.length <= 1) return;
-
-    const btn = $('#btnStrategyShuffle');
-    btn.classList.add('spinning');
-    setTimeout(() => btn.classList.remove('spinning'), 550);
-
-    const current = $('#strategySelect').value;
-    const next = getNextShuffleStrategy(current);
-    if (next === current) return;
-
-    suppressStrategyChange = true;
-    $('#strategySelect').value = next;
-    suppressStrategyChange = false;
-    await applyStrategy(next);
+  $('#btnStrategyProbe')?.addEventListener('click', () => {
+    runStrategyProbeFlow();
   });
 
   $('#btnPower').addEventListener('click', async () => {
@@ -1223,34 +1646,13 @@ async function init() {
     }
   });
 
-  $('#btnTests').addEventListener('click', async () => {
-    try {
-      const result = await api('runTests');
-      if (result.elevated) {
-        toast('Тесты доступности запущены', 'info');
-      } else {
-        toast('Для прохождения тестов запустите программу от имени администратора', 'info');
-      }
-    } catch (e) {
-      toast(e.message, 'error');
-    }
-  });
-
   $('#btnCheckUpdates').addEventListener('click', async () => {
     $('#btnCheckUpdates').disabled = true;
     const el = $('#updateResult');
-    el.innerHTML = '<span style="color:var(--text-muted)">Проверяем...</span>';
+    el.innerHTML = '<span style="color:var(--text-muted)">Проверяем Zapret HUB, движок и TG Proxy...</span>';
     try {
-      const info = await api('checkUpdates', { force: true });
-      if (info.error) {
-        el.innerHTML = `<span class="diag-warn">Не удалось проверить: ${info.error}</span>`;
-      } else if (info.updateAvailable) {
-        el.innerHTML = `<span class="diag-warn">Доступна версия ${info.remote} (у вас ${info.local})</span>
-          <button class="btn btn-primary" id="openUpdate" type="button" style="margin-top:8px;width:fit-content">Обновить автоматически</button>`;
-        $('#openUpdate')?.addEventListener('click', () => showUpdateModal(info));
-      } else {
-        el.innerHTML = `<span class="diag-ok">✓ Установлена актуальная версия (${info.local})</span>`;
-      }
+      const all = await api('checkAllUpdates', { force: true });
+      renderUpdateCheckResults(all);
     } catch (e) {
       toast(e.message, 'error');
     } finally {
@@ -1341,9 +1743,9 @@ async function init() {
   window.zapretAPI.onTgProxyChanged((status) => updateTgProxyUI(status));
   window.zapretAPI.onError((msg) => toast(msg));
   window.zapretAPI.onNotify((msg) => toast(msg));
-  window.zapretAPI.onStartupUpdateAvailable((info) => {
-    if (info?.updateAvailable) {
-      showUpdateModal(info, { context: 'startup' });
+  window.zapretAPI.onStartupUpdatesAvailable((all) => {
+    if (getPendingUpdateItems(all).length) {
+      showStartupUpdatesModal(all);
     }
   });
 }

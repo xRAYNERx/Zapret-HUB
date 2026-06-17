@@ -89,6 +89,16 @@ class TgProxyService {
   }
 
   async fetchLatestRelease() {
+    try {
+      const release = await this.fetchLatestReleaseApi();
+      if (release?.tag_name) return release;
+    } catch {
+      // API rate limit or network — fallback to releases/latest redirect
+    }
+    return this.fetchLatestReleaseViaPage();
+  }
+
+  fetchLatestReleaseApi() {
     return new Promise((resolve, reject) => {
       const request = https.get(
         RELEASE_API,
@@ -100,7 +110,16 @@ class TgProxyService {
                 let data = '';
                 r.on('data', (chunk) => { data += chunk; });
                 r.on('end', () => {
-                  try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+                  try {
+                    const json = JSON.parse(data);
+                    if (!json.tag_name) {
+                      reject(new Error(json.message || 'Некорректный ответ GitHub'));
+                      return;
+                    }
+                    resolve(json);
+                  } catch (e) {
+                    reject(e);
+                  }
                 });
               })
               .on('error', reject);
@@ -110,7 +129,20 @@ class TgProxyService {
           let data = '';
           response.on('data', (chunk) => { data += chunk; });
           response.on('end', () => {
-            try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+            try {
+              const json = JSON.parse(data);
+              if (response.statusCode >= 400 || (json.message && !json.tag_name)) {
+                reject(new Error(json.message || `HTTP ${response.statusCode}`));
+                return;
+              }
+              if (!json.tag_name) {
+                reject(new Error('Некорректный ответ GitHub'));
+                return;
+              }
+              resolve(json);
+            } catch (e) {
+              reject(e);
+            }
           });
         }
       );
@@ -122,12 +154,86 @@ class TgProxyService {
     });
   }
 
-  getWindowsAsset(release) {
-    const asset = release?.assets?.find((a) => a.name === WINDOWS_ASSET);
-    if (!asset?.browser_download_url) {
-      throw new Error(`Файл ${WINDOWS_ASSET} не найден в релизе`);
+  parseReleaseTagFromHtml(html) {
+    const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/(v[\d.]+)"/i);
+    if (canonical?.[1]) return canonical[1];
+
+    const og = html.match(/\/releases\/tag\/(v[\d.]+)/i);
+    if (og?.[1]) return og[1];
+
+    const embedded = html.match(/"tag_name"\s*:\s*"(v[\d.]+)"/i);
+    if (embedded?.[1]) return embedded[1];
+
+    return null;
+  }
+
+  buildReleaseFromTag(tag) {
+    const normalized = String(tag || '').startsWith('v') ? tag : `v${tag}`;
+    return {
+      tag_name: normalized,
+      html_url: `https://github.com/Flowseal/tg-ws-proxy/releases/tag/${normalized}`,
+      assets: []
+    };
+  }
+
+  fetchLatestReleaseViaPage() {
+    return new Promise((resolve, reject) => {
+      const follow = (url, depth = 0) => {
+        const request = https.get(url, { headers: { 'User-Agent': 'ZapretHub' } }, (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && depth < 6) {
+            const location = response.headers.location.startsWith('http')
+              ? response.headers.location
+              : `https://github.com${response.headers.location}`;
+            const tagMatch = location.match(/\/tag\/(v[\d.]+)/i);
+            response.resume();
+            if (tagMatch) {
+              resolve(this.buildReleaseFromTag(tagMatch[1]));
+              return;
+            }
+            follow(location, depth + 1);
+            return;
+          }
+
+          if (response.statusCode === 200) {
+            let data = '';
+            response.on('data', (chunk) => { data += chunk; });
+            response.on('end', () => {
+              const tag = this.parseReleaseTagFromHtml(data);
+              if (tag) {
+                resolve(this.buildReleaseFromTag(tag));
+                return;
+              }
+              reject(new Error('Не удалось определить версию TG Proxy'));
+            });
+            return;
+          }
+
+          response.resume();
+          reject(new Error('Не удалось определить версию TG Proxy'));
+        });
+        request.on('error', reject);
+        request.setTimeout(20000, () => {
+          request.destroy();
+          reject(new Error('Таймаут запроса к GitHub'));
+        });
+      };
+
+      follow(RELEASE_PAGE);
+    });
+  }
+
+  resolveWindowsDownloadUrl(release) {
+    const assets = release?.assets || [];
+    const asset = assets.find((a) => a.name === WINDOWS_ASSET)
+      || assets.find((a) => /^TgWsProxy[_-]?windows\.exe$/i.test(a.name));
+    if (asset?.browser_download_url) return asset.browser_download_url;
+
+    const tag = String(release?.tag_name || '').replace(/^v/i, '');
+    if (tag) {
+      return `https://github.com/Flowseal/tg-ws-proxy/releases/download/v${tag}/${WINDOWS_ASSET}`;
     }
-    return asset.browser_download_url;
+
+    throw new Error(`Файл ${WINDOWS_ASSET} не найден в релизе`);
   }
 
   downloadFile(url, destPath, onProgress) {
@@ -198,7 +304,7 @@ class TgProxyService {
 
     fs.mkdirSync(this.installDir, { recursive: true });
     const release = await this.fetchLatestRelease();
-    const url = this.getWindowsAsset(release);
+    const url = this.resolveWindowsDownloadUrl(release);
     const tmpPath = `${this.exePath}.download`;
 
     await this.downloadFile(url, tmpPath, onProgress);
@@ -280,7 +386,7 @@ class TgProxyService {
         local: local || 'не установлен',
         remote,
         updateAvailable,
-        downloadUrl: this.getWindowsAsset(release),
+        downloadUrl: this.resolveWindowsDownloadUrl(release),
         releaseUrl: release.html_url || RELEASE_PAGE
       };
     } catch (e) {

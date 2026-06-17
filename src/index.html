@@ -140,19 +140,21 @@
                 </div>
                 <div class="panel-head-text">
                   <h3>Смена стратегии обхода блокировки YouTube и Discord</h3>
-                  <p class="card-hint">Если один вариант не работает — попробуйте другой</p>
+                  <p class="card-hint">Рекомендуем пройти подбор рабочей стратегии</p>
                 </div>
                 <span class="panel-version-badge" id="engineVersion" title="Версия движка">—</span>
               </header>
 
               <select class="select" id="strategySelect"></select>
-              <div class="strategy-shuffle">
-                <button class="btn btn-ghost btn-strategy-shuffle" id="btnStrategyShuffle" type="button">
+              <div class="strategy-probe">
+                <button class="btn btn-primary btn-power-green btn-strategy-probe" id="btnStrategyProbe" type="button">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
                   </svg>
-                  Случайная стратегия
+                  <span id="btnStrategyProbeLabel">Подбор рабочей стратегии</span>
                 </button>
+                <p class="strategy-probe-hint">Проверит стратегии на вашем ПК — все или одну на выбор</p>
               </div>
             </article>
           </div>
@@ -277,8 +279,15 @@
           <header class="page-header">
             <div class="page-header-badge">Инструменты</div>
             <h1>Обслуживание</h1>
-            <p class="subtitle">Диагностика, тесты и расширенные настройки</p>
+            <p class="subtitle">Обновления, диагностика и расширенные настройки</p>
           </header>
+
+          <div class="panel tool-card tool-card-updates glass-card">
+            <h3>Проверка обновлений</h3>
+            <p class="card-hint">Zapret HUB, движок обхода и TG Proxy — сравнение с GitHub</p>
+            <button class="btn btn-primary btn-power-green" id="btnCheckUpdates" type="button">Проверить все</button>
+            <div class="update-result" id="updateResult"></div>
+          </div>
 
           <div class="panel glass-card tools-ipset-panel">
             <h3 class="card-title-row">
@@ -299,19 +308,6 @@
               <p class="card-hint">Проверит конфликты и готовность системы</p>
               <button class="btn btn-primary btn-power-green" id="btnDiagnostics" type="button">Запустить</button>
               <div class="diag-results" id="diagResults"></div>
-            </div>
-
-            <div class="panel tool-card glass-card">
-              <h3>Тесты доступности</h3>
-              <p class="card-hint">Откроет окно PowerShell с проверкой сайтов. Для тестов нужен запуск программы от имени администратора</p>
-              <button class="btn btn-primary btn-power-green" id="btnTests" type="button">Запустить тесты</button>
-            </div>
-
-            <div class="panel tool-card glass-card">
-              <h3>Проверка обновлений</h3>
-              <p class="card-hint">Сравнит вашу версию с GitHub</p>
-              <button class="btn btn-primary btn-power-green" id="btnCheckUpdates" type="button">Проверить</button>
-              <div class="update-result" id="updateResult"></div>
             </div>
 
             <div class="panel tool-card tool-card-about glass-card">
@@ -401,6 +397,24 @@
     </div>
   </div>
 
+  <div class="modal-overlay hidden" id="startupUpdatesModal">
+    <div class="modal-card modal-card-wide">
+      <h2>Доступны обновления</h2>
+      <p class="modal-text" id="startupUpdatesText">При запуске найдены новые версии компонентов.</p>
+      <div class="startup-updates-list" id="startupUpdatesList"></div>
+      <div class="update-progress hidden" id="startupUpdatesProgress">
+        <div class="update-progress-bar">
+          <div class="update-progress-fill" id="startupUpdatesProgressFill"></div>
+        </div>
+        <p class="update-progress-label" id="startupUpdatesProgressLabel">Подготовка...</p>
+      </div>
+      <div class="modal-actions" id="startupUpdatesActions">
+        <button class="btn btn-primary" id="btnStartupUpdateAll" type="button">Обновить всё</button>
+        <button class="btn btn-ghost" id="btnStartupUpdateLater" type="button">Позже</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay hidden" id="updateModal">
     <div class="modal-card">
       <h2>Обновление Zapret</h2>
@@ -447,6 +461,68 @@
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btnConfirmCancel" type="button">Отмена</button>
         <button class="btn btn-danger" id="btnConfirmOk" type="button">Удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="strategyProbeChoiceModal">
+    <div class="modal-card">
+      <h2>Подбор рабочей стратегии</h2>
+      <p class="modal-text">Что проверить на вашем ПК?</p>
+      <div class="strategy-probe-choice">
+        <button class="btn strategy-probe-choice-btn" id="btnStrategyProbeAll" type="button">
+          <span class="strategy-probe-choice-title">Все стратегии</span>
+          <span class="strategy-probe-choice-desc">Полная проверка всех конфигов</span>
+        </button>
+        <button class="btn strategy-probe-choice-btn" id="btnStrategyProbeOne" type="button">
+          <span class="strategy-probe-choice-title">Одну стратегию</span>
+          <span class="strategy-probe-choice-desc">Проверить выбранный конфиг</span>
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnStrategyProbeChoiceCancel" type="button">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="strategyProbePickModal">
+    <div class="modal-card modal-card-wide">
+      <h2>Выбор стратегии</h2>
+      <p class="modal-text">Выберите конфиг для проверки</p>
+      <div class="strategy-probe-pick-list" id="strategyProbePickList"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnStrategyProbePickCancel" type="button">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="strategyProbeProgressModal">
+    <div class="modal-card">
+      <h2>Проверка стратегий</h2>
+      <div class="strategy-probe-progress-head">
+        <div class="loading-spinner" id="strategyProbeSpinner" aria-hidden="true"></div>
+        <p class="modal-text strategy-probe-progress-text" id="strategyProbeProgressText">Подготовка к проверке...</p>
+      </div>
+      <div class="strategy-probe-progress">
+        <div class="strategy-probe-progress-bar is-active" id="strategyProbeProgressBar">
+          <div class="strategy-probe-progress-fill" id="strategyProbeProgressFill"></div>
+        </div>
+        <p class="strategy-probe-progress-meta" id="strategyProbeProgressMeta"></p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnStrategyProbeCancel" type="button">Прервать проверку</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="strategyProbeModal">
+    <div class="modal-card modal-card-wide">
+      <h2 id="strategyProbeResultTitle">Результаты проверки</h2>
+      <p class="modal-text" id="strategyProbeSummary"></p>
+      <div class="strategy-probe-list" id="strategyProbeList"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnStrategyProbeClose" type="button">Закрыть</button>
+        <button class="btn btn-primary" id="btnStrategyProbeApply" type="button">Применить лучшую</button>
       </div>
     </div>
   </div>

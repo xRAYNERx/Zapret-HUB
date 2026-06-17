@@ -15,6 +15,13 @@ exports.default = async function afterPack(context) {
     'rcedit-x64.exe'
   );
 
-  execFileSync(rceditBin, [exePath, '--set-icon', iconPath], { stdio: 'inherit' });
-  console.log('Applied icon to', exePath);
+  execFileSync(rceditBin, [
+    exePath,
+    '--set-icon', iconPath,
+    '--set-version-string', 'FileDescription', 'Zapret HUB',
+    '--set-version-string', 'ProductName', 'Zapret HUB',
+    '--set-version-string', 'InternalName', 'Zapret HUB',
+    '--set-version-string', 'OriginalFilename', 'Zapret HUB.exe'
+  ], { stdio: 'inherit' });
+  console.log('Applied icon and metadata to', exePath);
 };

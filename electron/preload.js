@@ -26,8 +26,15 @@ const api = {
   validatePath: () => ipcRenderer.invoke('validate-path'),
   runDiagnostics: () => ipcRenderer.invoke('run-diagnostics'),
   checkUpdates: (options) => ipcRenderer.invoke('check-updates', options),
+  checkAllUpdates: (options) => ipcRenderer.invoke('check-all-updates', options),
   applyUpdate: (remoteVersion) => ipcRenderer.invoke('apply-update', remoteVersion),
+  applyHubUpdate: () => ipcRenderer.invoke('apply-hub-update'),
   runTests: () => ipcRenderer.invoke('run-tests'),
+  runStrategyProbe: (options) => ipcRenderer.invoke('run-strategy-probe', options),
+  cancelStrategyProbe: () => ipcRenderer.invoke('cancel-strategy-probe'),
+  onStrategyProbeProgress: (cb) => {
+    ipcRenderer.on('strategy-probe-progress', (_, data) => cb(data));
+  },
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   getConfig: () => ipcRenderer.invoke('get-config'),
   onStatusChanged: (cb) => {
@@ -57,8 +64,11 @@ const api = {
   onShowCloseDialog: (cb) => {
     ipcRenderer.on('show-close-dialog', () => cb());
   },
-  onStartupUpdateAvailable: (cb) => {
-    ipcRenderer.on('startup-update-available', (_, data) => cb(data));
+  onStartupUpdatesAvailable: (cb) => {
+    ipcRenderer.on('startup-updates-available', (_, data) => cb(data));
+  },
+  onHubUpdateProgress: (cb) => {
+    ipcRenderer.on('hub-update-progress', (_, data) => cb(data));
   },
   onTgProxyChanged: (cb) => {
     ipcRenderer.on('tg-proxy-changed', (_, data) => cb(data));

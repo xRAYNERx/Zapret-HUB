@@ -57,6 +57,10 @@ class ZapretService {
     this.config = this.loadConfig();
     this._resolvedZapretPath = null;
     this._updateCheckCache = null;
+    this._strategyProbeRunning = false;
+    this._strategyProbeChild = null;
+    this._strategyProbeCancelPath = null;
+    this._strategyProbeCancelRequested = false;
   }
 
   loadConfig() {
@@ -1083,6 +1087,21 @@ class ZapretService {
     return Buffer.from(value, 'utf16le').toString('base64');
   }
 
+  readUtf8Text(filePath) {
+    return fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
+  }
+
+  writeUtf8BomFile(filePath, content) {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, `\uFEFF${content.replace(/^\uFEFF/, '')}`, 'utf8');
+  }
+
+  normalizeExitCode(code) {
+    if (code === null || code === undefined) return null;
+    if (code > 0x7fffffff) return code - 0x100000000;
+    return code;
+  }
+
   isProcessElevated() {
     try {
       execSync('net session', { windowsHide: true, stdio: 'ignore' });
@@ -1364,48 +1383,242 @@ class ZapretService {
     return this.getStatus();
   }
 
+  async getAllServicesText() {
+    const { stdout } = await execAsync('sc query state= all', {
+      windowsHide: true,
+      maxBuffer: 15 * 1024 * 1024
+    });
+    return stdout;
+  }
+
+  async serviceListMatches(pattern) {
+    try {
+      const stdout = await this.getAllServicesText();
+      return pattern.test(stdout);
+    } catch {
+      return null;
+    }
+  }
+
+  async checkSecureDns() {
+    try {
+      const { stdout } = await execAsync(
+        'powershell -NoProfile -Command "Get-ChildItem -Recurse -Path \'HKLM:System\\CurrentControlSet\\Services\\Dnscache\\InterfaceSpecificParameters\\\' -ErrorAction SilentlyContinue | Get-ItemProperty -ErrorAction SilentlyContinue | Where-Object { $_.DohFlags -gt 0 } | Measure-Object | Select-Object -ExpandProperty Count"',
+        { windowsHide: true, timeout: 15000 }
+      );
+      const count = parseInt(String(stdout).trim(), 10) || 0;
+      return count > 0;
+    } catch {
+      return null;
+    }
+  }
+
   async runDiagnostics() {
     const results = [];
-
-    const add = (name, ok, message) => results.push({ name, ok, message });
+    const add = (name, severity, message) => {
+      results.push({
+        name,
+        severity,
+        ok: severity === 'ok',
+        message
+      });
+    };
 
     try {
       const { stdout } = await execAsync('sc query BFE', { windowsHide: true });
-      add('Base Filtering Engine', /RUNNING/i.test(stdout), /RUNNING/i.test(stdout) ? 'Работает' : 'Не запущен — нужен для Zapret');
+      add(
+        'Base Filtering Engine',
+        /RUNNING/i.test(stdout) ? 'ok' : 'fail',
+        /RUNNING/i.test(stdout) ? 'Работает' : 'Не запущен — нужен для Zapret'
+      );
     } catch (e) {
-      add('Base Filtering Engine', false, e.message);
+      add('Base Filtering Engine', 'fail', e.message);
     }
 
-    const winws = await this.isProcessRunning('winws.exe');
-    add('Обход (winws.exe)', winws, winws ? 'Запущен' : 'Не запущен');
-
-    const sysPath = path.join(this.getZapretPath(), 'bin', 'WinDivert64.sys');
-    add('WinDivert64.sys', fs.existsSync(sysPath), fs.existsSync(sysPath) ? 'Найден' : 'Файл не найден');
+    try {
+      const { stdout } = await execAsync(
+        'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable',
+        { windowsHide: true }
+      );
+      const proxyEnabled = /0x1/i.test(stdout);
+      if (!proxyEnabled) {
+        add('Системный прокси', 'ok', 'Отключён');
+      } else {
+        let proxyServer = '';
+        try {
+          const { stdout: serverOut } = await execAsync(
+            'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer',
+            { windowsHide: true }
+          );
+          const match = serverOut.match(/ProxyServer\s+REG_SZ\s+(.+)/i);
+          proxyServer = match ? match[1].trim() : '';
+        } catch {
+          // ignore
+        }
+        add(
+          'Системный прокси',
+          'warn',
+          proxyServer
+            ? `Включён: ${proxyServer}. Проверьте настройки или отключите, если прокси не используете`
+            : 'Включён. Проверьте настройки или отключите, если прокси не используете'
+        );
+      }
+    } catch (e) {
+      add('Системный прокси', 'warn', `Не удалось проверить: ${e.message}`);
+    }
 
     try {
       const { stdout } = await execAsync('netsh interface tcp show global', { windowsHide: true });
-      add('TCP timestamps', /timestamps\s*=\s*enabled/i.test(stdout), /enabled/i.test(stdout) ? 'Включены' : 'Отключены');
+      const enabled = /timestamps\s*=\s*enabled/i.test(stdout);
+      if (enabled) {
+        add('TCP timestamps', 'ok', 'Включены');
+      } else {
+        try {
+          await execAsync('netsh interface tcp set global timestamps=enabled', { windowsHide: true });
+          add('TCP timestamps', 'warn', 'Были отключены — попытка включения выполнена');
+        } catch {
+          add('TCP timestamps', 'fail', 'Отключены — не удалось включить автоматически');
+        }
+      }
     } catch (e) {
-      add('TCP timestamps', false, e.message);
+      add('TCP timestamps', 'fail', e.message);
     }
 
     try {
       const { stdout } = await execAsync('tasklist /FI "IMAGENAME eq AdguardSvc.exe" /NH', { windowsHide: true });
-      const found = stdout.toLowerCase().includes('adguard');
-      add('Adguard', !found, found ? 'Обнаружен — может мешать Discord' : 'Не найден');
+      const found = /AdguardSvc\.exe/i.test(stdout);
+      add(
+        'Adguard',
+        found ? 'fail' : 'ok',
+        found ? 'Обнаружен — может мешать Discord' : 'Не найден'
+      );
     } catch (e) {
-      add('Adguard', true, 'Проверка недоступна');
+      add('Adguard', 'warn', `Проверка недоступна: ${e.message}`);
+    }
+
+    const killer = await this.serviceListMatches(/Killer/i);
+    if (killer === null) {
+      add('Killer Network', 'warn', 'Не удалось проверить список служб');
+    } else {
+      add(
+        'Killer Network',
+        killer ? 'fail' : 'ok',
+        killer ? 'Конфликтует с Zapret' : 'Не найден'
+      );
+    }
+
+    const intel = await this.serviceListMatches(/Intel.*Connectivity.*Network/i);
+    if (intel === null) {
+      add('Intel Connectivity', 'warn', 'Не удалось проверить список служб');
+    } else {
+      add(
+        'Intel Connectivity',
+        intel ? 'fail' : 'ok',
+        intel ? 'Конфликтует с Zapret' : 'Не найден'
+      );
+    }
+
+    const tracSrv = await this.serviceListMatches(/TracSrvWrapper/i);
+    const epwd = await this.serviceListMatches(/\bEPWD\b/i);
+    if (tracSrv === null && epwd === null) {
+      add('Check Point', 'warn', 'Не удалось проверить список служб');
+    } else {
+      const checkpoint = Boolean(tracSrv) || Boolean(epwd);
+      add(
+        'Check Point',
+        checkpoint ? 'fail' : 'ok',
+        checkpoint ? 'Конфликтует с Zapret — удалите Check Point' : 'Не найден'
+      );
+    }
+
+    const smartbyte = await this.serviceListMatches(/SmartByte/i);
+    if (smartbyte === null) {
+      add('SmartByte', 'warn', 'Не удалось проверить список служб');
+    } else {
+      add(
+        'SmartByte',
+        smartbyte ? 'fail' : 'ok',
+        smartbyte ? 'Конфликтует с Zapret — отключите через services.msc' : 'Не найден'
+      );
+    }
+
+    const binPath = path.join(this.getZapretPath(), 'bin');
+    const hasSys = fs.existsSync(binPath) && fs.readdirSync(binPath).some((f) => f.toLowerCase().endsWith('.sys'));
+    add(
+      'WinDivert64.sys',
+      hasSys ? 'ok' : 'fail',
+      hasSys ? 'Найден' : 'Файл не найден в папке bin'
+    );
+
+    const vpn = await this.serviceListMatches(/VPN/i);
+    if (vpn === null) {
+      add('VPN', 'warn', 'Не удалось проверить список служб');
+    } else if (vpn) {
+      add('VPN', 'warn', 'Обнаружены VPN-службы — отключите VPN, если есть конфликты');
+    } else {
+      add('VPN', 'ok', 'Не найден');
+    }
+
+    const secureDns = await this.checkSecureDns();
+    if (secureDns === null) {
+      add('Secure DNS', 'warn', 'Не удалось проверить настройки DNS');
+    } else if (secureDns) {
+      add('Secure DNS', 'ok', 'Шифрованный DNS настроен');
+    } else {
+      add(
+        'Secure DNS',
+        'warn',
+        'Настройте защищённый DNS в браузере или в параметрах Windows 11'
+      );
     }
 
     try {
-      const { stdout } = await execAsync('sc query state= all', { windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
-      const killer = /Killer/i.test(stdout);
-      add('Killer Network', !killer, killer ? 'Конфликтует с Zapret' : 'Не найден');
-      const smartbyte = /SmartByte/i.test(stdout);
-      add('SmartByte', !smartbyte, smartbyte ? 'Конфликтует с Zapret' : 'Не найден');
+      const hostsFile = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'drivers', 'etc', 'hosts');
+      if (fs.existsSync(hostsFile)) {
+        const hosts = fs.readFileSync(hostsFile, 'utf8');
+        const ytBlocked = /youtube\.com|youtu\.be/i.test(hosts);
+        add(
+          'Файл hosts',
+          ytBlocked ? 'warn' : 'ok',
+          ytBlocked
+            ? 'Есть записи для youtube.com/youtu.be — может мешать YouTube'
+            : 'Записей YouTube не найдено'
+        );
+      } else {
+        add('Файл hosts', 'warn', 'Файл hosts не найден');
+      }
     } catch (e) {
-      add('Службы', true, 'Частичная проверка');
+      add('Файл hosts', 'warn', `Не удалось проверить: ${e.message}`);
     }
+
+    const winws = await this.isProcessRunning('winws.exe');
+    const windivertState = await this.getServiceState('WinDivert');
+    const windivertActive = windivertState === 'RUNNING' || windivertState === 'STOP_PENDING';
+    if (!winws && windivertActive) {
+      add(
+        'WinDivert',
+        'warn',
+        'winws.exe не запущен, но служба WinDivert активна — возможен конфликт'
+      );
+    } else if (windivertActive) {
+      add('WinDivert', 'ok', 'Служба активна вместе с winws.exe');
+    } else {
+      add('WinDivert', 'ok', 'Конфликт не обнаружен');
+    }
+
+    const conflicting = ['GoodbyeDPI', 'discordfix_zapret', 'winws1', 'winws2'];
+    const foundConflicts = [];
+    for (const serviceName of conflicting) {
+      const state = await this.getServiceState(serviceName);
+      if (state !== 'NOT_FOUND') foundConflicts.push(serviceName);
+    }
+    add(
+      'Конфликтующие обходы',
+      foundConflicts.length ? 'fail' : 'ok',
+      foundConflicts.length
+        ? `Найдены службы: ${foundConflicts.join(', ')}`
+        : 'Не найдены'
+    );
 
     return results;
   }
@@ -1464,6 +1677,310 @@ class ZapretService {
     spawn('cmd', ['/c', 'start', '', url], { detached: true, windowsHide: true });
   }
 
+  getStrategyProbeScriptSource() {
+    const candidates = [
+      path.join(this.appPath, 'bundled', 'zapret', 'utils', 'test zapret.ps1'),
+      this.resourcesPath
+        ? path.join(this.resourcesPath, 'zapret', 'utils', 'test zapret.ps1')
+        : null
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      if (!fs.existsSync(candidate)) continue;
+      const content = fs.readFileSync(candidate, 'utf8');
+      if (content.includes('Write-HeadlessResult')) return candidate;
+    }
+    return null;
+  }
+
+  syncStrategyProbeScript() {
+    const source = this.getStrategyProbeScriptSource();
+    if (!source) return false;
+
+    const target = path.join(this.getZapretPath(), 'utils', 'test zapret.ps1');
+    const sourceContent = this.readUtf8Text(source);
+    const targetContent = fs.existsSync(target) ? this.readUtf8Text(target) : '';
+    if (sourceContent === targetContent) return false;
+
+    this.writeUtf8BomFile(target, sourceContent);
+    return true;
+  }
+
+  readStrategyProbeResultFile(resultPath) {
+    if (!fs.existsSync(resultPath)) return null;
+    try {
+      const raw = fs.readFileSync(resultPath, 'utf8').replace(/^\uFEFF/, '').trim();
+      if (!raw) return null;
+      return this.parseStrategyProbeResult(raw);
+    } catch (err) {
+      return { __parseError: err.message || 'invalid_json' };
+    }
+  }
+
+  normalizeStrategyProbeRows(strategies) {
+    if (!strategies) return [];
+    if (Array.isArray(strategies)) return strategies;
+    if (typeof strategies === 'object') {
+      if (strategies.file) return [strategies];
+      return Object.values(strategies);
+    }
+    return [];
+  }
+
+  readStrategyProbeProgressFile(progressPath) {
+    if (!fs.existsSync(progressPath)) return null;
+    try {
+      const raw = fs.readFileSync(progressPath, 'utf8').replace(/^\uFEFF/, '').trim();
+      if (!raw) return null;
+      const payload = JSON.parse(raw);
+      const total = Number(payload.total) || 0;
+      const current = Number(payload.current) || 0;
+      let percent = Number(payload.percent);
+      if (!Number.isFinite(percent)) {
+        percent = total > 0 ? Math.round((current / total) * 100) : 0;
+      }
+      return {
+        phase: payload.phase || 'running',
+        message: payload.message || '',
+        current,
+        total,
+        config: payload.config || '',
+        percent: Math.max(0, Math.min(100, percent))
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  parseStrategyProbeResult(raw) {
+    const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const strategies = this.normalizeStrategyProbeRows(payload.strategies).map((row) => {
+      const meta = STRATEGY_LABELS[row.file] || { name: row.file.replace('.bat', ''), desc: '' };
+      return {
+        file: row.file,
+        name: meta.name,
+        desc: meta.desc,
+        httpOk: row.httpOk ?? 0,
+        httpError: row.httpError ?? 0,
+        httpUnsup: row.httpUnsup ?? 0,
+        pingOk: row.pingOk ?? 0,
+        pingFail: row.pingFail ?? 0,
+        score: row.score ?? 0,
+        working: Boolean(row.working),
+        error: row.error || null
+      };
+    }).sort((a, b) => b.score - a.score || b.pingOk - a.pingOk);
+
+    const bestStrategy = payload.bestStrategy || strategies.find((s) => s.working)?.file || null;
+    return {
+      testType: payload.testType || 'standard',
+      bestStrategy,
+      strategies,
+      finishedAt: payload.finishedAt || null,
+      cancelled: Boolean(payload.cancelled),
+      error: payload.error || null
+    };
+  }
+
+  cancelStrategyProbe() {
+    if (!this._strategyProbeRunning) {
+      return { cancelled: false };
+    }
+
+    this._strategyProbeCancelRequested = true;
+
+    if (this._strategyProbeCancelPath) {
+      try {
+        fs.writeFileSync(this._strategyProbeCancelPath, '1', 'utf8');
+      } catch {
+        // ignore cancel flag errors
+      }
+    }
+
+    const child = this._strategyProbeChild;
+    if (child && child.pid) {
+      try {
+        execSync(`taskkill /F /T /PID ${child.pid}`, { windowsHide: true, stdio: 'ignore' });
+      } catch {
+        // child may already be gone
+      }
+    }
+
+    return { cancelled: true };
+  }
+
+  async runStrategyProbe(options = {}, sendProgress) {
+    if (this._strategyProbeRunning) {
+      throw new Error('Проверка стратегий уже выполняется');
+    }
+
+    const mode = options.mode === 'single' ? 'single' : 'all';
+    const strategyFile = options.strategyFile || '';
+    if (mode === 'single' && !strategyFile) {
+      throw new Error('Не выбрана стратегия для проверки');
+    }
+
+    this.syncStrategyProbeScript();
+
+    const script = path.join(this.getZapretPath(), 'utils', 'test zapret.ps1');
+    if (!fs.existsSync(script)) {
+      throw new Error('Скрипт тестов не найден');
+    }
+
+    const resultsDir = path.join(this.getZapretPath(), 'utils', 'test results');
+    fs.mkdirSync(resultsDir, { recursive: true });
+    const resultPath = path.join(resultsDir, 'hub-probe-result.json');
+    const progressPath = path.join(resultsDir, 'hub-probe-progress.json');
+    const cancelPath = path.join(resultsDir, 'hub-probe-cancel.flag');
+    for (const stale of [resultPath, progressPath, cancelPath]) {
+      try {
+        if (fs.existsSync(stale)) fs.unlinkSync(stale);
+      } catch {
+        // ignore stale cleanup errors
+      }
+    }
+
+    this._strategyProbeRunning = true;
+    this._strategyProbeChild = null;
+    this._strategyProbeCancelPath = cancelPath;
+    this._strategyProbeCancelRequested = false;
+    sendProgress?.({
+      phase: 'start',
+      message: 'Подготовка к проверке стратегий...',
+      current: 0,
+      total: 0,
+      percent: 0
+    });
+
+    let pollTimer = null;
+    const stopProgressPolling = () => {
+      if (!pollTimer) return;
+      clearInterval(pollTimer);
+      pollTimer = null;
+    };
+    const startProgressPolling = () => {
+      pollTimer = setInterval(() => {
+        const progress = this.readStrategyProbeProgressFile(progressPath);
+        if (progress) sendProgress?.(progress);
+      }, 400);
+    };
+
+    try {
+      const scriptB64 = this.encodePsPath(script);
+      const resultB64 = this.encodePsPath(resultPath);
+      const progressB64 = this.encodePsPath(progressPath);
+      const wdB64 = this.encodePsPath(path.dirname(script));
+      const strategySuffix = mode === 'single'
+        ? ` + ' -StrategyFile "${strategyFile.replace(/"/g, '`"')}"'`
+        : '';
+      const startProcess = `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList $argString -WorkingDirectory $wd -PassThru -WindowStyle Hidden; if (-not $p) { exit 1 }; $p.WaitForExit(); $code = $p.ExitCode; if ($null -eq $code) { $code = 1 }; exit $code`;
+      const ps = [
+        `$script = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptB64}'))`,
+        `$resultPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${resultB64}'))`,
+        `$progressPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${progressB64}'))`,
+        `$wd = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${wdB64}'))`,
+        `$env:NO_UPDATE_CHECK='1'`,
+        `$env:ZAPRET_TEST_HEADLESS='1'`,
+        `$env:ZAPRET_TEST_TYPE='standard'`,
+        `$env:ZAPRET_TEST_RESULT_JSON=$resultPath`,
+        `$env:ZAPRET_TEST_PROGRESS_JSON=$progressPath`,
+        `$env:ZAPRET_TEST_CANCEL_FILE='${cancelPath.replace(/'/g, "''")}'`,
+        mode === 'single' ? `$env:ZAPRET_TEST_STRATEGY='${strategyFile.replace(/'/g, "''")}'` : null,
+        `$argString = '-NoProfile -ExecutionPolicy Bypass -File "' + $script + '" -Headless -TestType standard -Mode ${mode} -ResultJsonPath "' + $resultPath + '" -ProgressJsonPath "' + $progressPath + '"'${strategySuffix}`,
+        startProcess
+      ].filter(Boolean).join('; ');
+
+      startProgressPolling();
+
+      const exitCode = await new Promise((resolve, reject) => {
+        const child = spawn('powershell', ['-NoProfile', '-Command', ps], { windowsHide: true });
+        this._strategyProbeChild = child;
+        let stderr = '';
+        child.stderr.on('data', (chunk) => { stderr += chunk; });
+        child.on('error', reject);
+        child.on('close', (code) => {
+          stopProgressPolling();
+          this._strategyProbeChild = null;
+          const parsed = this.readStrategyProbeResultFile(resultPath);
+          const normalized = this.normalizeExitCode(code);
+          const hasPartial = Boolean(parsed?.strategies?.length);
+
+          if (parsed?.__parseError) {
+            reject(new Error('Не удалось прочитать файл результатов проверки'));
+            return;
+          }
+          if (parsed?.error && !hasPartial) {
+            reject(new Error(parsed.error));
+            return;
+          }
+          if (hasPartial) {
+            resolve(normalized ?? 0);
+            return;
+          }
+          if (normalized === 0) {
+            resolve(0);
+            return;
+          }
+          if (normalized === 1223) {
+            reject(new Error('Запуск проверки отменён.'));
+            return;
+          }
+          if (normalized === 1) {
+            reject(new Error(
+              stderr.trim()
+                || 'Не удалось запустить проверку стратегий. Проверьте curl.exe, отсутствие службы zapret и целостность скрипта test zapret.ps1.'
+            ));
+            return;
+          }
+          reject(new Error(stderr.trim() || `Проверка завершилась с кодом ${normalized ?? code}`));
+        });
+      });
+
+      const parsed = this.readStrategyProbeResultFile(resultPath);
+      if (!parsed) {
+        throw new Error(fs.existsSync(resultPath)
+          ? 'Не удалось прочитать файл результатов проверки'
+          : 'Файл результатов проверки не найден');
+      }
+      if (parsed.__parseError) {
+        throw new Error('Не удалось прочитать файл результатов проверки');
+      }
+      if (parsed.error && !parsed.strategies?.length) {
+        throw new Error(parsed.error);
+      }
+      if (!parsed.strategies.length) {
+        throw new Error('Проверка не вернула ни одной стратегии');
+      }
+
+      const finalProgress = this.readStrategyProbeProgressFile(progressPath);
+      sendProgress?.(finalProgress || {
+        phase: 'done',
+        message: parsed.cancelled ? 'Проверка прервана' : 'Проверка завершена',
+        percent: 100
+      });
+      return {
+        ...parsed,
+        cancelled: Boolean(parsed.cancelled || this._strategyProbeCancelRequested || exitCode === 2),
+        exitCode,
+        mode,
+        strategyFile: mode === 'single' ? strategyFile : null
+      };
+    } finally {
+      stopProgressPolling();
+      this._strategyProbeRunning = false;
+      this._strategyProbeChild = null;
+      this._strategyProbeCancelPath = null;
+      this._strategyProbeCancelRequested = false;
+      for (const stale of [cancelPath]) {
+        try {
+          if (fs.existsSync(stale)) fs.unlinkSync(stale);
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    }
+  }
+
   runTests() {
     const script = path.join(this.getZapretPath(), 'utils', 'test zapret.ps1');
     if (!fs.existsSync(script)) {
@@ -1475,8 +1992,8 @@ class ZapretService {
     const scriptB64 = this.encodePsPath(script);
     const wdB64 = this.encodePsPath(workDir);
     const startProcess = elevated
-      ? `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File',$script) -WorkingDirectory $wd -WindowStyle Normal`
-      : `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-NoExit','-File',$script) -WorkingDirectory $wd -Verb RunAs -WindowStyle Normal`;
+      ? `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',$script) -WorkingDirectory $wd -WindowStyle Hidden`
+      : `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',$script) -WorkingDirectory $wd -Verb RunAs -WindowStyle Hidden`;
     const ps = [
       `$script = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptB64}'))`,
       `$wd = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${wdB64}'))`,

@@ -1,9 +1,14 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require('electron');
 const fs = require('fs');
+const https = require('https');
 const os = require('os');
 const path = require('path');
 const { ZapretService } = require('./services/zapretService');
 const { TgProxyService } = require('./services/tgProxyService');
+const appPkg = require('../package.json');
+
+const HUB_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-HUB/releases/latest';
+const HUB_RELEASE_PAGE = 'https://github.com/xRAYNERx/Zapret-HUB/releases/latest';
 
 
 function ensureUserDataPath() {
@@ -31,6 +36,8 @@ function ensureUserDataPath() {
 }
 
 ensureUserDataPath();
+
+app.setName('Zapret HUB');
 
 app.disableHardwareAcceleration();
 
@@ -418,17 +425,185 @@ async function runAutostartActions() {
   await Promise.all([runAutostartZapret(), runAutostartTgProxy()]);
 }
 
+function fetchGithubRelease(apiUrl) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      apiUrl,
+      { headers: { 'User-Agent': 'ZapretHub', Accept: 'application/vnd.github+json' } },
+      (response) => {
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          https
+            .get(response.headers.location, { headers: { 'User-Agent': 'ZapretHub' } }, (redirect) => {
+              let data = '';
+              redirect.on('data', (chunk) => { data += chunk; });
+              redirect.on('end', () => {
+                try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+              });
+            })
+            .on('error', reject);
+          return;
+        }
+
+        let data = '';
+        response.on('data', (chunk) => { data += chunk; });
+        response.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+        });
+      }
+    );
+    request.on('error', reject);
+    request.setTimeout(20000, () => {
+      request.destroy();
+      reject(new Error('Таймаут запроса к GitHub'));
+    });
+  });
+}
+
+async function checkHubForUpdates() {
+  const local = appPkg.version;
+  try {
+    const release = await fetchGithubRelease(HUB_RELEASE_API);
+    const remote = (release.tag_name || '').replace(/^v/, '');
+    const updateAvailable = Boolean(remote) && (
+      zapret ? zapret.compareVersions(local, remote) < 0 : local !== remote
+    );
+    return {
+      product: 'hub',
+      label: 'Zapret HUB',
+      local,
+      remote,
+      updateAvailable,
+      releaseUrl: release.html_url || HUB_RELEASE_PAGE
+    };
+  } catch (e) {
+    return {
+      product: 'hub',
+      label: 'Zapret HUB',
+      local,
+      remote: null,
+      updateAvailable: false,
+      releaseUrl: HUB_RELEASE_PAGE,
+      error: e.message
+    };
+  }
+}
+
+function resolveHubInstallerAsset(release) {
+  const assets = release?.assets || [];
+  const setup = assets.find((a) => /^ZapretHub-Setup-/i.test(a.name) && /\.exe$/i.test(a.name));
+  const portable = assets.find((a) => /^ZapretHub-Portable-/i.test(a.name) && /\.exe$/i.test(a.name));
+  const asset = setup || portable;
+  if (!asset?.browser_download_url) return null;
+  return { url: asset.browser_download_url, name: asset.name };
+}
+
+function downloadHubFile(url, destPath, onProgress) {
+  return new Promise((resolve, reject) => {
+    let lastReportedPercent = -1;
+
+    const reportProgress = (percent, message) => {
+      if (typeof onProgress !== 'function') return;
+      const safePercent = Math.min(100, Math.max(0, percent));
+      if (safePercent === lastReportedPercent) return;
+      lastReportedPercent = safePercent;
+      onProgress({ percent: safePercent, message: message || `Скачивание Zapret HUB… ${safePercent}%` });
+    };
+
+    const request = (targetUrl) => {
+      https
+        .get(targetUrl, { headers: { 'User-Agent': 'ZapretHub' } }, (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            request(response.headers.location);
+            return;
+          }
+
+          if (response.statusCode !== 200) {
+            reject(new Error(`Не удалось скачать (HTTP ${response.statusCode})`));
+            return;
+          }
+
+          const total = Number(response.headers['content-length'] || 0);
+          let downloaded = 0;
+          const file = fs.createWriteStream(destPath);
+
+          reportProgress(0, 'Скачивание установщика Zapret HUB…');
+
+          response.on('data', (chunk) => {
+            downloaded += chunk.length;
+            if (total > 0) {
+              const percent = Math.round((downloaded / total) * 100);
+              if (percent >= lastReportedPercent + 5 || percent === 100) {
+                reportProgress(percent);
+              }
+            }
+          });
+
+          response.pipe(file);
+          file.on('finish', () => file.close(() => {
+            reportProgress(100, 'Установщик скачан');
+            resolve();
+          }));
+          file.on('error', (err) => {
+            fs.unlink(destPath, () => reject(err));
+          });
+        })
+        .on('error', reject);
+    };
+
+    request(url);
+  });
+}
+
+async function applyHubUpdate(onProgress) {
+  const release = await fetchGithubRelease(HUB_RELEASE_API);
+  const asset = resolveHubInstallerAsset(release);
+  if (!asset) {
+    throw new Error('Установщик Zapret HUB не найден в релизе на GitHub');
+  }
+
+  const updatesDir = path.join(app.getPath('userData'), 'updates', 'hub');
+  fs.mkdirSync(updatesDir, { recursive: true });
+  const destPath = path.join(updatesDir, asset.name);
+
+  await downloadHubFile(asset.url, destPath, onProgress);
+  await shell.openPath(destPath);
+
+  return {
+    local: appPkg.version,
+    remote: (release.tag_name || '').replace(/^v/, ''),
+    installerPath: destPath
+  };
+}
+
+async function checkAllUpdatesBundle(options = {}) {
+  const [hub, zapretUpdate, tg] = await Promise.all([
+    checkHubForUpdates(),
+    zapret.checkForUpdates(options),
+    tgProxy ? tgProxy.checkForUpdates() : Promise.resolve({ updateAvailable: false })
+  ]);
+
+  return {
+    hub,
+    zapret: { product: 'zapret', label: 'Движок обхода', ...zapretUpdate },
+    tg: { product: 'tg', label: 'TG Proxy', ...tg }
+  };
+}
+
+function hasPendingUpdates(all) {
+  return [all.hub, all.zapret, all.tg].some((info) => info?.updateAvailable && !info?.error);
+}
+
 async function checkUpdatesOnStartup() {
   if (!zapret || zapret.config.autoCheckUpdates === false) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
 
   try {
     zapret.removeLegacyUpdateFlag();
-    const info = await zapret.checkForUpdates();
-    if (!info.updateAvailable || !mainWindow || mainWindow.isDestroyed()) return;
-    mainWindow.webContents.send('startup-update-available', info);
+    const all = await checkAllUpdatesBundle();
+    if (!hasPendingUpdates(all)) return;
+    mainWindow.webContents.send('startup-updates-available', all);
   } catch (err) {
     logStartup(`Startup update check failed: ${err.message}`);
-    sendInAppNotify(`Не удалось проверить обновления: ${err.message}`);
   }
 }
 
@@ -523,6 +698,13 @@ function registerIpc() {
     'validate-path': () => zapret.validateZapretPath(),
     'run-diagnostics': () => zapret.runDiagnostics(),
     'check-updates': (_, options) => zapret.checkForUpdates(options || {}),
+    'check-all-updates': (_, options) => checkAllUpdatesBundle(options || {}),
+    'apply-hub-update': async () => {
+      const sendProgress = (progress) => {
+        mainWindow?.webContents.send('hub-update-progress', progress);
+      };
+      return applyHubUpdate(sendProgress);
+    },
     'apply-update': async (_, remoteVersion) => {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('update-progress', progress);
@@ -530,6 +712,13 @@ function registerIpc() {
       return zapret.applyUpdate(remoteVersion, sendProgress);
     },
     'run-tests': () => zapret.runTests(),
+    'run-strategy-probe': async (_, options) => {
+      const sendProgress = (progress) => {
+        mainWindow?.webContents.send('strategy-probe-progress', progress);
+      };
+      return zapret.runStrategyProbe(options || {}, sendProgress);
+    },
+    'cancel-strategy-probe': () => zapret.cancelStrategyProbe(),
     'open-external': (_, url) => shell.openExternal(url),
     'get-config': () => zapret.config,
     'get-tg-proxy-status': () => tgProxy.getStatus(),
