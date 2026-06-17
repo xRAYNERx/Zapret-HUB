@@ -341,10 +341,8 @@ class TgProxyService {
     try {
       const release = await this.fetchLatestRelease();
       remote = (release.tag_name || '').replace(/^v/, '');
-      if (remote && local && local !== 'unknown') {
-        updateAvailable = this.compareVersions(local, remote) < 0;
-      } else if (remote && !installed) {
-        updateAvailable = false;
+      if (remote && installed) {
+        updateAvailable = !local || local === 'unknown' || this.compareVersions(local, remote) < 0;
       }
     } catch {
       // ignore network errors in status poll
@@ -379,9 +377,8 @@ class TgProxyService {
     try {
       const release = await this.fetchLatestRelease();
       const remote = (release.tag_name || '').replace(/^v/, '');
-      const updateAvailable = Boolean(remote) && (
-        !local || local === 'unknown' || this.compareVersions(local, remote) < 0
-      );
+      const installed = fs.existsSync(this.exePath);
+      const updateAvailable = this.isUpdateAvailable(local, remote, installed);
       return {
         local: local || 'не установлен',
         remote,
@@ -394,9 +391,17 @@ class TgProxyService {
     }
   }
 
+  isUpdateAvailable(local, remote, installed = fs.existsSync(this.exePath)) {
+    if (!remote) return false;
+    if (!installed) return true;
+    if (!local || local === 'unknown') return true;
+    return this.compareVersions(local, remote) < 0;
+  }
+
   async applyUpdate(onProgress) {
     const info = await this.checkForUpdates();
-    if (!info.updateAvailable && fs.existsSync(this.exePath)) {
+    const installed = fs.existsSync(this.exePath);
+    if (!this.isUpdateAvailable(info.local === 'не установлен' ? null : info.local, info.remote, installed)) {
       return { local: this.getLocalVersion(), updated: false };
     }
 

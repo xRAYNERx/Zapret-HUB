@@ -63,7 +63,9 @@ let state = {
   closeBehavior: null,
   lastStrategyProbe: null,
   onboardingCompleted: true,
-  tgProxy: { running: false, installed: false, busy: false }
+  tgProxy: { running: false, installed: false, busy: false },
+  lastAllUpdates: null,
+  tgUpdateFromService: false
 };
 
 const ONBOARDING_STEPS = [
@@ -213,6 +215,77 @@ function hideTgDownloadProgress() {
   block.classList.add('hidden');
   fill.style.width = '0';
   $('#tgProxyDownloadLabel').textContent = 'Скачивание…';
+}
+
+function renderTgUpdateProgressInService(progress) {
+  const el = $('#updateResult');
+  if (!el) return;
+  const percent = Math.max(0, Math.min(100, progress.percent || 0));
+  el.innerHTML = `
+    <div class="update-progress">
+      <div class="update-progress-bar">
+        <div class="update-progress-fill" style="width:${percent}%"></div>
+      </div>
+      <p class="update-progress-label">${escapeHtml(progress.message || 'Обновление TG Proxy...')}</p>
+    </div>`;
+}
+
+async function refreshTgProxyState() {
+  try {
+    const status = await api('getTgProxyStatus');
+    updateTgProxyUI(status);
+    return status;
+  } catch {
+    return null;
+  }
+}
+
+async function refreshServiceUpdateResults() {
+  try {
+    const all = await api('checkAllUpdates', { force: true });
+    state.lastAllUpdates = all;
+    const el = $('#updateResult');
+    if (el && el.innerHTML.trim()) {
+      renderUpdateCheckResults(all);
+    }
+    return all;
+  } catch {
+    return null;
+  }
+}
+
+async function runTgProxyUpdateFlow(options = {}) {
+  const { fromService = false, silent = false } = options;
+  if (state.tgProxy.busy) return null;
+
+  state.tgUpdateFromService = fromService;
+  setTgProxyBusy(true);
+
+  try {
+    const result = await api('applyTgProxyUpdate');
+    const status = await refreshTgProxyState();
+
+    if (result.updated) {
+      if (!silent) {
+        toast(`TG Proxy обновлён до ${result.local || status?.local || 'новой версии'}`, 'success');
+      }
+      if (result.wasRunning) {
+        toast('Перезапустите прокси, если он был активен', 'info');
+      }
+    } else if (!silent) {
+      toast('Уже актуальная версия', 'success');
+    }
+
+    await refreshServiceUpdateResults();
+    return { result, status };
+  } catch (e) {
+    hideTgDownloadProgress();
+    toast(e.message, 'error');
+    throw e;
+  } finally {
+    state.tgUpdateFromService = false;
+    setTgProxyBusy(false);
+  }
 }
 
 function showCloseChoiceModal() {
@@ -386,6 +459,10 @@ function navigateTo(page) {
   $(`#page-${page}`)?.classList.add('active');
   updateShellForPage(page);
   hideHelpPopover();
+
+  if (page === 'home') {
+    refreshTgProxyState();
+  }
 }
 
 function showRestartModal(message) {
@@ -1170,6 +1247,7 @@ function renderUpdateCheckResults(all) {
   const el = $('#updateResult');
   if (!el) return;
 
+  state.lastAllUpdates = all;
   const rows = [all.hub, all.zapret, all.tg].filter(Boolean);
   el.innerHTML = rows.map((info) => {
     const label = escapeHtml(info.label || info.product || 'Компонент');
@@ -1200,16 +1278,8 @@ function renderUpdateCheckResults(all) {
     showUpdateModal(all.zapret);
   });
 
-  el.querySelector('[data-update="tg"]')?.addEventListener('click', async () => {
-    try {
-      const result = await api('applyTgProxyUpdate');
-      const status = await api('getTgProxyStatus');
-      updateTgProxyUI(status);
-      toast(`TG Proxy обновлён до ${result.local || all.tg.remote}`, 'success');
-      renderUpdateCheckResults(await api('checkAllUpdates', { force: true }));
-    } catch (e) {
-      toast(e.message, 'error');
-    }
+  el.querySelector('[data-update="tg"]')?.addEventListener('click', () => {
+    runTgProxyUpdateFlow({ fromService: true });
   });
 }
 
@@ -1329,11 +1399,9 @@ async function runStartupUpdateAll(all) {
 
     if (all.tg?.updateAvailable && !all.tg?.error) {
       setStartupUpdatesProgress({ percent: 55, message: `Обновление TG Proxy до ${all.tg.remote}...` });
-      const result = await api('applyTgProxyUpdate');
-      const tgStatus = await api('getTgProxyStatus');
-      updateTgProxyUI(tgStatus);
-      if (result.updated) {
-        toast(`TG Proxy обновлён до ${result.local || all.tg.remote}`, 'success');
+      const tgResult = await runTgProxyUpdateFlow({ silent: true });
+      if (tgResult?.result?.updated) {
+        toast(`TG Proxy обновлён до ${tgResult.result.local || all.tg.remote}`, 'success');
       }
     }
 
@@ -2120,6 +2188,7 @@ async function init() {
       } else {
         const status = await api('startTgProxy');
         updateTgProxyUI(status);
+        await refreshServiceUpdateResults();
         if (!status.running) {
           toast('Не удалось запустить прокси', 'error');
         } else {
@@ -2139,33 +2208,22 @@ async function init() {
     }
   });
 
-  $('#btnTgProxyUpdate')?.addEventListener('click', async () => {
-    if (state.tgProxy.busy) return;
-    setTgProxyBusy(true);
-    try {
-      const result = await api('applyTgProxyUpdate');
-      const status = await api('getTgProxyStatus');
-      updateTgProxyUI(status);
-      if (!result.updated) {
-        toast('Уже актуальная версия', 'success');
-      }
-      if (result.wasRunning) {
-        toast('Перезапустите прокси, если он был активен', 'info');
-      }
-    } catch (e) {
-      hideTgDownloadProgress();
-      toast(e.message, 'error');
-    } finally {
-      setTgProxyBusy(false);
-    }
+  $('#btnTgProxyUpdate')?.addEventListener('click', () => {
+    runTgProxyUpdateFlow();
   });
 
   window.zapretAPI.onTgProxyProgress((progress) => {
     if (!progress) return;
 
+    if (state.tgUpdateFromService) {
+      renderTgUpdateProgressInService(progress);
+    }
+
     if (progress.percent >= 100) {
       hideTgDownloadProgress();
-      toast('TG WS Proxy скачан — можно включать', 'success');
+      if (!state.tgUpdateFromService) {
+        toast('TG WS Proxy скачан — можно включать', 'success');
+      }
       return;
     }
 
