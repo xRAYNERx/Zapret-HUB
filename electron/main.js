@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard } = require('electron');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
@@ -515,7 +516,20 @@ function fetchGithubRelease(apiUrl) {
         let data = '';
         response.on('data', (chunk) => { data += chunk; });
         response.on('end', () => {
-          try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+          try {
+            const json = JSON.parse(data);
+            if (response.statusCode >= 400 || (json.message && !json.tag_name)) {
+              reject(new Error(json.message || `HTTP ${response.statusCode}`));
+              return;
+            }
+            if (!json.tag_name) {
+              reject(new Error('Некорректный ответ GitHub'));
+              return;
+            }
+            resolve(json);
+          } catch (e) {
+            reject(e);
+          }
         });
       }
     );
@@ -527,11 +541,93 @@ function fetchGithubRelease(apiUrl) {
   });
 }
 
+function parseHubTagFromUrl(url) {
+  const match = String(url || '').match(/\/releases\/tag\/(v?[\d.]+[a-z]*)/i);
+  return match?.[1] || null;
+}
+
+function fetchHubReleasePageTag() {
+  return new Promise((resolve, reject) => {
+    const follow = (targetUrl, depth = 0) => {
+      const request = https.get(
+        targetUrl,
+        { headers: { 'User-Agent': 'ZapretHub', Accept: 'text/html, */*' } },
+        (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && depth < 6) {
+            const location = response.headers.location.startsWith('http')
+              ? response.headers.location
+              : `https://github.com${response.headers.location}`;
+            response.resume();
+            follow(location, depth + 1);
+            return;
+          }
+
+          if (response.statusCode && response.statusCode >= 400) {
+            response.resume();
+            reject(new Error(`HTTP ${response.statusCode}`));
+            return;
+          }
+
+          const tag = parseHubTagFromUrl(targetUrl);
+          if (tag) {
+            response.resume();
+            resolve(tag);
+            return;
+          }
+
+          const chunks = [];
+          response.on('data', (chunk) => chunks.push(chunk));
+          response.on('end', () => {
+            const html = Buffer.concat(chunks).toString('utf8');
+            const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/([^"]+)"/i);
+            const embedded = html.match(/"tag_name"\s*:\s*"(v?[\d.]+[a-z]*)"/i);
+            resolve(canonical?.[1] || embedded?.[1] || null);
+          });
+        }
+      );
+
+      request.on('error', reject);
+      request.setTimeout(20000, () => {
+        request.destroy();
+        reject(new Error('Таймаут запроса к GitHub'));
+      });
+    };
+
+    follow(HUB_RELEASE_PAGE);
+  });
+}
+
+async function resolveHubRemoteRelease() {
+  try {
+    return await fetchGithubRelease(HUB_RELEASE_API);
+  } catch (apiError) {
+    const tag = await fetchHubReleasePageTag();
+    if (!tag) throw apiError;
+    const normalizedTag = String(tag).replace(/^v/i, '');
+    const version = normalizedTag.replace(/^v/, '');
+    return {
+      tag_name: tag.startsWith('v') ? tag : `v${tag}`,
+      html_url: `https://github.com/xRAYNERx/Zapret-HUB/releases/tag/v${version}`,
+      assets: [
+        {
+          name: `ZapretHub-Setup-${version}.exe`,
+          browser_download_url: `https://github.com/xRAYNERx/Zapret-HUB/releases/download/v${version}/ZapretHub-Setup-${version}.exe`
+        },
+        {
+          name: `ZapretHub-Portable-${version}.exe`,
+          browser_download_url: `https://github.com/xRAYNERx/Zapret-HUB/releases/download/v${version}/ZapretHub-Portable-${version}.exe`
+        }
+      ],
+      _source: 'page-fallback'
+    };
+  }
+}
+
 async function checkHubForUpdates() {
   const local = appPkg.version;
   try {
-    const release = await fetchGithubRelease(HUB_RELEASE_API);
-    const remote = (release.tag_name || '').replace(/^v/, '');
+    const release = await resolveHubRemoteRelease();
+    const remote = (release.tag_name || '').replace(/^v/i, '');
     const updateAvailable = Boolean(remote) && (
       zapret ? zapret.compareVersions(local, remote) < 0 : local !== remote
     );
@@ -622,8 +718,54 @@ function downloadHubFile(url, destPath, onProgress) {
   });
 }
 
+function getHubInstallDir() {
+  return path.dirname(process.execPath).replace(/[\\/]+$/, '');
+}
+
+async function stopServicesBeforeHubInstall() {
+  try {
+    if (zapret) {
+      const status = await zapret.getStatus();
+      if (status.running) await zapret.stop();
+    }
+  } catch (err) {
+    logStartup(`Hub update stop zapret failed: ${err.message}`);
+  }
+  try {
+    if (tgProxy) await tgProxy.stop();
+  } catch (err) {
+    logStartup(`Hub update stop tg-proxy failed: ${err.message}`);
+  }
+}
+
+async function launchHubInstaller(installerPath, onProgress) {
+  const installDir = getHubInstallDir();
+  const args = ['/S', `/D=${installDir}`];
+
+  if (typeof onProgress === 'function') {
+    onProgress({ percent: 100, message: 'Установка Zapret HUB…' });
+  }
+
+  await stopServicesBeforeHubInstall();
+  logStartup(`Hub update: ${installerPath} ${args.join(' ')}`);
+
+  await new Promise((resolve, reject) => {
+    const child = spawn(installerPath, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    child.on('error', reject);
+    child.unref();
+    resolve();
+  });
+
+  app.isQuitting = true;
+  setTimeout(() => app.quit(), 800);
+}
+
 async function applyHubUpdate(onProgress) {
-  const release = await fetchGithubRelease(HUB_RELEASE_API);
+  const release = await resolveHubRemoteRelease();
   const asset = resolveHubInstallerAsset(release);
   if (!asset) {
     throw new Error('Установщик Zapret HUB не найден в релизе на GitHub');
@@ -634,12 +776,18 @@ async function applyHubUpdate(onProgress) {
   const destPath = path.join(updatesDir, asset.name);
 
   await downloadHubFile(asset.url, destPath, onProgress);
-  await shell.openPath(destPath);
+
+  if (typeof onProgress === 'function') {
+    onProgress({ percent: 100, message: 'Запуск установки…' });
+  }
+
+  await launchHubInstaller(destPath, onProgress);
 
   return {
     local: appPkg.version,
     remote: (release.tag_name || '').replace(/^v/, ''),
-    installerPath: destPath
+    installerPath: destPath,
+    quitting: true
   };
 }
 

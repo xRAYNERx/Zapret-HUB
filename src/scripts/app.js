@@ -55,6 +55,7 @@ let state = {
   pendingUpdate: null,
   pendingStartupUpdates: null,
   updating: false,
+  hubUpdating: false,
   startupUpdating: false,
   updateContext: 'manual',
   pendingStartStrategy: null,
@@ -1179,7 +1180,7 @@ function renderUpdateCheckResults(all) {
     const remote = formatUpdateVersion(info.remote);
     if (info.updateAvailable && remote) {
       const action = info.product === 'hub'
-        ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-release-url="${escapeHtml(info.releaseUrl || '')}">Скачать</button>`
+        ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="hub">Обновить</button>`
         : info.product === 'zapret'
           ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="zapret">Обновить</button>`
           : `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="tg">Обновить</button>`;
@@ -1191,11 +1192,8 @@ function renderUpdateCheckResults(all) {
     return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-ok">✓ Актуально (${escapeHtml(local)})</span></div>`;
   }).join('');
 
-  el.querySelectorAll('[data-release-url]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const url = btn.getAttribute('data-release-url');
-      if (url) api('openExternal', url);
-    });
+  el.querySelector('[data-update="hub"]')?.addEventListener('click', () => {
+    runHubUpdate(all.hub);
   });
 
   el.querySelector('[data-update="zapret"]')?.addEventListener('click', () => {
@@ -1213,6 +1211,37 @@ function renderUpdateCheckResults(all) {
       toast(e.message, 'error');
     }
   });
+}
+
+function renderHubUpdateProgress(progress) {
+  const el = $('#updateResult');
+  if (!el) return;
+  const percent = Math.max(0, Math.min(100, progress.percent || 0));
+  el.innerHTML = `
+    <div class="update-progress">
+      <div class="update-progress-bar">
+        <div class="update-progress-fill" style="width:${percent}%"></div>
+      </div>
+      <p class="update-progress-label">${escapeHtml(progress.message || 'Обновление Zapret HUB...')}</p>
+    </div>`;
+}
+
+async function runHubUpdate(info) {
+  if (!info || state.hubUpdating) return;
+  state.hubUpdating = true;
+  renderHubUpdateProgress({ percent: 0, message: 'Подготовка к обновлению HUB...' });
+
+  try {
+    await api('applyHubUpdate');
+  } catch (e) {
+    state.hubUpdating = false;
+    toast(e.message, 'error');
+    try {
+      renderUpdateCheckResults(await api('checkAllUpdates', { force: true }));
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function getPendingUpdateItems(all) {
@@ -1269,7 +1298,7 @@ function showStartupUpdatesModal(all) {
   const btnAll = $('#btnStartupUpdateAll');
   if (btnAll) {
     if (hasHub && hasAuto) btnAll.textContent = 'Обновить всё';
-    else if (hasHub) btnAll.textContent = 'Скачать установщик HUB';
+    else if (hasHub) btnAll.textContent = 'Обновить HUB';
     else btnAll.textContent = 'Обновить автоматически';
   }
 
@@ -1309,9 +1338,8 @@ async function runStartupUpdateAll(all) {
     }
 
     if (all.hub?.updateAvailable && !all.hub?.error) {
-      setStartupUpdatesProgress({ percent: 85, message: `Скачивание Zapret HUB ${all.hub.remote}...` });
+      setStartupUpdatesProgress({ percent: 85, message: `Обновление Zapret HUB до ${all.hub.remote}...` });
       await api('applyHubUpdate');
-      toast('Установщик открыт — завершите установку и перезапустите HUB', 'info');
     }
 
     hideStartupUpdatesModal();
@@ -1344,8 +1372,13 @@ function setupStartupUpdatesModal() {
   });
 
   window.zapretAPI.onHubUpdateProgress?.((progress) => {
-    if (!state.startupUpdating) return;
-    setStartupUpdatesProgress(progress);
+    if (state.startupUpdating) {
+      setStartupUpdatesProgress(progress);
+      return;
+    }
+    if (state.hubUpdating) {
+      renderHubUpdateProgress(progress);
+    }
   });
 }
 
