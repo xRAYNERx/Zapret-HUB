@@ -106,15 +106,20 @@
               </header>
 
               <div class="panel-meta-grid tg-proxy-status" id="tgProxyStatusBlock">
-                <div class="tg-proxy-status-cell">
-                  <span class="panel-meta-label">Статус</span>
+                <div class="tg-proxy-status-line">
+                  <span class="tg-proxy-status-label">Статус:</span>
                   <span class="tg-proxy-badge" id="tgProxyBadge">Выключен</span>
                 </div>
                 <div class="tg-proxy-address">
                   <span class="panel-meta-label">Адрес</span>
                   <div class="tg-proxy-address-row">
                     <code class="panel-meta-value" id="tgProxyAddress">127.0.0.1:1443</code>
-                    <button class="btn btn-ghost btn-sm btn-tg-copy" id="btnTgProxyCopyAddress" type="button" title="Копировать адрес">Копировать</button>
+                    <button class="btn-icon-copy" id="btnTgProxyCopyAddress" type="button" title="Копировать адрес" aria-label="Копировать адрес">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2"/>
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -309,22 +314,9 @@
             <div class="update-result" id="updateResult"></div>
           </div>
 
-          <div class="panel glass-card tools-ipset-panel">
-            <h3 class="card-title-row">
-              IPSet фильтр
-              <button class="help-btn" type="button" aria-label="Что такое IPSet фильтр" data-help="ipset-filter">?</button>
-            </h3>
-            <p class="card-hint">Второй слой обхода по IP-адресам. Для большинства пользователей оставьте «Отключён».</p>
-            <div class="toggle-group" id="ipsetGroup">
-              <button class="toggle-btn" data-value="loaded" type="button">Загружен</button>
-              <button class="toggle-btn" data-value="none" type="button">Отключён</button>
-              <button class="toggle-btn" data-value="any" type="button">Любые IP</button>
-            </div>
-          </div>
-
           <div class="panel glass-card tools-settings-panel">
             <h3 class="card-title-row">Поведение программы</h3>
-            <p class="card-hint">Крестик окна и проверка обновлений при запуске</p>
+            <p class="card-hint">Крестик окна, сворачивание при старте и проверка обновлений</p>
             <div class="settings-block">
               <span class="settings-label">Крестик окна</span>
               <div class="toggle-group" id="closeBehaviorGroup">
@@ -335,11 +327,32 @@
             </div>
             <div class="settings-divider" role="separator"></div>
             <div class="settings-block settings-block-inline">
+              <span class="settings-label">Сворачивать при старте</span>
+              <label class="switch">
+                <input type="checkbox" id="startMinimizedToggle">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="settings-divider" role="separator"></div>
+            <div class="settings-block settings-block-inline">
               <span class="settings-label">Проверять обновления при запуске</span>
               <label class="switch">
                 <input type="checkbox" id="autoCheckUpdatesToggle">
                 <span class="slider"></span>
               </label>
+            </div>
+          </div>
+
+          <div class="panel glass-card tools-ipset-panel">
+            <h3 class="card-title-row">
+              IPSet фильтр
+              <button class="help-btn" type="button" aria-label="Что такое IPSet фильтр" data-help="ipset-filter">?</button>
+            </h3>
+            <p class="card-hint">Второй слой обхода по IP-адресам. Для большинства пользователей оставьте «Отключён».</p>
+            <div class="toggle-group" id="ipsetGroup">
+              <button class="toggle-btn" data-value="loaded" type="button">Загружен</button>
+              <button class="toggle-btn" data-value="none" type="button">Отключён</button>
+              <button class="toggle-btn" data-value="any" type="button">Любые IP</button>
             </div>
           </div>
 
@@ -401,13 +414,6 @@
             </span>
             <label class="switch">
               <input type="checkbox" id="autostartTgToggle">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div class="info-chip info-chip-control">
-            <span class="info-label">Сворачивать при старте</span>
-            <label class="switch">
-              <input type="checkbox" id="startMinimizedToggle">
               <span class="slider"></span>
             </label>
           </div>

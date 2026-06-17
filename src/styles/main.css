@@ -965,9 +965,9 @@ body {
 }
 
 .tg-proxy-badge.on {
-  background: var(--accent-muted);
-  color: var(--accent);
-  border: 1px solid rgba(34, 211, 168, 0.35);
+  background: rgba(34, 211, 168, 0.07);
+  color: #7eb8a6;
+  border: 1px solid rgba(34, 211, 168, 0.16);
 }
 
 .tg-proxy-badge.off {
@@ -979,7 +979,7 @@ body {
 .panel-meta-grid,
 .tg-proxy-status {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
   margin-bottom: 14px;
   padding: 12px 14px;
@@ -987,6 +987,19 @@ body {
   border-radius: var(--radius);
   border: 1px solid var(--border);
   box-shadow: var(--ring-inset);
+}
+
+.tg-proxy-status-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tg-proxy-status-label {
+  font-size: var(--fs-body);
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .panel-meta-label,
@@ -1025,10 +1038,31 @@ body {
   white-space: nowrap;
 }
 
-.btn-tg-copy {
+.btn-icon-copy {
   flex-shrink: 0;
-  padding: 4px 10px;
-  font-size: var(--fs-small);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.btn-icon-copy svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-icon-copy:hover {
+  color: var(--cyan);
+  border-color: rgba(136, 192, 208, 0.45);
+  background: var(--frost-muted);
 }
 
 .panel-meta-value-muted {
@@ -1037,8 +1071,20 @@ body {
   font-weight: 500;
 }
 
-.tg-proxy-status-cell .tg-proxy-badge {
+.tg-proxy-status-line .tg-proxy-badge {
   display: inline-flex;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  padding: 2px 10px;
+}
+
+.tg-proxy-status-line .tg-proxy-badge.on {
+  background: transparent;
+  border-color: transparent;
+  color: #8aa89c;
+  padding: 0;
 }
 
 .btn-tg-proxy-toggle { width: 100%; }
@@ -1099,16 +1145,16 @@ body {
 /* ─── Strategy ─── */
 .panel-version-badge {
   font-size: var(--fs-micro);
-  font-weight: 700;
+  font-weight: 600;
   padding: 4px 10px;
   border-radius: 20px;
   letter-spacing: 0.04em;
   flex-shrink: 0;
   align-self: flex-start;
   font-family: Consolas, 'Courier New', monospace;
-  background: var(--accent-muted);
-  color: var(--accent);
-  border: 1px solid rgba(34, 211, 168, 0.35);
+  background: rgba(34, 211, 168, 0.06);
+  color: #8aa89c;
+  border: 1px solid rgba(34, 211, 168, 0.14);
 }
 
 .strategy-probe {
@@ -1874,6 +1920,11 @@ body {
   line-height: 1.4;
 }
 
+#page-tools .tools-settings-panel {
+  margin-bottom: 10px;
+  padding: 16px 18px;
+}
+
 #page-tools .tools-ipset-panel {
   margin-bottom: 10px;
   padding: 16px 18px;
@@ -2313,17 +2364,17 @@ body {
   margin-top: 10px;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: rgba(163, 190, 140, 0.12);
-  border: 1px solid rgba(163, 190, 140, 0.35);
-  color: #c8e6b8;
+  background: var(--frost-muted);
+  border: 1px solid rgba(136, 192, 208, 0.35);
+  color: var(--frost);
   font-size: var(--fs-body);
   line-height: 1.45;
 }
 
 .strategy-probe-badge.partial {
-  background: rgba(235, 203, 139, 0.12);
-  border-color: rgba(235, 203, 139, 0.35);
-  color: #f0d9a8;
+  background: rgba(94, 129, 172, 0.14);
+  border-color: rgba(94, 129, 172, 0.4);
+  color: #a3c4e0;
 }
 
 .sites-toolbar {
