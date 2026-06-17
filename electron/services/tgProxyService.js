@@ -424,12 +424,61 @@ class TgProxyService {
     return { local: info.remote, updated: true, wasRunning };
   }
 
+  restoreUpdateCheckIfHubDisabled() {
+    try {
+      if (!fs.existsSync(TG_CONFIG_FILE)) return;
+
+      const cfg = JSON.parse(fs.readFileSync(TG_CONFIG_FILE, 'utf8'));
+      if (cfg.check_updates !== false) return;
+
+      fs.writeFileSync(
+        TG_CONFIG_FILE,
+        JSON.stringify({ ...cfg, check_updates: true }, null, 2),
+        'utf8'
+      );
+    } catch {
+      // non-fatal
+    }
+  }
+
+  hideTrayIconScriptPath() {
+    return path.join(__dirname, '..', 'helpers', 'hide-tg-tray-icon.ps1');
+  }
+
+  async hideTrayIcon() {
+    const scriptPath = this.hideTrayIconScriptPath();
+    if (!fs.existsSync(scriptPath)) return;
+
+    const exeArg = this.exePath.replace(/"/g, '""');
+    const scriptArg = scriptPath.replace(/"/g, '""');
+
+    try {
+      await execAsync(
+        `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptArg}" -ExePath "${exeArg}"`,
+        { windowsHide: true, timeout: 8000 }
+      );
+    } catch {
+      // non-fatal
+    }
+  }
+
+  async hideTrayIconWithRetry() {
+    await this.hideTrayIcon();
+    for (const delay of [800, 1600, 3200]) {
+      await new Promise((r) => setTimeout(r, delay));
+      await this.hideTrayIcon();
+    }
+  }
+
   async start(onProgress) {
     if (await this.isProcessRunning()) {
+      await this.hideTrayIconWithRetry();
       return this.getStatus();
     }
 
     await this.ensureBinary(onProgress);
+    this.restoreUpdateCheckIfHubDisabled();
+    await this.hideTrayIcon();
 
     return new Promise((resolve, reject) => {
       const child = spawn(this.exePath, [], {
@@ -444,6 +493,7 @@ class TgProxyService {
 
       setTimeout(async () => {
         try {
+          await this.hideTrayIconWithRetry();
           resolve(await this.getStatus());
         } catch (e) {
           reject(e);
@@ -484,11 +534,12 @@ class TgProxyService {
     return { url };
   }
 
-  openSettings() {
+  async openSettings() {
     if (!fs.existsSync(this.exePath)) {
       throw new Error('TG WS Proxy не установлен — сначала включите прокси');
     }
     spawn(this.exePath, [], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    await this.hideTrayIconWithRetry();
     return { started: true };
   }
 }

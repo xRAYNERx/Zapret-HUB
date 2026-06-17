@@ -19,6 +19,7 @@ const api = {
   setGameFilter: (mode) => ipcRenderer.invoke('set-game-filter', mode),
   setAutostartZapret: (enabled) => ipcRenderer.invoke('set-autostart-zapret', enabled),
   setAutostartTg: (enabled) => ipcRenderer.invoke('set-autostart-tg', enabled),
+  setStartMinimized: (enabled) => ipcRenderer.invoke('set-start-minimized', enabled),
   setIpset: (mode) => ipcRenderer.invoke('set-ipset', mode),
   setAutoUpdate: (enabled) => ipcRenderer.invoke('set-auto-update', enabled),
   setZapretPath: (path) => ipcRenderer.invoke('set-zapret-path', path),

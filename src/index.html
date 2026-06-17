@@ -112,7 +112,10 @@
                 </div>
                 <div class="tg-proxy-address">
                   <span class="panel-meta-label">Адрес</span>
-                  <code class="panel-meta-value" id="tgProxyAddress">127.0.0.1:1443</code>
+                  <div class="tg-proxy-address-row">
+                    <code class="panel-meta-value" id="tgProxyAddress">127.0.0.1:1443</code>
+                    <button class="btn btn-ghost btn-sm btn-tg-copy" id="btnTgProxyCopyAddress" type="button" title="Копировать адрес">Копировать</button>
+                  </div>
                 </div>
               </div>
 
@@ -401,6 +404,13 @@
               <span class="slider"></span>
             </label>
           </div>
+          <div class="info-chip info-chip-control">
+            <span class="info-label">Сворачивать при старте</span>
+            <label class="switch">
+              <input type="checkbox" id="startMinimizedToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
         </div>
       </footer>
     </div>
@@ -563,6 +573,7 @@
       <p class="modal-text" id="bypassDropText">Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.</p>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btnBypassDropClose" type="button">Понятно</button>
+        <button class="btn btn-ghost" id="btnBypassDropProbe" type="button">Подобрать стратегию</button>
         <button class="btn btn-primary" id="btnBypassDropRestart" type="button">Включить снова</button>
       </div>
     </div>

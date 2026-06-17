@@ -427,6 +427,7 @@ function updateHomeControls(status) {
   const gameToggle = $('#gameFilterToggle');
   const autostartZapretToggle = $('#autostartZapretToggle');
   const autostartTgToggle = $('#autostartTgToggle');
+  const startMinimizedToggle = $('#startMinimizedToggle');
   if (gameToggle && !gameToggle.dataset.busy) {
     gameToggle.checked = Boolean(status.gameFilter?.enabled);
   }
@@ -435,6 +436,9 @@ function updateHomeControls(status) {
   }
   if (autostartTgToggle && !autostartTgToggle.dataset.busy) {
     autostartTgToggle.checked = Boolean(status.autostartTgProxyEnabled);
+  }
+  if (startMinimizedToggle && !startMinimizedToggle.dataset.busy) {
+    startMinimizedToggle.checked = Boolean(status.startMinimized);
   }
 }
 
@@ -1711,9 +1715,9 @@ async function pasteSitesFromClipboard({ listId = null } = {}) {
 function showBypassDropModal(payload = {}) {
   const text = $('#bypassDropText');
   if (text) {
-    const strategy = payload.lastStrategy || state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
-    text.textContent = strategy
-      ? `Обход (${strategy}) неожиданно остановился. Включите снова или подберите другую стратегию.`
+    const strategyName = state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
+    text.textContent = strategyName
+      ? `Обход (${strategyName}) неожиданно остановился. Включите снова или подберите другую стратегию.`
       : 'Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.';
   }
   $('#bypassDropModal')?.classList.remove('hidden');
@@ -1725,6 +1729,11 @@ function hideBypassDropModal() {
 
 function setupBypassDropModal() {
   $('#btnBypassDropClose')?.addEventListener('click', hideBypassDropModal);
+  $('#btnBypassDropProbe')?.addEventListener('click', async () => {
+    hideBypassDropModal();
+    navigateTo('home');
+    await runStrategyProbeFlow();
+  });
   $('#btnBypassDropRestart')?.addEventListener('click', async () => {
     hideBypassDropModal();
     $('#btnPower')?.click();
@@ -2121,6 +2130,35 @@ async function init() {
     'Автозапуск TG Proxy включён',
     'Автозапуск TG Proxy выключен'
   );
+  bindAutostartToggle(
+    '#startMinimizedToggle',
+    'setStartMinimized',
+    'Окно будет сворачиваться в трей при запуске',
+    'Окно будет открываться при запуске'
+  );
+
+  $('#btnTgProxyCopyAddress')?.addEventListener('click', async () => {
+    const address = $('#tgProxyAddress')?.textContent?.trim();
+    if (!address) return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(address);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = address;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      toast(`Адрес скопирован: ${address}`, 'success');
+    } catch (err) {
+      toast(err.message || 'Не удалось скопировать адрес', 'error');
+    }
+  });
 
   $$('#ipsetGroup .toggle-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {

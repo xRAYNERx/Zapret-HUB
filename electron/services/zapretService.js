@@ -1366,6 +1366,17 @@ class ZapretService {
     return this.getStatus();
   }
 
+  async setStartMinimized(enabled) {
+    const next = Boolean(enabled);
+    if (next === Boolean(this.config.startMinimized)) {
+      return this.getStatus();
+    }
+
+    this.config.startMinimized = next;
+    this.saveConfig();
+    return this.getStatus();
+  }
+
   async getStatus() {
     const winwsRunning = await this.isProcessRunning('winws.exe');
     const zapretService = await this.getServiceState('zapret');

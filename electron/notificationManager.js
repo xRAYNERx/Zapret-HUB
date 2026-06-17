@@ -42,9 +42,7 @@ function getStackPosition(index, workArea) {
   const x = workArea.x + workArea.width - NOTIFICATION_WIDTH - MARGIN;
   const y =
     workArea.y +
-    workArea.height -
-    MARGIN -
-    NOTIFICATION_HEIGHT -
+    MARGIN +
     index * (NOTIFICATION_HEIGHT + GAP);
   return { x, y };
 }

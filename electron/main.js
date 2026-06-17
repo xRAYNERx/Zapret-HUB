@@ -910,6 +910,7 @@ function registerIpc() {
       syncLoginItem();
       return status;
     },
+    'set-start-minimized': (_, enabled) => zapret.setStartMinimized(enabled),
     'set-ipset': (_, mode) => zapret.setIpset(mode),
     'set-auto-update': (_, enabled) => zapret.setAutoUpdate(enabled),
     'set-zapret-path': (_, p) => zapret.setZapretPath(p),
