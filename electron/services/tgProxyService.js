@@ -330,6 +330,15 @@ class TgProxyService {
     }
   }
 
+  async waitForTgRunning(maxMs = 4000) {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      if (await this.isProcessRunning()) return true;
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    return this.isProcessRunning();
+  }
+
   async getStatus() {
     const installed = fs.existsSync(this.exePath);
     const running = await this.isProcessRunning();
@@ -493,12 +502,13 @@ class TgProxyService {
 
       setTimeout(async () => {
         try {
+          await this.waitForTgRunning(3500);
           await this.hideTrayIconWithRetry();
           resolve(await this.getStatus());
         } catch (e) {
           reject(e);
         }
-      }, 1200);
+      }, 700);
     });
   }
 

@@ -27,7 +27,7 @@ Zapret HUB не является официальным продуктом Flows
 
 ## Скачать
 
-**[Releases](https://github.com/xRAYNERx/Zapret-HUB/releases)** — скачайте **ZapretHub-Setup-1.1.0.exe** (установщик).
+**[Releases](https://github.com/xRAYNERx/Zapret-HUB/releases)** — скачайте **ZapretHub-Setup-1.1.1.exe** (установщик).
 
 При первом включении обхода Windows может спросить разрешение администратора — это нормально, подтвердите один раз.
 

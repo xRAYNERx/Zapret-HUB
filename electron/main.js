@@ -59,6 +59,7 @@ let shutdownDone = false;
 let bypassWasRunning = false;
 let trayZapretRunning = false;
 let trayTgRunning = false;
+let lastIntentionalBypassStop = 0;
 
 const isAutostartLaunch = process.argv.includes('--autostart');
 
@@ -340,6 +341,8 @@ async function updateTrayMenu(zapretRunning, tgRunning) {
       click: async () => {
         try {
           if (trayZapretRunning) {
+            lastIntentionalBypassStop = Date.now();
+            bypassWasRunning = false;
             await zapret.stop();
           } else {
             const status = await zapret.start(zapret.config.lastStrategy || 'general.bat');
@@ -377,6 +380,8 @@ async function updateTrayMenu(zapretRunning, tgRunning) {
             if (status.running) {
               tgProxy.openInTelegram();
               sendInAppNotify('TG Proxy включён');
+              // extra hide attempt after confirmed run
+              tgProxy.hideTrayIconWithRetry?.().catch(() => {});
             }
             updateTrayMenu(trayZapretRunning, status.running);
           }
@@ -423,7 +428,8 @@ function startStatusPolling() {
     if (!zapret || !mainWindow) return;
     try {
       const status = await zapret.getStatus();
-      if (bypassWasRunning && !status.running && !app.isQuitting) {
+      const sinceIntentional = Date.now() - lastIntentionalBypassStop;
+      if (bypassWasRunning && !status.running && !app.isQuitting && sinceIntentional > 4000) {
         notifyBypassDropped(status);
       }
       bypassWasRunning = status.running;
@@ -828,7 +834,10 @@ async function stopAllServices() {
   try {
     if (zapret) {
       const status = await zapret.getStatus();
-      if (status.running) await zapret.stop();
+      if (status.running) {
+        lastIntentionalBypassStop = Date.now();
+        await zapret.stop();
+      }
     }
   } catch (err) {
     logStartup(`Quit zapret stop failed: ${err.message}`);
@@ -877,6 +886,7 @@ function registerIpc() {
       return status;
     },
     'stop': async () => {
+      lastIntentionalBypassStop = Date.now();
       const status = await zapret.stop();
       bypassWasRunning = false;
       sendInAppNotify('Выключение обхода');
@@ -946,7 +956,11 @@ function registerIpc() {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('tg-proxy-progress', progress);
       };
-      return tgProxy.start(sendProgress);
+      const res = await tgProxy.start(sendProgress);
+      if (res && res.running) {
+        tgProxy.hideTrayIconWithRetry?.().catch(() => {});
+      }
+      return res;
     },
     'stop-tg-proxy': () => tgProxy.stop(),
     'check-tg-proxy-updates': () => tgProxy.checkForUpdates(),

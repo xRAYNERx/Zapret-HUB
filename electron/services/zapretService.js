@@ -753,6 +753,17 @@ class ZapretService {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  isElevated() {
+    if (process.platform !== 'win32') return false;
+    try {
+      // fast check without output
+      execSync('net session >nul 2>&1', { stdio: 'ignore', windowsHide: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async waitForProcessExit(imageName, maxMs = 3000) {
     const deadline = Date.now() + maxMs;
     while (Date.now() < deadline) {
@@ -1433,11 +1444,13 @@ class ZapretService {
   }
 
   runElevated(command, args = []) {
+    const elevated = this.isElevated();
+    const verb = elevated ? '' : ' -Verb RunAs';
     return new Promise((resolve, reject) => {
       const argList = args.map((a) => `'${a.replace(/'/g, "''")}'`).join(', ');
       const ps = args.length
-        ? `$env:NO_UPDATE_CHECK='1'; $p = Start-Process -FilePath '${command.replace(/'/g, "''")}' -ArgumentList ${argList} -Verb RunAs -PassThru -WindowStyle Hidden; $p.WaitForExit(); exit $p.ExitCode`
-        : `$env:NO_UPDATE_CHECK='1'; $p = Start-Process -FilePath '${command.replace(/'/g, "''")}' -Verb RunAs -PassThru -WindowStyle Hidden; $p.WaitForExit(); exit $p.ExitCode`;
+        ? `$env:NO_UPDATE_CHECK='1'; $p = Start-Process -FilePath '${command.replace(/'/g, "''")}' -ArgumentList ${argList}${verb} -PassThru -WindowStyle Hidden; $p.WaitForExit(); exit $p.ExitCode`
+        : `$env:NO_UPDATE_CHECK='1'; $p = Start-Process -FilePath '${command.replace(/'/g, "''")}'${verb} -PassThru -WindowStyle Hidden; $p.WaitForExit(); exit $p.ExitCode`;
 
       const child = spawn('powershell', ['-NoProfile', '-Command', ps], { windowsHide: true });
       let stderr = '';
@@ -1464,6 +1477,7 @@ class ZapretService {
     const wdB64 = this.encodePsPath(workDir);
     const argsB64 = this.encodePsPath(args);
 
+    const elevated = this.isElevated();
     const script = [
       `$winws = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${winwsB64}'))`,
       `$wd = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${wdB64}'))`,
@@ -1476,10 +1490,10 @@ class ZapretService {
       '$psi.Arguments = $args',
       '$psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden',
       '$psi.UseShellExecute = $true',
-      "$psi.Verb = 'runas'",
+      elevated ? '' : "$psi.Verb = 'runas'",
       '[System.Diagnostics.Process]::Start($psi) | Out-Null',
       'exit 0'
-    ].join('; ');
+    ].filter(Boolean).join('; ');
 
     await this.runElevatedScript(script);
   }
@@ -1512,6 +1526,7 @@ class ZapretService {
   }
 
   runElevatedScript(scriptBody) {
+    const elevated = this.isElevated();
     return new Promise((resolve, reject) => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zapret-'));
       const scriptPath = path.join(tmpDir, 'elevated.ps1');
@@ -1533,13 +1548,24 @@ class ZapretService {
       }
 
       const scriptPathB64 = this.encodePsPath(scriptPath);
-      const ps = [
-        `$scriptPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptPathB64}'))`,
-        `$env:NO_UPDATE_CHECK='1'`,
-        `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$scriptPath) -Verb RunAs -PassThru -WindowStyle Hidden`,
-        '$p.WaitForExit()',
-        'exit $p.ExitCode'
-      ].join('; ');
+      let ps;
+      if (elevated) {
+        ps = [
+          `$scriptPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptPathB64}'))`,
+          `$env:NO_UPDATE_CHECK='1'`,
+          `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$scriptPath) -PassThru -WindowStyle Hidden`,
+          '$p.WaitForExit()',
+          'exit $p.ExitCode'
+        ].join('; ');
+      } else {
+        ps = [
+          `$scriptPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptPathB64}'))`,
+          `$env:NO_UPDATE_CHECK='1'`,
+          `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$scriptPath) -Verb RunAs -PassThru -WindowStyle Hidden`,
+          '$p.WaitForExit()',
+          'exit $p.ExitCode'
+        ].join('; ');
+      }
 
       const child = spawn('powershell', ['-NoProfile', '-Command', ps], { windowsHide: true });
       let stderr = '';
