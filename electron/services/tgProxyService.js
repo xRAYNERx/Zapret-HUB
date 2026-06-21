@@ -82,10 +82,27 @@ class TgProxyService {
     return { ...DEFAULT_PROXY };
   }
 
+  getLinkHost(host = DEFAULT_PROXY.host) {
+    if (host !== '0.0.0.0') return host;
+    return '127.0.0.1';
+  }
+
   buildProxyUrl(cfg = this.readTgConfig()) {
-    const host = cfg.host === '0.0.0.0' ? '127.0.0.1' : cfg.host;
-    const secret = cfg.secret || '';
-    return `tg://proxy?server=${host}&port=${cfg.port}&secret=dd${secret}`;
+    const host = this.getLinkHost(cfg.host);
+    const port = cfg.port || DEFAULT_PROXY.port;
+    const secret = String(cfg.secret || '').trim();
+    if (!secret) return null;
+    return `tg://proxy?server=${host}&port=${port}&secret=dd${secret}`;
+  }
+
+  async waitForTgConfigReady(maxMs = 6000) {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      const cfg = this.readTgConfig();
+      if (String(cfg.secret || '').trim().length >= 16) return cfg;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return this.readTgConfig();
   }
 
   async fetchLatestRelease() {
@@ -302,6 +319,20 @@ class TgProxyService {
   async ensureBinary(onProgress) {
     if (fs.existsSync(this.exePath)) return this.exePath;
 
+    const bundled = this.getBundledDir();
+    if (bundled) {
+      fs.mkdirSync(this.installDir, { recursive: true });
+      fs.copyFileSync(path.join(bundled, EXE_NAME), this.exePath);
+      const bundledVersion = path.join(bundled, 'version.txt');
+      if (fs.existsSync(bundledVersion)) {
+        fs.copyFileSync(bundledVersion, this.versionPath);
+      }
+      if (typeof onProgress === 'function') {
+        onProgress({ percent: 100, message: 'TG WS Proxy установлен' });
+      }
+      return this.exePath;
+    }
+
     fs.mkdirSync(this.installDir, { recursive: true });
     const release = await this.fetchLatestRelease();
     const url = this.resolveWindowsDownloadUrl(release);
@@ -328,15 +359,6 @@ class TgProxyService {
     } catch {
       return Boolean(this._child && !this._child.killed);
     }
-  }
-
-  async waitForTgRunning(maxMs = 4000) {
-    const deadline = Date.now() + maxMs;
-    while (Date.now() < deadline) {
-      if (await this.isProcessRunning()) return true;
-      await new Promise((r) => setTimeout(r, 150));
-    }
-    return this.isProcessRunning();
   }
 
   async getStatus() {
@@ -450,44 +472,13 @@ class TgProxyService {
     }
   }
 
-  hideTrayIconScriptPath() {
-    return path.join(__dirname, '..', 'helpers', 'hide-tg-tray-icon.ps1');
-  }
-
-  async hideTrayIcon() {
-    const scriptPath = this.hideTrayIconScriptPath();
-    if (!fs.existsSync(scriptPath)) return;
-
-    const exeArg = this.exePath.replace(/"/g, '""');
-    const scriptArg = scriptPath.replace(/"/g, '""');
-
-    try {
-      await execAsync(
-        `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptArg}" -ExePath "${exeArg}"`,
-        { windowsHide: true, timeout: 8000 }
-      );
-    } catch {
-      // non-fatal
-    }
-  }
-
-  async hideTrayIconWithRetry() {
-    await this.hideTrayIcon();
-    for (const delay of [800, 1600, 3200]) {
-      await new Promise((r) => setTimeout(r, delay));
-      await this.hideTrayIcon();
-    }
-  }
-
   async start(onProgress) {
     if (await this.isProcessRunning()) {
-      await this.hideTrayIconWithRetry();
       return this.getStatus();
     }
 
     await this.ensureBinary(onProgress);
     this.restoreUpdateCheckIfHubDisabled();
-    await this.hideTrayIcon();
 
     return new Promise((resolve, reject) => {
       const child = spawn(this.exePath, [], {
@@ -502,13 +493,11 @@ class TgProxyService {
 
       setTimeout(async () => {
         try {
-          await this.waitForTgRunning(3500);
-          await this.hideTrayIconWithRetry();
           resolve(await this.getStatus());
         } catch (e) {
           reject(e);
         }
-      }, 700);
+      }, 1200);
     });
   }
 
@@ -528,14 +517,28 @@ class TgProxyService {
     return this.getStatus();
   }
 
-  openInTelegram() {
+  async openInTelegram(openExternal) {
+    await this.waitForTgConfigReady();
     const url = this.buildProxyUrl();
+    if (!url) {
+      throw new Error('TG Proxy ещё не готов — подождите пару секунд и попробуйте снова');
+    }
+
+    if (typeof openExternal === 'function') {
+      await openExternal(url);
+      return { url };
+    }
+
     spawn('cmd', ['/c', 'start', '', url], { detached: true, windowsHide: true }).unref();
     return { url };
   }
 
   async copyProxyLink() {
+    await this.waitForTgConfigReady();
     const url = this.buildProxyUrl();
+    if (!url) {
+      throw new Error('TG Proxy ещё не готов — подождите пару секунд и попробуйте снова');
+    }
     const escaped = url.replace(/'/g, "''");
     await execAsync(
       `powershell -NoProfile -Command "Set-Clipboard -Value '${escaped}'"`,
@@ -544,12 +547,11 @@ class TgProxyService {
     return { url };
   }
 
-  async openSettings() {
+  openSettings() {
     if (!fs.existsSync(this.exePath)) {
       throw new Error('TG WS Proxy не установлен — сначала включите прокси');
     }
     spawn(this.exePath, [], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-    await this.hideTrayIconWithRetry();
     return { started: true };
   }
 }

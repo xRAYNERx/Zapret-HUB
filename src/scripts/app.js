@@ -392,7 +392,6 @@ function updateUI(status) {
   const hero = $('#heroCard');
   const title = $('#statusTitle');
   const desc = $('#statusDesc');
-  const mini = $('#statusMini');
 
   playStatusAnimation(wasRunning, status.running);
 
@@ -400,12 +399,10 @@ function updateUI(status) {
     hero.classList.add('running');
     title.textContent = 'Работает';
     desc.textContent = 'Обход блокировок YouTube и Discord активен';
-    mini.innerHTML = '<span class="status-dot on"></span><span>Работает</span>';
   } else {
     hero.classList.remove('running');
     title.textContent = 'Выключено';
     desc.textContent = 'Переключите переключатель, чтобы включить обход блокировок YouTube и Discord';
-    mini.innerHTML = '<span class="status-dot off"></span><span>Выключено</span>';
   }
 
   $('#infoVersion').textContent = status.appVersion ? `v${status.appVersion}` : '—';
@@ -1758,7 +1755,7 @@ function renderOnboardingStep() {
     } else if (step.action === 'power') {
       html = '<div class="onboarding-highlight">Переключатель ВКЛ/ВЫКЛ — в центре главной страницы.</div>';
     } else if (step.action === 'tg') {
-      html = '<div class="onboarding-highlight">Карточка «Прокси для Telegram» на главной. Telegram откроется сам.</div>';
+      html = '<div class="onboarding-highlight">Карточка «Прокси для Telegram» на главной — включите переключатель, адрес для Telegram будет в карточке.</div>';
     } else if (step.action === 'autostart') {
       html = '<div class="onboarding-highlight">Тумблеры автозапуска — внизу главной страницы.</div>';
     }
@@ -2230,12 +2227,7 @@ async function init() {
         if (!status.running) {
           toast('Не удалось запустить прокси', 'error');
         } else {
-          try {
-            await api('openTgProxyTelegram');
-          } catch {
-            // Telegram may be unavailable
-          }
-          toast('TG Proxy включён — примените настройки в Telegram', 'success');
+          toast('TG Proxy включён', 'success');
         }
       }
     } catch (e) {

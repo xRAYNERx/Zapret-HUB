@@ -378,10 +378,7 @@ async function updateTrayMenu(zapretRunning, tgRunning) {
             const status = await tgProxy.start();
             mainWindow?.webContents.send('tg-proxy-changed', status);
             if (status.running) {
-              tgProxy.openInTelegram();
               sendInAppNotify('TG Proxy включён');
-              // extra hide attempt after confirmed run
-              tgProxy.hideTrayIconWithRetry?.().catch(() => {});
             }
             updateTrayMenu(trayZapretRunning, status.running);
           }
@@ -956,11 +953,7 @@ function registerIpc() {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('tg-proxy-progress', progress);
       };
-      const res = await tgProxy.start(sendProgress);
-      if (res && res.running) {
-        tgProxy.hideTrayIconWithRetry?.().catch(() => {});
-      }
-      return res;
+      return tgProxy.start(sendProgress);
     },
     'stop-tg-proxy': () => tgProxy.stop(),
     'check-tg-proxy-updates': () => tgProxy.checkForUpdates(),
@@ -970,7 +963,7 @@ function registerIpc() {
       };
       return tgProxy.applyUpdate(sendProgress);
     },
-    'open-tg-proxy-telegram': () => tgProxy.openInTelegram(),
+    'open-tg-proxy-telegram': () => tgProxy.openInTelegram((url) => shell.openExternal(url)),
     'copy-tg-proxy-link': () => tgProxy.copyProxyLink(),
     'open-tg-proxy-settings': () => tgProxy.openSettings(),
     'set-close-behavior': (_, mode) => zapret.setCloseBehavior(mode ?? null),

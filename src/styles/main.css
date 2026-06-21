@@ -312,34 +312,6 @@ body {
   pointer-events: none;
 }
 
-.topbar-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-small);
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 7px 14px;
-  border-radius: 999px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.status-dot.on {
-  background: var(--accent);
-  box-shadow: none;
-}
-
-.status-dot.off { background: rgba(148, 163, 184, 0.5); }
-
 /* ─── Shell ─── */
 .shell {
   display: flex;
@@ -965,9 +937,9 @@ body {
 }
 
 .tg-proxy-badge.on {
-  background: rgba(34, 211, 168, 0.07);
-  color: #7eb8a6;
-  border: 1px solid rgba(34, 211, 168, 0.16);
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
 }
 
 .tg-proxy-badge.off {
@@ -1081,10 +1053,10 @@ body {
 }
 
 .tg-proxy-status-line .tg-proxy-badge.on {
-  background: transparent;
-  border-color: transparent;
-  color: #8aa89c;
-  padding: 0;
+  background: var(--accent-muted);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  padding: 2px 10px;
 }
 
 .btn-tg-proxy-toggle { width: 100%; }

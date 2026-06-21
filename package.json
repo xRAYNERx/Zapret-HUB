@@ -1,6 +1,6 @@
 {
   "name": "zapret-hub",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Zapret HUB — панель обхода блокировок Discord, YouTube, Telegram",
   "main": "electron/main.js",
   "author": "RAYNER",
@@ -11,7 +11,9 @@
     "icon:ico": "node scripts/png-to-ico.mjs",
     "prebuild": "node scripts/png-to-ico.mjs && node scripts/fetch-bundled.mjs",
     "fetch-bundled": "node scripts/fetch-bundled.mjs",
-    "build": "electron-builder --win nsis",
+    "build": "electron-builder --win nsis --publish never",
+    "deploy:local": "node scripts/deploy-local.cjs",
+    "launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/launch-hub.ps1",
     "postinstall": "node install-electron.js"
   },
   "build": {
