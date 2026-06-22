@@ -25,7 +25,7 @@ const HELP_TEXTS = {
     body: `
       <p>При загрузке Windows Zapret HUB запускается в трее и автоматически включает обход по последней стратегии.</p>
       <p>Кнопка «Включить/Выключить» останавливает обход сейчас, но автозапуск остаётся для следующей загрузки.</p>
-      <p>Права администратора для переключателя <strong>не нужны</strong>. При первом автозапуске обхода после перезагрузки Windows может один раз запросить UAC — это нормально для драйвера WinDivert.</p>
+      <p>Автозагрузка регистрируется через планировщик Windows с повышенными правами — не ставьте галочку «Запуск от имени администратора» на ярлыке, если включён автозапуск.</p>
     `
   },
   'autostart-tg': {
@@ -92,7 +92,8 @@ const ONBOARDING_STEPS = [
   {
     title: 'Шаг 4 — автозапуск (по желанию)',
     text: 'Можно включить автозапуск обхода и/или TG Proxy — программа стартует свёрнутой в трей.',
-    action: 'autostart'
+    action: 'autostart',
+    body: '<div class="onboarding-highlight">Для быстрого переключения обхода поставьте галочку «Запуск от имени администратора» в свойствах ярлыка Zapret HUB. Автозагрузка настроится автоматически.</div>'
   },
   {
     title: 'Готово',
@@ -296,14 +297,6 @@ function hideCloseChoiceModal() {
   $('#closeChoiceModal')?.classList.add('hidden');
 }
 
-function showCloseRememberModal() {
-  $('#closeRememberModal')?.classList.remove('hidden');
-}
-
-function hideCloseRememberModal() {
-  $('#closeRememberModal')?.classList.add('hidden');
-}
-
 let confirmResolver = null;
 
 function hideConfirmModal() {
@@ -339,33 +332,17 @@ function setupConfirmModal() {
 function setupCloseModals() {
   const sendChoice = (choice) => {
     hideCloseChoiceModal();
-    hideCloseRememberModal();
     window.zapretAPI.windowCloseChoice(choice);
   };
 
   $('#btnCloseToTray')?.addEventListener('click', () => sendChoice('tray'));
-
-  $('#btnCloseQuit')?.addEventListener('click', () => {
-    hideCloseChoiceModal();
-    showCloseRememberModal();
-  });
-
-  $('#btnCloseRememberNo')?.addEventListener('click', () => sendChoice('quit'));
-  $('#btnCloseRememberYes')?.addEventListener('click', () => sendChoice('quit-remember'));
+  $('#btnCloseQuit')?.addEventListener('click', () => sendChoice('quit'));
 
   $('#closeChoiceModal')?.addEventListener('click', (e) => {
     if (e.target === $('#closeChoiceModal')) sendChoice('cancel');
   });
 
-  $('#closeRememberModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#closeRememberModal')) {
-      hideCloseRememberModal();
-      showCloseChoiceModal();
-    }
-  });
-
   window.zapretAPI.onShowCloseDialog(() => {
-    hideCloseRememberModal();
     showCloseChoiceModal();
   });
 }
@@ -406,8 +383,10 @@ function updateUI(status) {
   }
 
   $('#infoVersion').textContent = status.appVersion ? `v${status.appVersion}` : '—';
-  const engineVersion = $('#engineVersion');
-  if (engineVersion) engineVersion.textContent = formatEngineVersion(status.version);
+  const aboutVersion = $('#aboutHubVersion');
+  if (aboutVersion) {
+    aboutVersion.textContent = status.appVersion ? `Версия ${status.appVersion}` : 'Версия —';
+  }
 
   state.autoCheckUpdates = status.autoUpdate?.enabled !== false;
   state.closeBehavior = status.closeBehavior ?? null;
@@ -418,6 +397,13 @@ function updateUI(status) {
   updateCloseBehaviorToggles(status.closeBehavior);
   updateAutoCheckUpdatesToggle(status);
   updateStrategyProbeBadge();
+}
+
+function updateAutostartHint(status) {
+  const hint = $('#autostartHint');
+  if (!hint) return;
+  const visible = Boolean(status.autostartZapretEnabled || status.autostartTgProxyEnabled);
+  hint.classList.toggle('hidden', !visible);
 }
 
 function updateHomeControls(status) {
@@ -437,6 +423,8 @@ function updateHomeControls(status) {
   if (startMinimizedToggle && !startMinimizedToggle.dataset.busy) {
     startMinimizedToggle.checked = Boolean(status.startMinimized);
   }
+
+  updateAutostartHint(status);
 }
 
 function updateIpsetToggles(status) {
@@ -547,63 +535,6 @@ function updateStrategyProbeButton() {
       ? 'Проверка стратегий…'
       : 'Подбор рабочей стратегии';
   }
-}
-
-let strategyProbeChoiceResolver = null;
-let strategyProbePickResolver = null;
-
-function hideStrategyProbeChoiceModal() {
-  $('#strategyProbeChoiceModal')?.classList.add('hidden');
-}
-
-function showStrategyProbeChoiceModal() {
-  return new Promise((resolve) => {
-    strategyProbeChoiceResolver = resolve;
-    $('#strategyProbeChoiceModal')?.classList.remove('hidden');
-  });
-}
-
-function resolveStrategyProbeChoice(value) {
-  if (!strategyProbeChoiceResolver) return;
-  const resolve = strategyProbeChoiceResolver;
-  strategyProbeChoiceResolver = null;
-  hideStrategyProbeChoiceModal();
-  resolve(value);
-}
-
-function hideStrategyProbePickModal() {
-  $('#strategyProbePickModal')?.classList.add('hidden');
-}
-
-function showStrategyProbePickModal() {
-  const list = $('#strategyProbePickList');
-  if (!list) return Promise.resolve(null);
-
-  list.innerHTML = '';
-  for (const strategy of state.strategies) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'strategy-probe-pick-item';
-    btn.innerHTML = `
-      <span class="strategy-probe-pick-name">${strategy.name}</span>
-      <span class="strategy-probe-pick-file">${strategy.file}</span>
-    `;
-    btn.addEventListener('click', () => resolveStrategyProbePick(strategy.file));
-    list.appendChild(btn);
-  }
-
-  return new Promise((resolve) => {
-    strategyProbePickResolver = resolve;
-    $('#strategyProbePickModal')?.classList.remove('hidden');
-  });
-}
-
-function resolveStrategyProbePick(file) {
-  if (!strategyProbePickResolver) return;
-  const resolve = strategyProbePickResolver;
-  strategyProbePickResolver = null;
-  hideStrategyProbePickModal();
-  resolve(file);
 }
 
 function showStrategyProbeProgressModal() {
@@ -738,19 +669,6 @@ function setupStrategyProbeModal() {
     await applyStrategy(strategyProbeResult.bestStrategy);
   });
 
-  $('#btnStrategyProbeAll')?.addEventListener('click', () => resolveStrategyProbeChoice('all'));
-  $('#btnStrategyProbeCurrent')?.addEventListener('click', () => resolveStrategyProbeChoice('current'));
-  $('#btnStrategyProbeOne')?.addEventListener('click', () => resolveStrategyProbeChoice('single'));
-  $('#btnStrategyProbeChoiceCancel')?.addEventListener('click', () => resolveStrategyProbeChoice(null));
-  $('#strategyProbeChoiceModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#strategyProbeChoiceModal')) resolveStrategyProbeChoice(null);
-  });
-
-  $('#btnStrategyProbePickCancel')?.addEventListener('click', () => resolveStrategyProbePick(null));
-  $('#strategyProbePickModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#strategyProbePickModal')) resolveStrategyProbePick(null);
-  });
-
   $('#btnStrategyProbeCancel')?.addEventListener('click', async () => {
     const btn = $('#btnStrategyProbeCancel');
     if (!strategyProbeRunning || !btn) return;
@@ -769,30 +687,14 @@ function setupStrategyProbeModal() {
 async function runStrategyProbeFlow() {
   if (state.busy || strategyProbeRunning || state.strategies.length <= 1) return false;
 
-  const choice = await showStrategyProbeChoiceModal();
-  if (!choice) return false;
+  const confirmed = await showConfirmModal({
+    title: 'Подбор рабочей стратегии',
+    text: 'Будут проверены все доступные конфиги. Это может занять несколько минут. Продолжить?',
+    confirmLabel: 'Начать подбор'
+  });
+  if (!confirmed) return false;
 
-  const options = { mode: 'single' };
-  if (choice === 'all') {
-    options.mode = 'all';
-    const confirmed = await showConfirmModal({
-      title: 'Проверка всех стратегий',
-      text: 'Будут проверены все доступные конфиги. Это может занять несколько минут. Продолжить?',
-      confirmLabel: 'Начать проверку'
-    });
-    if (!confirmed) return false;
-  } else if (choice === 'current') {
-    const strategyFile = $('#strategySelect')?.value;
-    if (!strategyFile) {
-      toast('Сначала выберите стратегию', 'error');
-      return false;
-    }
-    options.strategyFile = strategyFile;
-  } else {
-    const strategyFile = await showStrategyProbePickModal();
-    if (!strategyFile) return false;
-    options.strategyFile = strategyFile;
-  }
+  const options = { mode: 'all' };
 
   strategyProbeRunning = true;
   updateStrategyProbeButton();
@@ -832,7 +734,6 @@ function updateTgProxyUI(status) {
   const badge = $('#tgProxyBadge');
   const toggle = $('#btnTgProxyToggle');
   const address = $('#tgProxyAddress');
-  const version = $('#tgProxyVersion');
   const updateBlock = $('#tgProxyUpdateBlock');
   const updateText = $('#tgProxyUpdateText');
 
@@ -849,9 +750,6 @@ function updateTgProxyUI(status) {
   }
 
   address.textContent = `${status.host || '127.0.0.1'}:${status.port || 1443}`;
-  version.textContent = status.local
-    ? (status.remote && status.updateAvailable ? `${status.local} → ${status.remote}` : status.local)
-    : 'не установлен';
 
   toggle.disabled = state.tgProxy.busy;
 
@@ -1709,14 +1607,42 @@ async function pasteSitesFromClipboard({ listId = null } = {}) {
   toast(`Добавлено из буфера: ${result.sites.length} доменов`, 'success');
 }
 
-function showBypassDropModal(payload = {}) {
+function getRecommendedStrategyAction() {
+  const probe = state.lastStrategyProbe;
+  if (!probe?.strategyFile || !probe.working) return null;
+  const name = probe.strategyName
+    || state.strategies.find((s) => s.file === probe.strategyFile)?.name
+    || probe.strategyFile;
+  return { file: probe.strategyFile, name };
+}
+
+function showBypassDropModal(payload = {}, options = {}) {
   const text = $('#bypassDropText');
+  const recommendedBtn = $('#btnBypassDropRecommended');
+  const recommended = getRecommendedStrategyAction();
+
   if (text) {
-    const strategyName = state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
-    text.textContent = strategyName
-      ? `Обход (${strategyName}) неожиданно остановился. Включите снова или подберите другую стратегию.`
-      : 'Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.';
+    if (options.healthFailed) {
+      text.textContent = recommended
+        ? `Обход включён, но Discord и YouTube не отвечают. Попробуйте рекомендованную стратегию «${recommended.name}» или подберите заново.`
+        : 'Обход включён, но Discord и YouTube не отвечают. Подберите рабочую стратегию.';
+    } else {
+      const strategyName = state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
+      text.textContent = strategyName
+        ? `Обход (${strategyName}) неожиданно остановился. Включите снова или подберите другую стратегию.`
+        : 'Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.';
+    }
   }
+
+  if (recommendedBtn) {
+    if (recommended) {
+      recommendedBtn.textContent = `Применить: ${recommended.name}`;
+      recommendedBtn.classList.remove('hidden');
+    } else {
+      recommendedBtn.classList.add('hidden');
+    }
+  }
+
   $('#bypassDropModal')?.classList.remove('hidden');
 }
 
@@ -1726,6 +1652,20 @@ function hideBypassDropModal() {
 
 function setupBypassDropModal() {
   $('#btnBypassDropClose')?.addEventListener('click', hideBypassDropModal);
+  $('#btnBypassDropRecommended')?.addEventListener('click', async () => {
+    const recommended = getRecommendedStrategyAction();
+    if (!recommended) return;
+    hideBypassDropModal();
+    suppressStrategyChange = true;
+    $('#strategySelect').value = recommended.file;
+    suppressStrategyChange = false;
+    await applyStrategy(recommended.file);
+    if (!state.running) {
+      $('#btnPower')?.click();
+    } else {
+      toast(`Применена стратегия: ${recommended.name}`, 'success');
+    }
+  });
   $('#btnBypassDropProbe')?.addEventListener('click', async () => {
     hideBypassDropModal();
     navigateTo('home');
@@ -1757,7 +1697,7 @@ function renderOnboardingStep() {
     } else if (step.action === 'tg') {
       html = '<div class="onboarding-highlight">Карточка «Прокси для Telegram» на главной — включите переключатель, адрес для Telegram будет в карточке.</div>';
     } else if (step.action === 'autostart') {
-      html = '<div class="onboarding-highlight">Тумблеры автозапуска — внизу главной страницы.</div>';
+      html = step.body || '<div class="onboarding-highlight">Тумблеры автозапуска — внизу главной страницы.</div>';
     }
     body.innerHTML = html;
   }
@@ -2200,16 +2140,6 @@ async function init() {
     }
   });
 
-  $('#linkGithub').addEventListener('click', (e) => {
-    e.preventDefault();
-    api('openExternal', 'https://github.com/Flowseal/zapret-discord-youtube');
-  });
-
-  $('#linkTgGithub')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    api('openExternal', 'https://github.com/Flowseal/tg-ws-proxy');
-  });
-
   $('#btnTgProxyToggle')?.addEventListener('click', async () => {
     if (state.tgProxy.busy) return;
     setTgProxyBusy(true);
@@ -2288,6 +2218,11 @@ async function init() {
     }
     showBypassDropModal(payload);
     toast('Обход неожиданно остановился', 'error');
+  });
+
+  window.zapretAPI.onBypassHealthFailed?.(() => {
+    showBypassDropModal({}, { healthFailed: true });
+    toast('Похоже, обход не работает — проверьте стратегию', 'error');
   });
 }
 

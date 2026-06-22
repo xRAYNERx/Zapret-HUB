@@ -1,5 +1,8 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
+const { promisify } = require('util');
+
+const execAsync = promisify(exec);
 const fs = require('fs');
 const https = require('https');
 const os = require('os');
@@ -60,6 +63,12 @@ let bypassWasRunning = false;
 let trayZapretRunning = false;
 let trayTgRunning = false;
 let lastIntentionalBypassStop = 0;
+let healthTimer = null;
+let lastHealthAlert = 0;
+
+const AUTOSTART_TASK_NAME = 'Zapret HUB';
+const HEALTH_INTERVAL_MS = 5 * 60 * 1000;
+const HEALTH_ALERT_COOLDOWN_MS = 15 * 60 * 1000;
 
 const isAutostartLaunch = process.argv.includes('--autostart');
 
@@ -283,12 +292,7 @@ async function handleWindowClose(e) {
     return;
   }
 
-  if (choice === 'quit-remember') {
-    zapret.config.closeBehavior = 'quit';
-    zapret.saveConfig();
-  }
-
-  if (choice === 'quit' || choice === 'quit-remember') {
+  if (choice === 'quit') {
     app.isQuitting = true;
     app.quit();
   }
@@ -448,16 +452,57 @@ function startTgProxyPolling() {
   }, 3000);
 }
 
-function syncLoginItem() {
+async function runSchtasks(args) {
+  if (process.platform !== 'win32') return;
+  try {
+    await execAsync(`schtasks ${args}`, { windowsHide: true, timeout: 15000 });
+  } catch (err) {
+    logStartup(`schtasks failed (${args}): ${err.message}`);
+  }
+}
+
+async function syncAutostartTask() {
   if (process.platform !== 'win32' || !zapret) return;
+
   const enabled = zapret.isAppAutostartEnabled();
   const current = app.getLoginItemSettings();
-  if (current.openAtLogin === enabled) return;
-  app.setLoginItemSettings({
-    openAtLogin: enabled,
-    path: process.execPath,
-    args: enabled ? ['--autostart'] : []
-  });
+  if (current.openAtLogin) {
+    app.setLoginItemSettings({ openAtLogin: false, args: [] });
+  }
+
+  if (!enabled) {
+    await runSchtasks(`/Delete /TN "${AUTOSTART_TASK_NAME}" /F`);
+    return;
+  }
+
+  const exePath = process.execPath.replace(/"/g, '\\"');
+  const taskAction = `\\"${exePath}\\" --autostart`;
+  await runSchtasks(
+    `/Create /F /SC ONLOGON /RL HIGHEST /TN "${AUTOSTART_TASK_NAME}" /TR "${taskAction}"`
+  );
+}
+
+function notifyBypassHealthFailed(payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('bypass-health-failed', payload);
+}
+
+function startBypassHealthPolling() {
+  if (healthTimer) clearInterval(healthTimer);
+  healthTimer = setInterval(async () => {
+    if (!zapret || !mainWindow || app.isQuitting) return;
+    try {
+      const status = await zapret.getStatus();
+      if (!status.running) return;
+      const health = await zapret.runBypassHealthCheck();
+      if (!health.checked || health.healthy) return;
+      if (Date.now() - lastHealthAlert < HEALTH_ALERT_COOLDOWN_MS) return;
+      lastHealthAlert = Date.now();
+      notifyBypassHealthFailed(health);
+    } catch {
+      // ignore transient health check errors
+    }
+  }, HEALTH_INTERVAL_MS);
 }
 
 async function runAutostartZapret() {
@@ -909,14 +954,15 @@ function registerIpc() {
     'set-game-filter': (_, mode) => zapret.setGameFilter(mode),
     'set-autostart-zapret': async (_, enabled) => {
       const status = await zapret.setAutostartZapret(enabled);
-      syncLoginItem();
+      await syncAutostartTask();
       return status;
     },
     'set-autostart-tg': async (_, enabled) => {
       const status = await zapret.setAutostartTgProxy(enabled);
-      syncLoginItem();
+      await syncAutostartTask();
       return status;
     },
+    'run-bypass-health-check': () => zapret.runBypassHealthCheck(),
     'set-start-minimized': (_, enabled) => zapret.setStartMinimized(enabled),
     'set-ipset': (_, mode) => zapret.setIpset(mode),
     'set-auto-update': (_, enabled) => zapret.setAutoUpdate(enabled),
@@ -1061,7 +1107,7 @@ app.whenReady().then(async () => {
       resourcesPath: process.resourcesPath
     });
     zapret.migrateAutostartConfig()
-      .then(() => syncLoginItem())
+      .then(() => syncAutostartTask())
       .catch((err) => logStartup(`Autostart migrate failed: ${err.message}`));
     await zapret.prepareStartup();
     const initialStatus = await zapret.getStatus();
@@ -1070,6 +1116,7 @@ app.whenReady().then(async () => {
     createTray();
     registerIpc();
     startStatusPolling();
+    startBypassHealthPolling();
     startTgProxyPolling();
     if (tgProxy) {
       tgProxy.getStatus()
@@ -1095,6 +1142,7 @@ process.on('uncaughtException', (err) => {
 app.on('before-quit', (e) => {
   app.isQuitting = true;
   if (statusTimer) clearInterval(statusTimer);
+  if (healthTimer) clearInterval(healthTimer);
   if (tgProxyTimer) clearInterval(tgProxyTimer);
   if (tray) {
     tray.destroy();

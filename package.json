@@ -1,6 +1,6 @@
 {
   "name": "zapret-hub",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Zapret HUB — панель обхода блокировок Discord, YouTube, Telegram",
   "main": "electron/main.js",
   "author": "RAYNER",

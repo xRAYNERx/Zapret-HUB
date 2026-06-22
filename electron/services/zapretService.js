@@ -18,8 +18,9 @@ const ZAPRET_RELEASE_API =
 const ZAPRET_RELEASE_PAGE =
   'https://github.com/Flowseal/zapret-discord-youtube/releases/latest';
 
+const MERGE_ON_UPDATE_RELATIVE_PATHS = ['lists/list-general.txt'];
+
 const PRESERVE_RELATIVE_PATHS = [
-  'lists/list-general.txt',
   'lists/list-general-user.txt',
   'lists/list-exclude-user.txt',
   'lists/ipset-exclude-user.txt',
@@ -720,7 +721,8 @@ class ZapretService {
 
   backupUserFiles(enginePath) {
     const backup = {};
-    for (const relPath of PRESERVE_RELATIVE_PATHS) {
+    const backupPaths = [...MERGE_ON_UPDATE_RELATIVE_PATHS, ...PRESERVE_RELATIVE_PATHS];
+    for (const relPath of backupPaths) {
       const fullPath = path.join(enginePath, relPath);
       if (fs.existsSync(fullPath)) {
         backup[relPath] = fs.readFileSync(fullPath);
@@ -740,13 +742,38 @@ class ZapretService {
     return backup;
   }
 
+  mergeSiteLists(baseSites, extraSites) {
+    const merged = [...baseSites];
+    for (const site of extraSites) {
+      if (!merged.includes(site)) merged.push(site);
+    }
+    return merged;
+  }
+
+  mergeGeneralListAfterUpdate(enginePath, userBackupContent) {
+    if (!userBackupContent) return { added: 0, total: 0 };
+
+    const listFile = path.join(enginePath, 'lists', 'list-general.txt');
+    const userSites = this.parseListLines(userBackupContent.toString('utf8'));
+    const upstreamSites = this.readSitesFromFile(listFile);
+    const merged = this.mergeSiteLists(upstreamSites, userSites);
+    this.writeSitesToFile(listFile, merged);
+    return { added: merged.length - upstreamSites.length, total: merged.length };
+  }
+
   restoreUserFiles(enginePath, backup) {
+    const mergeGeneralBackup = backup['lists/list-general.txt'];
+
     for (const [relPath, content] of Object.entries(backup)) {
+      if (MERGE_ON_UPDATE_RELATIVE_PATHS.includes(relPath)) continue;
       const fullPath = path.join(enginePath, relPath);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, content);
     }
+
+    const listMerge = this.mergeGeneralListAfterUpdate(enginePath, mergeGeneralBackup);
     this.ensureUserLists(enginePath);
+    return { listMerge };
   }
 
   delay(ms) {
@@ -927,8 +954,8 @@ class ZapretService {
       this.emitProgress(onProgress, { phase: 'install', percent: 50, message: 'Установка файлов...' });
       const deferred = await this.copyDirectoryContents(sourceRoot, enginePath, enginePath);
 
-      this.emitProgress(onProgress, { phase: 'restore', percent: 80, message: 'Сохраняем ваши настройки...' });
-      this.restoreUserFiles(enginePath, backup);
+      this.emitProgress(onProgress, { phase: 'restore', percent: 80, message: 'Сохраняем настройки и объединяем список сайтов...' });
+      const { listMerge } = this.restoreUserFiles(enginePath, backup);
       this.removeLegacyUpdateFlag();
       this._resolvedZapretPath = enginePath;
 
@@ -937,9 +964,11 @@ class ZapretService {
         throw new Error(`После установки версия ${local}, ожидалась ${remoteVersion}`);
       }
 
+      const mergeNote =
+        listMerge?.added > 0 ? ` Список сайтов: +${listMerge.added} ваших доменов.` : '';
       const doneMessage = deferred.length
-        ? `Обновлено до ${local}. ${deferred.length} файл(ов) будут догружены при следующем запуске.`
-        : `Обновлено до ${local}`;
+        ? `Обновлено до ${local}.${mergeNote} ${deferred.length} файл(ов) будут догружены при следующем запуске.`
+        : `Обновлено до ${local}.${mergeNote}`;
 
       this.emitProgress(onProgress, { phase: 'done', percent: 100, message: doneMessage });
       this.invalidateUpdateCache();
@@ -1038,12 +1067,7 @@ class ZapretService {
     if (mode === 'replace') {
       return this.saveGeneralSites(imported);
     }
-    const existing = this.getGeneralSites();
-    const merged = [...existing];
-    for (const site of imported) {
-      if (!merged.includes(site)) merged.push(site);
-    }
-    return this.saveGeneralSites(merged);
+    return this.saveGeneralSites(this.mergeSiteLists(this.getGeneralSites(), imported));
   }
 
   exportCustomListSitesText(listId) {
@@ -1056,12 +1080,7 @@ class ZapretService {
     if (mode === 'replace') {
       return this.saveCustomListSites(listId, imported);
     }
-    const existing = this.getCustomListSites(listId);
-    const merged = [...existing];
-    for (const site of imported) {
-      if (!merged.includes(site)) merged.push(site);
-    }
-    return this.saveCustomListSites(listId, merged);
+    return this.saveCustomListSites(listId, this.mergeSiteLists(this.getCustomListSites(listId), imported));
   }
 
   summarizeStrategyProbeResult(result) {
@@ -1386,6 +1405,50 @@ class ZapretService {
     this.config.startMinimized = next;
     this.saveConfig();
     return this.getStatus();
+  }
+
+  async checkHttpTarget(url, timeoutSec = 5) {
+    const escaped = String(url).replace(/'/g, "''");
+    const ps = [
+      `$url = '${escaped}'`,
+      `$code = curl.exe -I -s -m ${timeoutSec} -o NUL -w '%{http_code}' --tlsv1.2 $url 2>$null`,
+      'if ($LASTEXITCODE -eq 0 -and $code -match "^[23]") { "OK" } else { "FAIL" }'
+    ].join('; ');
+    try {
+      const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps}"`, {
+        windowsHide: true,
+        timeout: (timeoutSec + 4) * 1000
+      });
+      return stdout.trim() === 'OK';
+    } catch {
+      return false;
+    }
+  }
+
+  async runBypassHealthCheck() {
+    const status = await this.getStatus();
+    if (!status.running) {
+      return { checked: false, healthy: true, reason: 'not_running', results: [] };
+    }
+
+    const targets = [
+      { name: 'Discord', url: 'https://discord.com' },
+      { name: 'YouTube', url: 'https://www.youtube.com' },
+      { name: 'Discord Gateway', url: 'https://gateway.discord.gg' }
+    ];
+
+    const results = [];
+    for (const target of targets) {
+      const ok = await this.checkHttpTarget(target.url);
+      results.push({ ...target, ok });
+    }
+
+    return {
+      checked: true,
+      healthy: results.some((row) => row.ok),
+      results,
+      checkedAt: new Date().toISOString()
+    };
   }
 
   async getStatus() {

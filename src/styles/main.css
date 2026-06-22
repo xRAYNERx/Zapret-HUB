@@ -808,7 +808,7 @@ body {
 }
 
 .quick-bar {
-  height: var(--quickbar-h);
+  min-height: var(--quickbar-h);
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
@@ -817,6 +817,28 @@ body {
   border-top: 1px solid var(--border-subtle);
   backdrop-filter: blur(16px);
   -webkit-app-region: no-drag;
+}
+
+.quick-bar-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.autostart-hint {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.about-version {
+  margin: 8px 0 0;
+  font-size: var(--fs-body);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .info-list {

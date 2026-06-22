@@ -98,7 +98,6 @@
                   <h3>Прокси для Telegram</h3>
                   <p class="card-hint">Локальный SOCKS5 через WebSocket</p>
                 </div>
-                <span class="panel-version-badge" id="tgProxyVersion" title="Версия прокси">—</span>
               </header>
 
               <div class="panel-meta-grid tg-proxy-status" id="tgProxyStatusBlock">
@@ -146,7 +145,6 @@
                   <h3>Смена стратегии обхода блокировки YouTube и Discord</h3>
                   <p class="card-hint">Рекомендуем пройти подбор рабочей стратегии</p>
                 </div>
-                <span class="panel-version-badge" id="engineVersion" title="Версия движка">—</span>
               </header>
 
               <select class="select" id="strategySelect"></select>
@@ -365,16 +363,7 @@
               <div class="about-body">
                 <p class="about-tagline">Zapret HUB — панель обхода блокировок</p>
                 <p class="about-services">Discord · YouTube · Telegram</p>
-                <ul class="about-links">
-                  <li>
-                    <span class="about-link-label">Движок</span>
-                    <a href="#" id="linkGithub" class="link">zapret-discord-youtube</a>
-                  </li>
-                  <li>
-                    <span class="about-link-label">Прокси TG</span>
-                    <a href="#" id="linkTgGithub" class="link">tg-ws-proxy</a>
-                  </li>
-                </ul>
+                <p class="about-version" id="aboutHubVersion">Версия —</p>
               </div>
             </div>
           </div>
@@ -382,6 +371,7 @@
       </main>
 
       <footer class="quick-bar">
+        <div class="quick-bar-inner">
         <div class="info-list sidebar-info-list">
           <div class="info-chip info-chip-control">
             <span class="info-label">
@@ -413,6 +403,10 @@
               <span class="slider"></span>
             </label>
           </div>
+        </div>
+        <p class="autostart-hint hidden" id="autostartHint">
+          При включении любого автозапуска Zapret HUB добавляется в автозагрузку Windows.
+        </p>
         </div>
       </footer>
     </div>
@@ -493,17 +487,6 @@
     </div>
   </div>
 
-  <div class="modal-overlay hidden" id="closeRememberModal">
-    <div class="modal-card">
-      <h2>Запомнить выбор?</h2>
-      <p class="modal-text">Если выберете «Да», при нажатии на крестик программа будет сразу закрываться.</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnCloseRememberNo" type="button">Нет</button>
-        <button class="btn btn-primary" id="btnCloseRememberYes" type="button">Да</button>
-      </div>
-    </div>
-  </div>
-
   <div class="modal-overlay hidden" id="confirmModal">
     <div class="modal-card">
       <h2 id="confirmModalTitle">Подтверждение</h2>
@@ -511,41 +494,6 @@
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btnConfirmCancel" type="button">Отмена</button>
         <button class="btn btn-danger" id="btnConfirmOk" type="button">Удалить</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay hidden" id="strategyProbeChoiceModal">
-    <div class="modal-card">
-      <h2>Подбор рабочей стратегии</h2>
-      <p class="modal-text">Что проверить на вашем ПК?</p>
-      <div class="strategy-probe-choice">
-        <button class="btn strategy-probe-choice-btn" id="btnStrategyProbeAll" type="button">
-          <span class="strategy-probe-choice-title">Все стратегии</span>
-          <span class="strategy-probe-choice-desc">Полная проверка всех конфигов</span>
-        </button>
-        <button class="btn strategy-probe-choice-btn" id="btnStrategyProbeCurrent" type="button">
-          <span class="strategy-probe-choice-title">Текущую стратегию</span>
-          <span class="strategy-probe-choice-desc">Проверить выбранную в списке</span>
-        </button>
-        <button class="btn strategy-probe-choice-btn" id="btnStrategyProbeOne" type="button">
-          <span class="strategy-probe-choice-title">Другую стратегию</span>
-          <span class="strategy-probe-choice-desc">Выбрать конфиг из списка</span>
-        </button>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnStrategyProbeChoiceCancel" type="button">Отмена</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay hidden" id="strategyProbePickModal">
-    <div class="modal-card modal-card-wide">
-      <h2>Выбор стратегии</h2>
-      <p class="modal-text">Выберите конфиг для проверки</p>
-      <div class="strategy-probe-pick-list" id="strategyProbePickList"></div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnStrategyProbePickCancel" type="button">Отмена</button>
       </div>
     </div>
   </div>
@@ -575,7 +523,8 @@
       <p class="modal-text" id="bypassDropText">Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.</p>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btnBypassDropClose" type="button">Понятно</button>
-        <button class="btn btn-ghost" id="btnBypassDropProbe" type="button">Подобрать стратегию</button>
+        <button class="btn btn-ghost hidden" id="btnBypassDropRecommended" type="button">Применить рекомендованную</button>
+        <button class="btn btn-ghost" id="btnBypassDropProbe" type="button">Подобрать заново</button>
         <button class="btn btn-primary" id="btnBypassDropRestart" type="button">Включить снова</button>
       </div>
     </div>

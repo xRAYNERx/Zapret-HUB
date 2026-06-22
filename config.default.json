@@ -2,7 +2,7 @@
   "zapretPath": "D:\\PROGRAMMS\\Запрет",
   "lastStrategy": "general.bat",
   "startMinimized": false,
-  "closeBehavior": null,
+  "closeBehavior": "tray",
   "autoCheckUpdates": true,
   "autostartZapretEnabled": false,
   "autostartTgProxyEnabled": false,

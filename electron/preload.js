@@ -85,7 +85,11 @@ const api = {
   importSitesText: (payload) => ipcRenderer.invoke('import-sites-text', payload),
   onBypassDropped: (cb) => {
     ipcRenderer.on('bypass-dropped', (_, data) => cb(data));
-  }
+  },
+  onBypassHealthFailed: (cb) => {
+    ipcRenderer.on('bypass-health-failed', (_, data) => cb(data));
+  },
+  runBypassHealthCheck: () => ipcRenderer.invoke('run-bypass-health-check')
 };
 
 contextBridge.exposeInMainWorld('zapretAPI', api);
