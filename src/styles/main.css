@@ -1195,6 +1195,21 @@ body {
   flex-direction: column;
 }
 
+.modal-card-bypass-drop {
+  width: max-content;
+  max-width: min(960px, calc(100vw - 32px));
+  min-width: min(720px, calc(100vw - 32px));
+}
+
+.modal-card-bypass-drop .modal-actions {
+  flex-wrap: nowrap;
+}
+
+.modal-card-bypass-drop .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .strategy-probe-list {
   display: flex;
   flex-direction: column;

@@ -2221,6 +2221,10 @@ class ZapretService {
     return { cancelled: true };
   }
 
+  isStrategyProbeRunning() {
+    return Boolean(this._strategyProbeRunning);
+  }
+
   async runStrategyProbe(options = {}, sendProgress) {
     if (this._strategyProbeRunning) {
       throw new Error('Проверка стратегий уже выполняется');
@@ -2282,10 +2286,12 @@ class ZapretService {
       const resultB64 = this.encodePsPath(resultPath);
       const progressB64 = this.encodePsPath(progressPath);
       const wdB64 = this.encodePsPath(path.dirname(script));
+      const elevated = this.isElevated();
+      const verb = elevated ? '' : ' -Verb RunAs';
       const strategySuffix = mode === 'single'
         ? ` + ' -StrategyFile "${strategyFile.replace(/"/g, '`"')}"'`
         : '';
-      const startProcess = `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList $argString -WorkingDirectory $wd -PassThru -WindowStyle Hidden; if (-not $p) { exit 1 }; $p.WaitForExit(); $code = $p.ExitCode; if ($null -eq $code) { $code = 1 }; exit $code`;
+      const startProcess = `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList $argString -WorkingDirectory $wd -PassThru -WindowStyle Hidden${verb}; if (-not $p) { exit 1 }; $p.WaitForExit(); $code = $p.ExitCode; if ($null -eq $code) { $code = 1 }; exit $code`;
       const ps = [
         `$script = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptB64}'))`,
         `$resultPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${resultB64}'))`,

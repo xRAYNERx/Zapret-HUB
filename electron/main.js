@@ -63,12 +63,36 @@ let bypassWasRunning = false;
 let trayZapretRunning = false;
 let trayTgRunning = false;
 let lastIntentionalBypassStop = 0;
+let bypassDropSuppressedUntil = 0;
+let bypassStartedAt = 0;
 let healthTimer = null;
 let lastHealthAlert = 0;
+let consecutiveHealthFailures = 0;
 
 const AUTOSTART_TASK_NAME = 'Zapret HUB';
 const HEALTH_INTERVAL_MS = 5 * 60 * 1000;
 const HEALTH_ALERT_COOLDOWN_MS = 15 * 60 * 1000;
+const BYPASS_START_GRACE_MS = 3 * 60 * 1000;
+const BYPASS_RESTART_SUPPRESS_MS = 25000;
+const BYPASS_PROBE_SUPPRESS_MS = 30 * 60 * 1000;
+const BYPASS_UPDATE_SUPPRESS_MS = 2 * 60 * 1000;
+
+function suppressBypassDrop(ms = BYPASS_RESTART_SUPPRESS_MS) {
+  bypassDropSuppressedUntil = Math.max(bypassDropSuppressedUntil, Date.now() + ms);
+}
+
+function isBypassDropSuppressed() {
+  if (Date.now() < bypassDropSuppressedUntil) return true;
+  return Boolean(zapret?.isStrategyProbeRunning?.());
+}
+
+function markBypassRunning(running) {
+  bypassWasRunning = Boolean(running);
+  if (running) {
+    bypassStartedAt = Date.now();
+    consecutiveHealthFailures = 0;
+  }
+}
 
 const isAutostartLaunch = process.argv.includes('--autostart');
 
@@ -430,10 +454,18 @@ function startStatusPolling() {
     try {
       const status = await zapret.getStatus();
       const sinceIntentional = Date.now() - lastIntentionalBypassStop;
-      if (bypassWasRunning && !status.running && !app.isQuitting && sinceIntentional > 4000) {
+      if (
+        bypassWasRunning &&
+        !status.running &&
+        !app.isQuitting &&
+        sinceIntentional > 4000 &&
+        !isBypassDropSuppressed()
+      ) {
         notifyBypassDropped(status);
       }
-      bypassWasRunning = status.running;
+      if (!isBypassDropSuppressed()) {
+        bypassWasRunning = status.running;
+      }
       mainWindow.webContents.send('status-changed', status);
       updateTrayMenu(status.running, trayTgRunning);
     } catch { /* ignore */ }
@@ -495,7 +527,13 @@ function startBypassHealthPolling() {
       const status = await zapret.getStatus();
       if (!status.running) return;
       const health = await zapret.runBypassHealthCheck();
-      if (!health.checked || health.healthy) return;
+      if (!health.checked || health.healthy) {
+        consecutiveHealthFailures = 0;
+        return;
+      }
+      if (bypassStartedAt && Date.now() - bypassStartedAt < BYPASS_START_GRACE_MS) return;
+      consecutiveHealthFailures += 1;
+      if (consecutiveHealthFailures < 2) return;
       if (Date.now() - lastHealthAlert < HEALTH_ALERT_COOLDOWN_MS) return;
       lastHealthAlert = Date.now();
       notifyBypassHealthFailed(health);
@@ -514,7 +552,7 @@ async function runAutostartZapret() {
     const result = await zapret.start(strategy);
     if (result.running) {
       sendInAppNotify('Автозапуск: включение обхода');
-      bypassWasRunning = true;
+      markBypassRunning(true);
       mainWindow?.webContents.send('status-changed', result);
       updateTrayMenu(true, trayTgRunning);
     }
@@ -911,8 +949,10 @@ function registerIpc() {
     'get-status': () => zapret.getStatus(),
     'get-strategies': () => zapret.getStrategies(),
     'start': async (_, strategy) => {
+      suppressBypassDrop(BYPASS_RESTART_SUPPRESS_MS);
+      bypassWasRunning = false;
       const status = await zapret.start(strategy);
-      bypassWasRunning = status.running;
+      markBypassRunning(status.running);
       if (status.running) {
         sendInAppNotify('Включение обхода');
       }
@@ -920,8 +960,10 @@ function registerIpc() {
     },
     'set-strategy': (_, strategy) => zapret.setLastStrategy(strategy),
     'restart': async (_, strategy) => {
+      suppressBypassDrop(BYPASS_RESTART_SUPPRESS_MS);
+      bypassWasRunning = false;
       const status = await zapret.restart(strategy);
-      bypassWasRunning = status.running;
+      markBypassRunning(status.running);
       if (status.running) {
         sendInAppNotify('Смена стратегии обхода');
       }
@@ -982,6 +1024,8 @@ function registerIpc() {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('update-progress', progress);
       };
+      suppressBypassDrop(BYPASS_UPDATE_SUPPRESS_MS);
+      bypassWasRunning = false;
       return zapret.applyUpdate(remoteVersion, sendProgress);
     },
     'run-tests': () => zapret.runTests(),
@@ -989,7 +1033,14 @@ function registerIpc() {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('strategy-probe-progress', progress);
       };
-      return zapret.runStrategyProbe(options || {}, sendProgress);
+      suppressBypassDrop(BYPASS_PROBE_SUPPRESS_MS);
+      bypassWasRunning = false;
+      try {
+        return await zapret.runStrategyProbe(options || {}, sendProgress);
+      } finally {
+        const status = await zapret.getStatus();
+        markBypassRunning(status.running);
+      }
     },
     'cancel-strategy-probe': () => zapret.cancelStrategyProbe(),
     'open-external': (_, url) => shell.openExternal(url),
@@ -1111,6 +1162,9 @@ app.whenReady().then(async () => {
       .catch((err) => logStartup(`Autostart migrate failed: ${err.message}`));
     await zapret.prepareStartup();
     const initialStatus = await zapret.getStatus();
+    if (initialStatus.running) {
+      bypassStartedAt = Date.now();
+    }
     bypassWasRunning = initialStatus.running;
     createWindow();
     createTray();
