@@ -813,12 +813,9 @@ function renderSiteItems({ sites, listEl, emptyEl, countEl, onRemove, allowEmpty
     if (emptyEl) emptyEl.hidden = false;
   } else {
     if (emptyEl) emptyEl.hidden = visibleSites.length > 0;
-    for (const site of sites) {
+    for (const site of visibleSites) {
       const item = document.createElement('div');
       item.className = 'site-item';
-      if (query && !site.toLowerCase().includes(query)) {
-        item.classList.add('hidden-by-search');
-      }
       item.innerHTML = `
         <svg class="site-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/>
@@ -1332,8 +1329,9 @@ function setupStartupUpdatesModal() {
       runStartupUpdateAll(state.pendingStartupUpdates);
     }
   });
-  $('#startupUpdatesModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#startupUpdatesModal') && !state.startupUpdating) {
+  const startupModal = $('#startupUpdatesModal');
+  startupModal?.addEventListener('click', (e) => {
+    if (e.target === startupModal && !state.startupUpdating) {
       hideStartupUpdatesModal();
     }
   });
@@ -1420,13 +1418,15 @@ async function startZapret(strategy) {
 }
 
 function setupRestartModal() {
+  const modal = $('#restartModal');
   $('#btnRestartOk')?.addEventListener('click', hideRestartModal);
-  $('#restartModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#restartModal')) hideRestartModal();
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) hideRestartModal();
   });
 }
 
 function setupAppRestartModal() {
+  const modal = $('#appRestartModal');
   $('#btnAppRestartLater')?.addEventListener('click', hideAppRestartModal);
   $('#btnAppRestartNow')?.addEventListener('click', async () => {
     hideAppRestartModal();
@@ -1436,8 +1436,8 @@ function setupAppRestartModal() {
       toast(e.message, 'error');
     }
   });
-  $('#appRestartModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#appRestartModal')) hideAppRestartModal();
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) hideAppRestartModal();
   });
 }
 
@@ -1616,22 +1616,16 @@ function getRecommendedStrategyAction() {
   return { file: probe.strategyFile, name };
 }
 
-function showBypassDropModal(payload = {}, options = {}) {
+function showBypassDropModal(payload = {}) {
   const text = $('#bypassDropText');
   const recommendedBtn = $('#btnBypassDropRecommended');
   const recommended = getRecommendedStrategyAction();
 
   if (text) {
-    if (options.healthFailed) {
-      text.textContent = recommended
-        ? `Обход включён, но Discord и YouTube не отвечают. Попробуйте рекомендованную стратегию «${recommended.name}» или подберите заново.`
-        : 'Обход включён, но Discord и YouTube не отвечают. Подберите рабочую стратегию.';
-    } else {
-      const strategyName = state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
-      text.textContent = strategyName
-        ? `Обход (${strategyName}) неожиданно остановился. Включите снова или подберите другую стратегию.`
-        : 'Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.';
-    }
+    const strategyName = state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
+    text.textContent = strategyName
+      ? `Обход (${strategyName}) неожиданно остановился. Включите снова или подберите другую стратегию.`
+      : 'Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.';
   }
 
   if (recommendedBtn) {
@@ -1651,6 +1645,7 @@ function hideBypassDropModal() {
 }
 
 function setupBypassDropModal() {
+  const modal = $('#bypassDropModal');
   $('#btnBypassDropClose')?.addEventListener('click', hideBypassDropModal);
   $('#btnBypassDropRecommended')?.addEventListener('click', async () => {
     const recommended = getRecommendedStrategyAction();
@@ -1675,8 +1670,8 @@ function setupBypassDropModal() {
     hideBypassDropModal();
     $('#btnPower')?.click();
   });
-  $('#bypassDropModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#bypassDropModal')) hideBypassDropModal();
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) hideBypassDropModal();
   });
 }
 
@@ -1747,9 +1742,7 @@ function advanceOnboardingStep() {
   renderOnboardingStep();
 }
 
-function skipOnboardingStep() {
-  advanceOnboardingStep();
-}
+
 
 async function handleOnboardingNext() {
   const step = ONBOARDING_STEPS[onboardingStep];
@@ -1791,7 +1784,7 @@ async function handleOnboardingNext() {
 
 function setupOnboardingModal() {
   $('#btnOnboardingClose')?.addEventListener('click', () => completeOnboarding());
-  $('#btnOnboardingSkip')?.addEventListener('click', () => skipOnboardingStep());
+$('#btnOnboardingSkip')?.addEventListener('click', () => advanceOnboardingStep());
   $('#btnOnboardingNext')?.addEventListener('click', () => handleOnboardingNext());
 }
 
@@ -1909,22 +1902,26 @@ async function init() {
   });
 
   try {
-    const pathCheck = await api('validatePath');
+    const [pathCheck, strategies, status, sites, tgStatus] = await Promise.all([
+      api('validatePath'),
+      api('getStrategies'),
+      api('getStatus'),
+      api('getSites'),
+      api('getTgProxyStatus')
+    ]);
+
     if (!pathCheck.valid) {
       toast('Папка Zapret не найдена — проверьте установку движка', 'error');
     }
 
-    state.strategies = await api('getStrategies');
-    const status = await api('getStatus');
+    state.strategies = strategies;
     const selected = status.lastStrategy || 'general.bat';
     renderStrategies(state.strategies, selected);
     updateUI(status);
 
-    const sites = await api('getSites');
     renderSites(sites);
     await loadCustomLists();
 
-    const tgStatus = await api('getTgProxyStatus');
     updateTgProxyUI(tgStatus);
 
     if (!status.onboardingCompleted) {
@@ -2220,10 +2217,7 @@ async function init() {
     toast('Обход неожиданно остановился', 'error');
   });
 
-  window.zapretAPI.onBypassHealthFailed?.(() => {
-    showBypassDropModal({}, { healthFailed: true });
-    toast('Похоже, обход не работает — проверьте стратегию', 'error');
-  });
+
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -30,7 +30,6 @@ const api = {
   checkAllUpdates: (options) => ipcRenderer.invoke('check-all-updates', options),
   applyUpdate: (remoteVersion) => ipcRenderer.invoke('apply-update', remoteVersion),
   applyHubUpdate: () => ipcRenderer.invoke('apply-hub-update'),
-  runTests: () => ipcRenderer.invoke('run-tests'),
   runStrategyProbe: (options) => ipcRenderer.invoke('run-strategy-probe', options),
   cancelStrategyProbe: () => ipcRenderer.invoke('cancel-strategy-probe'),
   onStrategyProbeProgress: (cb) => {
@@ -85,11 +84,7 @@ const api = {
   importSitesText: (payload) => ipcRenderer.invoke('import-sites-text', payload),
   onBypassDropped: (cb) => {
     ipcRenderer.on('bypass-dropped', (_, data) => cb(data));
-  },
-  onBypassHealthFailed: (cb) => {
-    ipcRenderer.on('bypass-health-failed', (_, data) => cb(data));
-  },
-  runBypassHealthCheck: () => ipcRenderer.invoke('run-bypass-health-check')
+  }
 };
 
 contextBridge.exposeInMainWorld('zapretAPI', api);

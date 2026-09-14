@@ -1407,55 +1407,13 @@ class ZapretService {
     return this.getStatus();
   }
 
-  async checkHttpTarget(url, timeoutSec = 5) {
-    const escaped = String(url).replace(/'/g, "''");
-    const ps = [
-      `$url = '${escaped}'`,
-      `$code = curl.exe -I -s -m ${timeoutSec} -o NUL -w '%{http_code}' --tlsv1.2 $url 2>$null`,
-      'if ($LASTEXITCODE -eq 0 -and $code -match "^[23]") { "OK" } else { "FAIL" }'
-    ].join('; ');
-    try {
-      const { stdout } = await execAsync(`powershell -NoProfile -Command "${ps}"`, {
-        windowsHide: true,
-        timeout: (timeoutSec + 4) * 1000
-      });
-      return stdout.trim() === 'OK';
-    } catch {
-      return false;
-    }
-  }
-
-  async runBypassHealthCheck() {
-    const status = await this.getStatus();
-    if (!status.running) {
-      return { checked: false, healthy: true, reason: 'not_running', results: [] };
-    }
-
-    const targets = [
-      { name: 'Discord', url: 'https://discord.com' },
-      { name: 'YouTube', url: 'https://www.youtube.com' },
-      { name: 'Discord Gateway', url: 'https://gateway.discord.gg' }
-    ];
-
-    const results = [];
-    for (const target of targets) {
-      const ok = await this.checkHttpTarget(target.url);
-      results.push({ ...target, ok });
-    }
-
-    return {
-      checked: true,
-      healthy: results.some((row) => row.ok),
-      results,
-      checkedAt: new Date().toISOString()
-    };
-  }
-
   async getStatus() {
-    const winwsRunning = await this.isProcessRunning('winws.exe');
-    const zapretService = await this.getServiceState('zapret');
-    const windivertService = await this.getServiceState('WinDivert');
-    const installedStrategy = await this.getInstalledStrategy();
+    const [winwsRunning, zapretService, windivertService, installedStrategy] = await Promise.all([
+      this.isProcessRunning('winws.exe'),
+      this.getServiceState('zapret'),
+      this.getServiceState('WinDivert'),
+      this.getInstalledStrategy()
+    ]);
     return {
       running: winwsRunning || zapretService === 'RUNNING',
       winwsRunning,
@@ -2399,33 +2357,6 @@ class ZapretService {
         }
       }
     }
-  }
-
-  runTests() {
-    const script = path.join(this.getZapretPath(), 'utils', 'test zapret.ps1');
-    if (!fs.existsSync(script)) {
-      throw new Error('Скрипт тестов не найден');
-    }
-
-    const elevated = this.isProcessElevated();
-    const workDir = path.dirname(script);
-    const scriptB64 = this.encodePsPath(script);
-    const wdB64 = this.encodePsPath(workDir);
-    const startProcess = elevated
-      ? `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',$script) -WorkingDirectory $wd -WindowStyle Hidden`
-      : `Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',$script) -WorkingDirectory $wd -Verb RunAs -WindowStyle Hidden`;
-    const ps = [
-      `$script = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptB64}'))`,
-      `$wd = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${wdB64}'))`,
-      `$env:NO_UPDATE_CHECK='1'`,
-      startProcess
-    ].join('; ');
-
-    spawn('powershell', ['-NoProfile', '-Command', ps], {
-      detached: true,
-      windowsHide: true
-    }).unref();
-    return { started: true, elevated };
   }
 
   browseFolder() {

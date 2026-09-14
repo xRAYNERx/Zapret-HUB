@@ -64,15 +64,7 @@ let trayZapretRunning = false;
 let trayTgRunning = false;
 let lastIntentionalBypassStop = 0;
 let bypassDropSuppressedUntil = 0;
-let bypassStartedAt = 0;
-let healthTimer = null;
-let lastHealthAlert = 0;
-let consecutiveHealthFailures = 0;
-
 const AUTOSTART_TASK_NAME = 'Zapret HUB';
-const HEALTH_INTERVAL_MS = 5 * 60 * 1000;
-const HEALTH_ALERT_COOLDOWN_MS = 15 * 60 * 1000;
-const BYPASS_START_GRACE_MS = 3 * 60 * 1000;
 const BYPASS_RESTART_SUPPRESS_MS = 25000;
 const BYPASS_PROBE_SUPPRESS_MS = 30 * 60 * 1000;
 const BYPASS_UPDATE_SUPPRESS_MS = 2 * 60 * 1000;
@@ -88,10 +80,6 @@ function isBypassDropSuppressed() {
 
 function markBypassRunning(running) {
   bypassWasRunning = Boolean(running);
-  if (running) {
-    bypassStartedAt = Date.now();
-    consecutiveHealthFailures = 0;
-  }
 }
 
 const isAutostartLaunch = process.argv.includes('--autostart');
@@ -514,34 +502,6 @@ async function syncAutostartTask() {
   );
 }
 
-function notifyBypassHealthFailed(payload) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send('bypass-health-failed', payload);
-}
-
-function startBypassHealthPolling() {
-  if (healthTimer) clearInterval(healthTimer);
-  healthTimer = setInterval(async () => {
-    if (!zapret || !mainWindow || app.isQuitting) return;
-    try {
-      const status = await zapret.getStatus();
-      if (!status.running) return;
-      const health = await zapret.runBypassHealthCheck();
-      if (!health.checked || health.healthy) {
-        consecutiveHealthFailures = 0;
-        return;
-      }
-      if (bypassStartedAt && Date.now() - bypassStartedAt < BYPASS_START_GRACE_MS) return;
-      consecutiveHealthFailures += 1;
-      if (consecutiveHealthFailures < 2) return;
-      if (Date.now() - lastHealthAlert < HEALTH_ALERT_COOLDOWN_MS) return;
-      lastHealthAlert = Date.now();
-      notifyBypassHealthFailed(health);
-    } catch {
-      // ignore transient health check errors
-    }
-  }, HEALTH_INTERVAL_MS);
-}
 
 async function runAutostartZapret() {
   if (!zapret?.isAutostartZapretEnabled()) return;
@@ -689,8 +649,7 @@ async function resolveHubRemoteRelease() {
   } catch (apiError) {
     const tag = await fetchHubReleasePageTag();
     if (!tag) throw apiError;
-    const normalizedTag = String(tag).replace(/^v/i, '');
-    const version = normalizedTag.replace(/^v/, '');
+    const version = String(tag).replace(/^v/i, '');
     return {
       tag_name: tag.startsWith('v') ? tag : `v${tag}`,
       html_url: `https://github.com/xRAYNERx/Zapret-HUB/releases/tag/v${version}`,
@@ -1004,7 +963,6 @@ function registerIpc() {
       await syncAutostartTask();
       return status;
     },
-    'run-bypass-health-check': () => zapret.runBypassHealthCheck(),
     'set-start-minimized': (_, enabled) => zapret.setStartMinimized(enabled),
     'set-ipset': (_, mode) => zapret.setIpset(mode),
     'set-auto-update': (_, enabled) => zapret.setAutoUpdate(enabled),
@@ -1028,7 +986,6 @@ function registerIpc() {
       bypassWasRunning = false;
       return zapret.applyUpdate(remoteVersion, sendProgress);
     },
-    'run-tests': () => zapret.runTests(),
     'run-strategy-probe': async (_, options) => {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('strategy-probe-progress', progress);
@@ -1162,15 +1119,11 @@ app.whenReady().then(async () => {
       .catch((err) => logStartup(`Autostart migrate failed: ${err.message}`));
     await zapret.prepareStartup();
     const initialStatus = await zapret.getStatus();
-    if (initialStatus.running) {
-      bypassStartedAt = Date.now();
-    }
     bypassWasRunning = initialStatus.running;
     createWindow();
     createTray();
     registerIpc();
     startStatusPolling();
-    startBypassHealthPolling();
     startTgProxyPolling();
     if (tgProxy) {
       tgProxy.getStatus()
@@ -1196,7 +1149,6 @@ process.on('uncaughtException', (err) => {
 app.on('before-quit', (e) => {
   app.isQuitting = true;
   if (statusTimer) clearInterval(statusTimer);
-  if (healthTimer) clearInterval(healthTimer);
   if (tgProxyTimer) clearInterval(tgProxyTimer);
   if (tray) {
     tray.destroy();
@@ -1211,8 +1163,5 @@ app.on('before-quit', (e) => {
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    // keep running in tray
-  }
-});
+// Keep the process alive when all windows are closed — app runs in the system tray.
+app.on('window-all-closed', () => { /* noop */ });

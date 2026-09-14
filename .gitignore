@@ -9,3 +9,4 @@ delete
 bundled/
 Thumbs.db
 .DS_Store
+.build/

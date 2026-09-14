@@ -30,6 +30,8 @@ class TgProxyService {
     this.exePath = path.join(this.installDir, EXE_NAME);
     this.versionPath = path.join(this.installDir, 'version.txt');
     this._child = null;
+    this._cachedRemote = null;
+    this._cachedUpdateAvailable = false;
     this._seedFromBundled();
   }
 
@@ -352,7 +354,7 @@ class TgProxyService {
   async isProcessRunning() {
     try {
       const { stdout } = await execAsync(
-        'tasklist /FO CSV /NH',
+        'tasklist /FI "IMAGENAME eq TgWsProxy.exe" /NH',
         { windowsHide: true, timeout: 8000 }
       );
       return stdout.toLowerCase().includes('tgwsproxy');
@@ -367,17 +369,8 @@ class TgProxyService {
     const cfg = this.readTgConfig();
     const local = this.getLocalVersion();
 
-    let remote = null;
-    let updateAvailable = false;
-    try {
-      const release = await this.fetchLatestRelease();
-      remote = (release.tag_name || '').replace(/^v/, '');
-      if (remote && installed) {
-        updateAvailable = !local || local === 'unknown' || this.compareVersions(local, remote) < 0;
-      }
-    } catch {
-      // ignore network errors in status poll
-    }
+    const remote = this._cachedRemote || null;
+    const updateAvailable = this._cachedUpdateAvailable || false;
 
     return {
       installed,
@@ -410,6 +403,8 @@ class TgProxyService {
       const remote = (release.tag_name || '').replace(/^v/, '');
       const installed = fs.existsSync(this.exePath);
       const updateAvailable = this.isUpdateAvailable(local, remote, installed);
+      this._cachedRemote = remote;
+      this._cachedUpdateAvailable = updateAvailable;
       return {
         local: local || 'не установлен',
         remote,
