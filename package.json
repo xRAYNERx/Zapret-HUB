@@ -96,8 +96,7 @@
       "language": "1049",
       "installerHeaderIcon": "assets/icon.ico",
       "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "include": "build/installer.nsh"
+      "uninstallerIcon": "assets/icon.ico"
     }
   },
   "devDependencies": {
