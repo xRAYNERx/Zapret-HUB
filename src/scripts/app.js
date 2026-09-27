@@ -7,6 +7,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // Unified State
 let state = {
+  appVersion: '2.0.2',
   activeTab: 'home',
   zapret: {
     running: false,
@@ -232,6 +233,15 @@ function parseMarkdownToHtml(md) {
   return result.join('\n');
 }
 
+function updateAppVersionUI(ver) {
+  const v = String(ver || state.appVersion || '2.0.2').replace(/^v/i, '');
+  state.appVersion = v;
+  const settingsBadge = $('#app-settings-version');
+  if (settingsBadge) settingsBadge.innerText = `v${v}`;
+  const footerBadge = $('#app-footer-version');
+  if (footerBadge) footerBadge.innerText = `v${v}`;
+}
+
 async function loadChangelogFromGithub() {
   if (_changelogLoadedFromGithub) return;
   try {
@@ -241,7 +251,7 @@ async function loadChangelogFromGithub() {
     const container = $('#changelog-container');
     if (!container) return;
 
-    const currentAppVersion = (state.version || '2.0.0').replace(/^v/i, '');
+    const currentAppVersion = (state.appVersion || state.version || '2.0.2').replace(/^v/i, '');
 
     const blocks = releases.map((rel, idx) => {
       const tag = (rel.tag_name || '').replace(/^v/i, '');
@@ -316,8 +326,8 @@ function showHubUpdateModal(updateInfo) {
   const progressEl = $('#update-progress-section');
   const closeBtn = $('#btn-close-update-modal');
 
-  const local = (updateInfo?.local || state.version || '2.0.0').replace(/^v/i, '');
-  const remote = (updateInfo?.remote || '2.0.1').replace(/^v/i, '');
+  const local = (updateInfo?.local || state.appVersion || '2.0.2').replace(/^v/i, '');
+  const remote = (updateInfo?.remote || '2.0.2').replace(/^v/i, '');
 
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
@@ -1589,16 +1599,13 @@ async function checkAllUpdatesSim() {
   if (icon) icon.classList.add('animate-spin');
 
   try {
-    const all = await api('checkAllUpdates');
+    const all = await api('checkAllUpdates', { force: true });
     if (all?.hub?.updateAvailable) {
       _pendingHubUpdate = all.hub;
       updateChangelogInstallButton();
       showHubUpdateModal(all.hub);
-    } else if (all?.zapret?.updateAvailable) {
-      toast('Доступно обновление базы правил Zapret!', 'info');
-      openChangelogModal();
     } else {
-      const currentVer = (all?.hub?.local || state.version || '2.0.1').replace(/^v/i, '');
+      const currentVer = (all?.hub?.local || state.appVersion || '2.0.2').replace(/^v/i, '');
       toast(`У вас установлена последняя версия Zapret HUB (v${currentVer})`, 'success');
     }
   } catch (e) {
@@ -1637,6 +1644,9 @@ async function runDiagnosticsSim() {
 
 // ─── UI Renderers ───
 function updateZapretUI(status) {
+  if (status?.appVersion) {
+    updateAppVersionUI(status.appVersion);
+  }
   state.zapret.running = Boolean(status?.running);
   if (status?.lastStrategy) {
     state.zapret.activeStrategy = status.lastStrategy;
@@ -2122,6 +2132,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderSites();
   });
 
+  // Set initial app version display
+  updateAppVersionUI(state.appVersion);
+
   // Initial Data Fetch
   try {
     const [status, strategies, sites, tgStatus, vlessStatus, settings] = await Promise.all([
@@ -2240,8 +2253,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       _pendingHubUpdate = all.hub;
       updateChangelogInstallButton();
       showHubUpdateModal(all.hub);
-    } else if (all?.zapret?.updateAvailable) {
-      openChangelogModal();
     }
   });
   window.zapretAPI?.onHubUpdateProgress?.((data) => {

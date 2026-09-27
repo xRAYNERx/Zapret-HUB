@@ -832,7 +832,7 @@ async function checkAllUpdatesBundle(options = {}) {
 }
 
 function hasPendingUpdates(all) {
-  return [all.hub, all.zapret, all.tg].some((info) => info?.updateAvailable && !info?.error);
+  return Boolean(all?.hub?.updateAvailable && !all?.hub?.error);
 }
 
 async function checkUpdatesOnStartup() {
@@ -846,13 +846,15 @@ async function checkUpdatesOnStartup() {
 
     if (Notification && Notification.isSupported()) {
       try {
+        const remoteTag = all?.hub?.remote ? `v${all.hub.remote}` : 'новая версия';
         const notif = new Notification({
-          title: 'Zapret HUB v2.0 — Доступно обновление',
-          body: 'Найдена новая версия на GitHub. Нажмите, чтобы открыть и скачать.',
+          title: `Zapret HUB v${appPkg.version} — Доступно обновление`,
+          body: `Найдена ${remoteTag} на GitHub. Нажмите, чтобы открыть и установить.`,
           icon: loadWindowIcon()
         });
         notif.on('click', () => {
           showMainWindow();
+          mainWindow?.webContents.send('startup-updates-available', all);
         });
         notif.show();
       } catch (notifErr) {

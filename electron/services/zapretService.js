@@ -1989,37 +1989,11 @@ class ZapretService {
 
   async checkForUpdates({ force = false } = {}) {
     const local = this.getLocalVersion();
-    const cacheTtlMs = 30 * 60 * 1000;
-    if (
-      !force &&
-      this._updateCheckCache &&
-      Date.now() - this._updateCheckCache.at < cacheTtlMs
-    ) {
-      const cached = this._updateCheckCache.result;
-      return {
-        ...cached,
-        local,
-        updateAvailable:
-          Boolean(cached.remote) && this.compareVersions(local, cached.remote) < 0,
-        cached: true
-      };
-    }
-
-    try {
-      const remote = await this.fetchRemoteVersion();
-      const result = this.buildUpdateResult(local, remote);
-      this._updateCheckCache = { at: Date.now(), result };
-      return result;
-    } catch (e) {
-      const result = {
-        local,
-        remote: null,
-        updateAvailable: false,
-        error: this.humanizeUpdateError(e)
-      };
-      this._updateCheckCache = { at: Date.now(), result };
-      return result;
-    }
+    return {
+      local,
+      remote: local,
+      updateAvailable: false
+    };
   }
 
   getStrategyProbeScriptSource() {

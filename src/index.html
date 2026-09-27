@@ -803,7 +803,7 @@
                   <h4 class="text-xs font-bold text-white tracking-tight">Zapret HUB</h4>
                   <span class="text-[11px] text-slate-400 block mt-0.5">Центр обхода и маршрутизации</span>
                 </div>
-                <span class="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">v2.0</span>
+                <span id="app-settings-version" class="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">v2.0.2</span>
               </div>
 
               <!-- Действия обновлений -->
@@ -892,8 +892,8 @@
           </div>
         </div>
 
-        <div class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400 font-mono tracking-tight" title="Версия">
-          v2.0
+        <div id="app-footer-version" class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400 font-mono tracking-tight" title="Версия">
+          v2.0.2
         </div>
       </footer>
 
@@ -1067,12 +1067,37 @@
 
           <!-- Scrollable Releases List -->
           <div id="changelog-container" class="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-3.5 pr-1 min-h-0">
-            <!-- Release Block 1 -->
-            <div class="inner-panel rounded-2xl p-4 border border-white/10 space-y-2.5 bg-[#171e2c]">
+            <!-- Release Block: v2.0.2 -->
+            <div class="inner-panel rounded-2xl p-4 border border-emerald-500/20 space-y-2.5 bg-[#171e2c]">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <span class="text-xs font-bold text-white font-mono">v2.0</span>
+                  <span class="text-xs font-bold text-white font-mono">v2.0.2</span>
                   <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Текущая версия</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-mono">27 сентября 2026</span>
+              </div>
+              <ul class="text-xs text-slate-300 space-y-1.5 leading-relaxed">
+                <li class="flex items-start gap-2">
+                  <span class="text-emerald-400 font-bold flex-shrink-0 mt-0.5">+</span>
+                  <span><b>Чистая установка в инсталляторе:</b> этап с опцией очистки старых бинарников и служб без потери пользовательских настроек (стратегии, VPN, списки).</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-emerald-400 font-bold flex-shrink-0 mt-0.5">+</span>
+                  <span><b>Нативное окно автообновления:</b> автоматическое скачивание инсталлятора с индикатором прогресса и перезапуском.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-teal-400 font-bold flex-shrink-0 mt-0.5">★</span>
+                  <span><b>Исправление проверки обновлений:</b> исключены ложные уведомления и корректно отображается номер текущей версии в интерфейсе.</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Release Block: v2.0.0 -->
+            <div class="inner-panel rounded-2xl p-4 border border-white/8 space-y-2.5 opacity-85 hover:opacity-100 transition-opacity bg-[#171e2c]">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-white font-mono">v2.0.0</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400 border border-white/10">Релиз</span>
                 </div>
                 <span class="text-[11px] text-slate-400 font-mono">27 сентября 2026</span>
               </div>
