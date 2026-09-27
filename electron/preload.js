@@ -1,4 +1,9 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
+
+try {
+  webFrame.setZoomFactor(1.25);
+  webFrame.setVisualZoomLevelLimits(1, 1);
+} catch (_) {}
 
 const api = {
   getStatus: () => ipcRenderer.invoke('get-status'),
@@ -32,6 +37,7 @@ const api = {
   applyHubUpdate: () => ipcRenderer.invoke('apply-hub-update'),
   runStrategyProbe: (options) => ipcRenderer.invoke('run-strategy-probe', options),
   cancelStrategyProbe: () => ipcRenderer.invoke('cancel-strategy-probe'),
+  setFirstProbeDismissed: () => ipcRenderer.invoke('set-first-probe-dismissed'),
   onStrategyProbeProgress: (cb) => {
     ipcRenderer.on('strategy-probe-progress', (_, data) => cb(data));
   },
@@ -61,6 +67,8 @@ const api = {
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowCloseChoice: (choice) => ipcRenderer.invoke('window-close-choice', choice),
+  windowGetPosition: () => ipcRenderer.invoke('window-get-position'),
+  windowSetPosition: (x, y) => ipcRenderer.invoke('window-set-position', x, y),
   onShowCloseDialog: (cb) => {
     ipcRenderer.on('show-close-dialog', () => cb());
   },
@@ -84,6 +92,20 @@ const api = {
   importSitesText: (payload) => ipcRenderer.invoke('import-sites-text', payload),
   onBypassDropped: (cb) => {
     ipcRenderer.on('bypass-dropped', (_, data) => cb(data));
+  },
+  vlessGetStatus: () => ipcRenderer.invoke('vless-get-status'),
+  vlessUpdateSubscription: (url, resetPings) => ipcRenderer.invoke('vless-update-subscription', url, resetPings),
+  vlessTestServer: (idx) => ipcRenderer.invoke('vless-test-server', idx),
+  vlessTestAll: () => ipcRenderer.invoke('vless-test-all'),
+  vlessConnect: (idx) => ipcRenderer.invoke('vless-connect', idx),
+  vlessDisconnect: () => ipcRenderer.invoke('vless-disconnect'),
+  vlessToggleSystemProxy: (enabled) => ipcRenderer.invoke('vless-toggle-system-proxy', enabled),
+  vlessSetAutoFallback: (enabled) => ipcRenderer.invoke('vless-set-auto-fallback', enabled),
+  onVlessTestProgress: (cb) => {
+    ipcRenderer.on('vless-test-progress', (_, data) => cb(data));
+  },
+  onVlessStatusChanged: (cb) => {
+    ipcRenderer.on('vless-status-changed', (_, data) => cb(data));
   }
 };
 

@@ -17,8 +17,6 @@ const ZAPRET_ZIP = `zapret-discord-youtube-${ZAPRET_VERSION}.zip`;
 const ZAPRET_URL =
   `https://github.com/Flowseal/zapret-discord-youtube/releases/download/${ZAPRET_VERSION}/${ZAPRET_ZIP}`;
 
-const TG_RELEASE_PAGE = 'https://github.com/Flowseal/tg-ws-proxy/releases/latest';
-const TG_ASSET = 'TgWsProxy_windows.exe';
 
 function download(url, dest) {
   return new Promise((resolve, reject) => {
@@ -93,49 +91,9 @@ async function fetchZapret() {
   console.log(`[zapret] installed to bundled/zapret (${ZAPRET_VERSION})`);
 }
 
-async function resolveTgDownloadUrl() {
-  return new Promise((resolve, reject) => {
-    https
-      .get(TG_RELEASE_PAGE, { headers: { 'User-Agent': 'ZapretHub-fetch-bundled' } }, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          const loc = res.headers.location;
-          const tagMatch = loc.match(/\/tag\/(v?[\d.]+)/i);
-          const tag = tagMatch ? tagMatch[1].replace(/^v/, '') : 'latest';
-          resolve({
-            url: `https://github.com/Flowseal/tg-ws-proxy/releases/download/v${tag.replace(/^v/, '')}/${TG_ASSET}`,
-            version: tag.replace(/^v/, '')
-          });
-          return;
-        }
-        reject(new Error(`[tg-proxy] unexpected response ${res.statusCode}`));
-      })
-      .on('error', reject);
-  });
-}
-
-async function fetchTgProxy() {
-  const destDir = path.join(BUNDLED, 'tg-proxy');
-  const exePath = path.join(destDir, 'TgWsProxy.exe');
-  if (fs.existsSync(exePath)) {
-    console.log('[tg-proxy] already present');
-    return;
-  }
-
-  const { url, version } = await resolveTgDownloadUrl();
-  const tmpPath = path.join(destDir, `${TG_ASSET}.download`);
-  fs.mkdirSync(destDir, { recursive: true });
-
-  console.log(`[tg-proxy] downloading ${url}`);
-  await download(url, tmpPath);
-  fs.renameSync(tmpPath, exePath);
-  fs.writeFileSync(path.join(destDir, 'version.txt'), version, 'utf8');
-  console.log(`[tg-proxy] installed to bundled/tg-proxy (${version})`);
-}
-
 async function main() {
   fs.mkdirSync(BUNDLED, { recursive: true });
   await fetchZapret();
-  await fetchTgProxy();
   console.log('bundled assets ready');
 }
 

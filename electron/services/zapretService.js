@@ -7,6 +7,7 @@ const { exec, execSync, spawn } = require('child_process');
 const { promisify } = require('util');
 
 const execAsync = promisify(exec);
+const { fetchGithubRelease, fetchUrl } = require('../helpers/httpFetch');
 const appPkg = require('../../package.json');
 
 const VERSION_URL =
@@ -34,54 +35,19 @@ const STRATEGY_LABELS = {
     name: 'Основная',
     desc: 'Multisplit — разбивает TCP-пакеты. Базовая стратегия, с неё обычно начинают'
   },
-  'general (ALT).bat': {
-    name: 'ALT',
-    desc: 'Fake + fakedsplit — поддельные пакеты и разделение. Часто лучший вариант на жёстком DPI'
-  },
-  'general (ALT2).bat': {
-    name: 'ALT 2',
-    desc: 'Fake + fakedsplit, вариант 2 — другие шаблоны TLS/HTTP'
-  },
-  'general (ALT3).bat': {
-    name: 'ALT 3',
-    desc: 'Fake + fakedsplit, вариант 3'
-  },
-  'general (ALT4).bat': {
-    name: 'ALT 4',
-    desc: 'Fake + fakedsplit, вариант 4'
-  },
-  'general (ALT5).bat': {
-    name: 'ALT 5',
-    desc: 'Fake + fakedsplit, вариант 5'
-  },
-  'general (ALT6).bat': {
-    name: 'ALT 6',
-    desc: 'Fake + fakedsplit, вариант 6'
-  },
-  'general (ALT7).bat': {
-    name: 'ALT 7',
-    desc: 'Fake + fakedsplit, вариант 7'
-  },
-  'general (ALT8).bat': {
-    name: 'ALT 8',
-    desc: 'Fake + fakedsplit, вариант 8'
-  },
-  'general (ALT9).bat': {
-    name: 'ALT 9',
-    desc: 'Fake + fakedsplit, вариант 9'
-  },
-  'general (ALT10).bat': {
-    name: 'ALT 10',
-    desc: 'Fake + fakedsplit, вариант 10'
-  },
-  'general (ALT11).bat': {
-    name: 'ALT 11',
-    desc: 'Fake + fakedsplit, вариант 11'
-  },
-  'general (ALT12).bat': {
-    name: 'ALT 12',
-    desc: 'Fake + fakedsplit, вариант 12'
-  },
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, i) => {
+      const num = i === 0 ? '' : (i + 1).toString();
+      const file = `general (ALT${num}).bat`;
+      const name = i === 0 ? 'ALT' : `ALT ${i + 1}`;
+      const desc = i === 0
+        ? 'Fake + fakedsplit — поддельные пакеты и разделение. Часто лучший вариант на жёстком DPI'
+        : i === 1
+          ? 'Fake + fakedsplit, вариант 2 — другие шаблоны TLS/HTTP'
+          : `Fake + fakedsplit, вариант ${i + 1}`;
+      return [file, { name, desc }];
+    })
+  ),
   'general (FAKE TLS AUTO).bat': {
     name: 'FAKE TLS AUTO',
     desc: 'Автогенерация поддельного TLS (multidisorder) — для провайдеров с глубоким анализом TLS'
@@ -126,6 +92,10 @@ class ZapretService {
     this._strategyProbeChild = null;
     this._strategyProbeCancelPath = null;
     this._strategyProbeCancelRequested = false;
+    this._installedStrategyCache = null;
+    this._installedStrategyCacheAt = 0;
+    this._isElevatedCache = null;
+    this._starting = false;
   }
 
   loadConfig() {
@@ -144,6 +114,16 @@ class ZapretService {
 
   saveConfig() {
     fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf8');
+  }
+
+  isFirstProbePromptDismissed() {
+    return Boolean(this.config.firstProbePromptDismissed);
+  }
+
+  setFirstProbeDismissed() {
+    this.config.firstProbePromptDismissed = true;
+    this.saveConfig();
+    return true;
   }
 
   isValidEnginePath(enginePath) {
@@ -344,6 +324,21 @@ class ZapretService {
     }
   }
 
+  async getMultipleServiceStates(...serviceNames) {
+    try {
+      const { stdout } = await execAsync('sc query state= all', { windowsHide: true, maxBuffer: 5 * 1024 * 1024 });
+      const result = {};
+      for (const name of serviceNames) {
+        const regex = new RegExp(`SERVICE_NAME:\\s+${name}[\\s\\S]*?STATE\\s+:\\s+\\d+\\s+(\\w+)`, 'i');
+        const match = stdout.match(regex);
+        result[name] = match ? match[1] : 'NOT_FOUND';
+      }
+      return result;
+    } catch {
+      return Object.fromEntries(serviceNames.map((n) => [n, 'NOT_FOUND']));
+    }
+  }
+
   async getInstalledStrategy() {
     try {
       const { stdout } = await execAsync(
@@ -355,6 +350,16 @@ class ZapretService {
     } catch {
       return null;
     }
+  }
+
+  async getInstalledStrategyCached() {
+    const now = Date.now();
+    if (this._installedStrategyCache !== null && now - this._installedStrategyCacheAt < 60000) {
+      return this._installedStrategyCache;
+    }
+    this._installedStrategyCache = await this.getInstalledStrategy();
+    this._installedStrategyCacheAt = now;
+    return this._installedStrategyCache;
   }
 
   getGameFilterStatus() {
@@ -394,28 +399,65 @@ class ZapretService {
   }
 
   setIpset(targetStatus) {
-    const listsDir = path.join(this.getZapretPath(), 'lists');
+    const zapretPath = this.getZapretPath();
+    const listsDir = path.join(zapretPath, 'lists');
     const listFile = path.join(listsDir, 'ipset-all.txt');
     const backupFile = path.join(listsDir, 'ipset-all.txt.backup');
-    const current = this.getIpsetStatus().status;
 
-    if (targetStatus === 'none' && current === 'loaded') {
-      if (!fs.existsSync(backupFile)) {
-        fs.renameSync(listFile, backupFile);
-      } else {
-        fs.unlinkSync(backupFile);
-        fs.renameSync(listFile, backupFile);
-      }
-      fs.writeFileSync(listFile, '203.0.113.113/32\n', 'utf8');
-    } else if (targetStatus === 'any' && current !== 'any') {
-      fs.writeFileSync(listFile, '', 'utf8');
-    } else if (targetStatus === 'loaded' && current === 'any') {
-      if (!fs.existsSync(backupFile)) {
-        throw new Error('Нет резервной копии. Сначала обновите список IPSet.');
-      }
-      if (fs.existsSync(listFile)) fs.unlinkSync(listFile);
-      fs.renameSync(backupFile, listFile);
+    const bundledEngine = this.getBundledEnginePath();
+    const bundledBackup = bundledEngine ? path.join(bundledEngine, 'lists', 'ipset-all.txt.backup') : null;
+    const bundledList = bundledEngine ? path.join(bundledEngine, 'lists', 'ipset-all.txt') : null;
+
+    if (!fs.existsSync(listsDir)) {
+      fs.mkdirSync(listsDir, { recursive: true });
     }
+
+    const isValidDb = (filePath) => {
+      try {
+        if (!filePath || !fs.existsSync(filePath)) return false;
+        const stat = fs.statSync(filePath);
+        if (stat.size < 50) return false;
+        const sample = fs.readFileSync(filePath, 'utf8', { flag: 'r' }).slice(0, 200);
+        return !sample.includes('203.0.113.113/32');
+      } catch {
+        return false;
+      }
+    };
+
+    // If current listFile has real database, preserve/refresh backupFile
+    if (isValidDb(listFile)) {
+      try {
+        fs.copyFileSync(listFile, backupFile);
+      } catch {}
+    }
+
+    if (targetStatus === 'none') {
+      // Disabled filtering: dummy non-routable test IP
+      fs.writeFileSync(listFile, '203.0.113.113/32\n', 'utf8');
+    } else if (targetStatus === 'any') {
+      // Any IP: empty list file
+      fs.writeFileSync(listFile, '', 'utf8');
+    } else if (targetStatus === 'loaded') {
+      // Loaded: restore full database from backup or bundled files (NEVER unlink backupFile!)
+      let restored = false;
+      if (isValidDb(backupFile)) {
+        fs.copyFileSync(backupFile, listFile);
+        restored = true;
+      } else if (bundledBackup && isValidDb(bundledBackup)) {
+        fs.copyFileSync(bundledBackup, listFile);
+        fs.copyFileSync(bundledBackup, backupFile);
+        restored = true;
+      } else if (bundledList && isValidDb(bundledList)) {
+        fs.copyFileSync(bundledList, listFile);
+        fs.copyFileSync(bundledList, backupFile);
+        restored = true;
+      }
+
+      if (!restored) {
+        throw new Error('Файл базы IPSet не найден. Нажмите «Обновить» для загрузки.');
+      }
+    }
+
     return this.getIpsetStatus();
   }
 
@@ -439,6 +481,9 @@ class ZapretService {
     }
   }
 
+  // Нормализация строки версии: удаление BOM, замена кириллических 
+  // lookalike-символов на их латинские аналоги (защита от подмены в имени версии).
+  // Например: unicode 'с' (U+0441) → ASCII 'c'
   normalizeVersion(version) {
     return String(version || '')
       .trim()
@@ -469,9 +514,11 @@ class ZapretService {
     const a = this.parseVersion(left);
     const b = this.parseVersion(right);
     if (!a || !b) {
-      return this.normalizeVersion(left).toLowerCase() === this.normalizeVersion(right).toLowerCase()
-        ? 0
-        : -1;
+      const lNorm = this.normalizeVersion(left).toLowerCase();
+      const rNorm = this.normalizeVersion(right).toLowerCase();
+      if (lNorm === rNorm) return 0;
+      // Если хотя бы одна версия непарсируема — считаем равными (не предлагать ложное обновление)
+      return 0;
     }
 
     if (a.major !== b.major) return a.major - b.major;
@@ -518,102 +565,20 @@ class ZapretService {
     return 'Не удалось проверить обновления. Повторите позже.';
   }
 
-  fetchTextUrl(url, timeoutMs = 10000) {
-    return new Promise((resolve, reject) => {
-      const follow = (targetUrl, depth = 0) => {
-        const client = targetUrl.startsWith('https') ? https : http;
-        const request = client.get(
-          targetUrl,
-          {
-            headers: {
-              'User-Agent': 'ZapretHub',
-              'Cache-Control': 'no-cache',
-              Accept: 'text/plain, text/html, application/json, */*'
-            }
-          },
-          (response) => {
-            if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && depth < 6) {
-              const location = response.headers.location.startsWith('http')
-                ? response.headers.location
-                : `https://github.com${response.headers.location}`;
-              response.resume();
-              follow(location, depth + 1);
-              return;
-            }
-
-            if (response.statusCode !== 200) {
-              response.resume();
-              reject(new Error(`HTTP ${response.statusCode}`));
-              return;
-            }
-
-            const chunks = [];
-            response.on('data', (chunk) => chunks.push(chunk));
-            response.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-          }
-        );
-
-        request.on('error', reject);
-        request.setTimeout(timeoutMs, () => {
-          request.destroy();
-          reject(new Error('Таймаут запроса к GitHub'));
-        });
-      };
-
-      follow(url);
+  async fetchTextUrl(url, timeoutMs = 10000) {
+    const res = await fetchUrl(url, {
+      headers: {
+        'User-Agent': 'ZapretHub',
+        'Cache-Control': 'no-cache',
+        Accept: 'text/plain, text/html, application/json, */*'
+      },
+      timeoutMs
     });
+    return res.body;
   }
 
   fetchGithubRelease(apiUrl) {
-    return new Promise((resolve, reject) => {
-      const request = https.get(
-        apiUrl,
-        { headers: { 'User-Agent': 'ZapretHub', Accept: 'application/vnd.github+json' } },
-        (response) => {
-          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-            https
-              .get(response.headers.location, { headers: { 'User-Agent': 'ZapretHub' } }, (redirect) => {
-                const chunks = [];
-                redirect.on('data', (chunk) => chunks.push(chunk));
-                redirect.on('end', () => {
-                  try {
-                    resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-                  } catch (e) {
-                    reject(e);
-                  }
-                });
-              })
-              .on('error', reject);
-            return;
-          }
-
-          const chunks = [];
-          response.on('data', (chunk) => chunks.push(chunk));
-          response.on('end', () => {
-            try {
-              const json = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-              if (response.statusCode >= 400 || (json.message && !json.tag_name)) {
-                reject(new Error(json.message || `HTTP ${response.statusCode}`));
-                return;
-              }
-              if (!json.tag_name) {
-                reject(new Error('Некорректный ответ GitHub'));
-                return;
-              }
-              resolve(json);
-            } catch (e) {
-              reject(e);
-            }
-          });
-        }
-      );
-
-      request.on('error', reject);
-      request.setTimeout(20000, () => {
-        request.destroy();
-        reject(new Error('Таймаут запроса к GitHub'));
-      });
-    });
+    return fetchGithubRelease(apiUrl);
   }
 
   parseReleaseTagFromHtml(html) {
@@ -668,12 +633,16 @@ class ZapretService {
 
   downloadFile(url, destPath, onProgress) {
     return new Promise((resolve, reject) => {
-      const request = (targetUrl) => {
+      const request = (targetUrl, depth = 0) => {
         const client = targetUrl.startsWith('https') ? https : http;
         client
           .get(targetUrl, { headers: { 'User-Agent': 'ZapretHub' } }, (response) => {
             if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-              request(response.headers.location);
+              if (depth >= 6) {
+                response.resume();
+                return reject(new Error('Слишком много редиректов при скачивании'));
+              }
+              request(response.headers.location, depth + 1);
               return;
             }
 
@@ -717,6 +686,20 @@ class ZapretService {
       `powershell -NoProfile -Command "Expand-Archive -LiteralPath '${zipArg}' -DestinationPath '${destArg}' -Force"`,
       { windowsHide: true, timeout: 120000 }
     );
+  }
+
+  verifyNoPathTraversal(extractDir) {
+    const absExtract = path.resolve(extractDir);
+    const check = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.resolve(dir, entry.name);
+        if (!full.startsWith(absExtract + path.sep) && full !== absExtract) {
+          throw new Error(`Подозрительный путь в архиве: ${entry.name}`);
+        }
+        if (entry.isDirectory()) check(full);
+      }
+    };
+    check(absExtract);
   }
 
   backupUserFiles(enginePath) {
@@ -782,13 +765,15 @@ class ZapretService {
 
   isElevated() {
     if (process.platform !== 'win32') return false;
+    if (this._isElevatedCache !== null) return this._isElevatedCache;
     try {
       // fast check without output
       execSync('net session >nul 2>&1', { stdio: 'ignore', windowsHide: true });
-      return true;
+      this._isElevatedCache = true;
     } catch {
-      return false;
+      this._isElevatedCache = false;
     }
+    return this._isElevatedCache;
   }
 
   async waitForProcessExit(imageName, maxMs = 3000) {
@@ -949,6 +934,7 @@ class ZapretService {
       this.emitProgress(onProgress, { phase: 'extract', percent: 0, message: 'Распаковка архива...' });
       fs.mkdirSync(extractDir, { recursive: true });
       await this.extractZip(zipPath, extractDir);
+      this.verifyNoPathTraversal(extractDir);
 
       const sourceRoot = this.findExtractedRoot(extractDir, remoteVersion);
       this.emitProgress(onProgress, { phase: 'install', percent: 50, message: 'Установка файлов...' });
@@ -1250,14 +1236,6 @@ class ZapretService {
     return this.getCustomLists();
   }
 
-  getUserSites() {
-    return this.getGeneralSites();
-  }
-
-  saveUserSites(sites) {
-    return this.saveGeneralSites(sites);
-  }
-
   ensureUserLists(enginePath = this.getZapretPath()) {
     const listsPath = path.join(enginePath, 'lists');
     const files = {
@@ -1374,46 +1352,35 @@ class ZapretService {
       .trim();
   }
 
-  async setAutostartZapret(enabled) {
+  async _setAutostartFlag(key, enabled) {
     const next = Boolean(enabled);
-    if (next === this.isAutostartZapretEnabled()) {
-      return this.getStatus();
-    }
-
-    this.config.autostartZapretEnabled = next;
+    if (next === Boolean(this.config[key])) return this.getStatus();
+    this.config[key] = next;
     this.saveConfig();
     return this.getStatus();
+  }
+
+  async setAutostartZapret(enabled) {
+    return this._setAutostartFlag('autostartZapretEnabled', enabled);
   }
 
   async setAutostartTgProxy(enabled) {
-    const next = Boolean(enabled);
-    if (next === this.isAutostartTgProxyEnabled()) {
-      return this.getStatus();
-    }
-
-    this.config.autostartTgProxyEnabled = next;
-    this.saveConfig();
-    return this.getStatus();
+    return this._setAutostartFlag('autostartTgProxyEnabled', enabled);
   }
 
   async setStartMinimized(enabled) {
-    const next = Boolean(enabled);
-    if (next === Boolean(this.config.startMinimized)) {
-      return this.getStatus();
-    }
-
-    this.config.startMinimized = next;
-    this.saveConfig();
-    return this.getStatus();
+    return this._setAutostartFlag('startMinimized', enabled);
   }
 
   async getStatus() {
-    const [winwsRunning, zapretService, windivertService, installedStrategy] = await Promise.all([
+    const [winwsRunning, serviceStates, installedStrategy] = await Promise.all([
       this.isProcessRunning('winws.exe'),
-      this.getServiceState('zapret'),
-      this.getServiceState('WinDivert'),
-      this.getInstalledStrategy()
+      this.getMultipleServiceStates('zapret', 'WinDivert'),
+      this.getInstalledStrategyCached()
     ]);
+    const zapretService = serviceStates.zapret || 'NOT_FOUND';
+    const windivertService = serviceStates.WinDivert || 'NOT_FOUND';
+
     return {
       running: winwsRunning || zapretService === 'RUNNING',
       winwsRunning,
@@ -1429,7 +1396,7 @@ class ZapretService {
       startMinimized: Boolean(this.config.startMinimized),
       appVersion: appPkg.version,
       version: this.getLocalVersion(),
-      zapretPath: this.getZapretPath(),
+      zapretPath: (() => { try { return this.getZapretPath(); } catch { return this.config.zapretPath || ''; } })(),
       gameFilter: this.getGameFilterStatus(),
       ipset: this.getIpsetStatus(),
       autoUpdate: this.getAutoUpdateStatus()
@@ -1456,12 +1423,7 @@ class ZapretService {
   }
 
   isProcessElevated() {
-    try {
-      execSync('net session', { windowsHide: true, stdio: 'ignore' });
-      return true;
-    } catch {
-      return false;
-    }
+    return this.isElevated();
   }
 
   runElevated(command, args = []) {
@@ -1549,7 +1511,9 @@ class ZapretService {
   runElevatedScript(scriptBody) {
     const elevated = this.isElevated();
     return new Promise((resolve, reject) => {
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zapret-'));
+      const scriptsDir = path.join(this.userDataPath || this.appPath, 'scripts');
+      fs.mkdirSync(scriptsDir, { recursive: true });
+      const tmpDir = fs.mkdtempSync(path.join(scriptsDir, 'zapret-'));
       const scriptPath = path.join(tmpDir, 'elevated.ps1');
 
       const cleanup = () => {
@@ -1603,18 +1567,6 @@ class ZapretService {
     });
   }
 
-  async getWinwsWindowTitle() {
-    try {
-      const { stdout } = await execAsync(
-        'powershell -NoProfile -Command "(Get-Process winws -ErrorAction SilentlyContinue | Select-Object -First 1).MainWindowTitle"',
-        { windowsHide: true }
-      );
-      return stdout.trim();
-    } catch {
-      return '';
-    }
-  }
-
   setLastStrategy(strategyFile) {
     const zapretPath = this.getZapretPath();
     const batPath = path.join(zapretPath, strategyFile);
@@ -1623,49 +1575,56 @@ class ZapretService {
     }
     this.config.lastStrategy = strategyFile;
     this.saveConfig();
+    this._installedStrategyCache = null;
     return strategyFile;
   }
 
   async start(strategyFile) {
-    await this.applyPendingUpdates();
-    const zapretPath = this.getZapretPath();
-    const batPath = path.join(zapretPath, strategyFile);
+    if (this._starting) return this.getStatus();
+    this._starting = true;
+    try {
+      await this.applyPendingUpdates();
+      const zapretPath = this.getZapretPath();
+      const batPath = path.join(zapretPath, strategyFile);
 
-    if (!fs.existsSync(batPath)) {
-      throw new Error(`Стратегия не найдена: ${strategyFile}`);
-    }
-
-    const winwsRunning = await this.isProcessRunning('winws.exe');
-    const serviceState = await this.getServiceState('zapret');
-
-    if (winwsRunning || serviceState === 'RUNNING') {
-      return this.getStatus();
-    }
-
-    this.setLastStrategy(strategyFile);
-
-    if (serviceState !== 'NOT_FOUND') {
-      await this.runElevatedScript([
-        "$ErrorActionPreference = 'SilentlyContinue'",
-        'net start zapret 2>&1',
-        'exit 0'
-      ].join('; '));
-      const running = await this.waitForProcessStart('winws.exe', 8000)
-        || (await this.getServiceState('zapret')) === 'RUNNING';
-      if (!running) {
-        throw new Error('Не удалось запустить обход через автозапуск');
+      if (!fs.existsSync(batPath)) {
+        throw new Error(`Стратегия не найдена: ${strategyFile}`);
       }
+
+      const winwsRunning = await this.isProcessRunning('winws.exe');
+      const serviceState = await this.getServiceState('zapret');
+
+      if (winwsRunning || serviceState === 'RUNNING') {
+        return this.getStatus();
+      }
+
+      this.setLastStrategy(strategyFile);
+
+      if (serviceState !== 'NOT_FOUND') {
+        await this.runElevatedScript([
+          "$ErrorActionPreference = 'SilentlyContinue'",
+          'net start zapret 2>&1',
+          'exit 0'
+        ].join('; '));
+        const running = await this.waitForProcessStart('winws.exe', 8000)
+          || (await this.getServiceState('zapret')) === 'RUNNING';
+        if (!running) {
+          throw new Error('Не удалось запустить обход через автозапуск');
+        }
+        return this.getStatus();
+      }
+
+      await this.startHiddenWinws(strategyFile);
+
+      const running = await this.waitForProcessStart('winws.exe', 8000);
+      if (!running) {
+        throw new Error(`Стратегия не запустилась: ${strategyFile}`);
+      }
+
       return this.getStatus();
+    } finally {
+      this._starting = false;
     }
-
-    await this.startHiddenWinws(strategyFile);
-
-    const running = await this.waitForProcessStart('winws.exe', 8000);
-    if (!running) {
-      throw new Error(`Стратегия не запустилась: ${strategyFile}`);
-    }
-
-    return this.getStatus();
   }
 
   async restart(strategyFile) {
@@ -1678,6 +1637,7 @@ class ZapretService {
   }
 
   async stop() {
+    this._installedStrategyCache = null;
     const [zapretState, windivertState, windivert14State] = await Promise.all([
       this.getServiceState('zapret'),
       this.getServiceState('WinDivert'),
@@ -1864,7 +1824,13 @@ class ZapretService {
       add('Adguard', 'warn', `Проверка недоступна: ${e.message}`);
     }
 
-    const killer = await this.serviceListMatches(/Killer/i);
+    const allServices = await this.getAllServicesText().catch(() => '');
+    const matchService = (pattern) => {
+      if (!allServices) return null;
+      try { return pattern.test(allServices); } catch { return null; }
+    };
+
+    const killer = matchService(/Killer/i);
     if (killer === null) {
       add('Killer Network', 'warn', 'Не удалось проверить список служб');
     } else {
@@ -1875,7 +1841,7 @@ class ZapretService {
       );
     }
 
-    const intel = await this.serviceListMatches(/Intel.*Connectivity.*Network/i);
+    const intel = matchService(/Intel.*Connectivity.*Network/i);
     if (intel === null) {
       add('Intel Connectivity', 'warn', 'Не удалось проверить список служб');
     } else {
@@ -1886,8 +1852,8 @@ class ZapretService {
       );
     }
 
-    const tracSrv = await this.serviceListMatches(/TracSrvWrapper/i);
-    const epwd = await this.serviceListMatches(/\bEPWD\b/i);
+    const tracSrv = matchService(/TracSrvWrapper/i);
+    const epwd = matchService(/\bEPWD\b/i);
     if (tracSrv === null && epwd === null) {
       add('Check Point', 'warn', 'Не удалось проверить список служб');
     } else {
@@ -1899,7 +1865,7 @@ class ZapretService {
       );
     }
 
-    const smartbyte = await this.serviceListMatches(/SmartByte/i);
+    const smartbyte = matchService(/SmartByte/i);
     if (smartbyte === null) {
       add('SmartByte', 'warn', 'Не удалось проверить список служб');
     } else {
@@ -1918,7 +1884,7 @@ class ZapretService {
       hasSys ? 'Найден' : 'Файл не найден в папке bin'
     );
 
-    const vpn = await this.serviceListMatches(/VPN/i);
+    const vpn = matchService(/VPN/i);
     if (vpn === null) {
       add('VPN', 'warn', 'Не удалось проверить список служб');
     } else if (vpn) {
@@ -1977,7 +1943,9 @@ class ZapretService {
     const conflicting = ['GoodbyeDPI', 'discordfix_zapret', 'winws1', 'winws2'];
     const foundConflicts = [];
     for (const serviceName of conflicting) {
-      const state = await this.getServiceState(serviceName);
+      const regex = new RegExp(`SERVICE_NAME:\\s+${serviceName}[\\s\\S]*?STATE\\s+:\\s+\\d+\\s+(\\w+)`, 'i');
+      const match = allServices ? allServices.match(regex) : null;
+      const state = match ? match[1] : 'NOT_FOUND';
       if (state !== 'NOT_FOUND') foundConflicts.push(serviceName);
     }
     add(
@@ -2041,10 +2009,6 @@ class ZapretService {
       this._updateCheckCache = { at: Date.now(), result };
       return result;
     }
-  }
-
-  openExternal(url) {
-    spawn('cmd', ['/c', 'start', '', url], { detached: true, windowsHide: true });
   }
 
   getStrategyProbeScriptSource() {
@@ -2153,29 +2117,8 @@ class ZapretService {
   }
 
   cancelStrategyProbe() {
-    if (!this._strategyProbeRunning) {
-      return { cancelled: false };
-    }
-
     this._strategyProbeCancelRequested = true;
-
-    if (this._strategyProbeCancelPath) {
-      try {
-        fs.writeFileSync(this._strategyProbeCancelPath, '1', 'utf8');
-      } catch {
-        // ignore cancel flag errors
-      }
-    }
-
-    const child = this._strategyProbeChild;
-    if (child && child.pid) {
-      try {
-        execSync(`taskkill /F /T /PID ${child.pid}`, { windowsHide: true, stdio: 'ignore' });
-      } catch {
-        // child may already be gone
-      }
-    }
-
+    execAsync('taskkill /IM winws.exe /F /T', { windowsHide: true, timeout: 3000 }).catch(() => {});
     return { cancelled: true };
   }
 
@@ -2188,174 +2131,193 @@ class ZapretService {
       throw new Error('Проверка стратегий уже выполняется');
     }
 
-    const mode = options.mode === 'single' ? 'single' : 'all';
-    const strategyFile = options.strategyFile || '';
-    if (mode === 'single' && !strategyFile) {
-      throw new Error('Не выбрана стратегия для проверки');
-    }
-
-    this.syncStrategyProbeScript();
-
-    const script = path.join(this.getZapretPath(), 'utils', 'test zapret.ps1');
-    if (!fs.existsSync(script)) {
-      throw new Error('Скрипт тестов не найден');
-    }
-
-    const resultsDir = path.join(this.getZapretPath(), 'utils', 'test results');
-    fs.mkdirSync(resultsDir, { recursive: true });
-    const resultPath = path.join(resultsDir, 'hub-probe-result.json');
-    const progressPath = path.join(resultsDir, 'hub-probe-progress.json');
-    const cancelPath = path.join(resultsDir, 'hub-probe-cancel.flag');
-    for (const stale of [resultPath, progressPath, cancelPath]) {
-      try {
-        if (fs.existsSync(stale)) fs.unlinkSync(stale);
-      } catch {
-        // ignore stale cleanup errors
-      }
-    }
-
     this._strategyProbeRunning = true;
-    this._strategyProbeChild = null;
-    this._strategyProbeCancelPath = cancelPath;
     this._strategyProbeCancelRequested = false;
+
+    const t0 = Date.now();
+    const zapretPath = this.getZapretPath();
+    const wasRunning = await this.isProcessRunning('winws.exe');
+    const originalStrategy = this.config.lastStrategy || 'general (ALT).bat';
+
+    // 1. Candidate strategies: prioritize the most effective and diverse strategies
+    const candidateFiles = [
+      'general (ALT).bat',
+      'general (ALT2).bat',
+      'general (ALT3).bat',
+      'general (ALT4).bat',
+      'general (ALT5).bat',
+      'general.bat',
+      'general (FAKE TLS AUTO).bat'
+    ];
+
+    // Ensure user's current strategy is included if valid
+    if (originalStrategy && !candidateFiles.includes(originalStrategy) && fs.existsSync(path.join(zapretPath, originalStrategy))) {
+      candidateFiles.unshift(originalStrategy);
+    }
+
+    const validCandidates = candidateFiles
+      .filter(f => fs.existsSync(path.join(zapretPath, f)))
+      .map(file => {
+        const meta = STRATEGY_LABELS[file] || { name: file.replace('.bat', ''), desc: '' };
+        return { file, ...meta };
+      });
+
+    if (validCandidates.length === 0) {
+      this._strategyProbeRunning = false;
+      throw new Error('В папке zapret не найдены файлы стратегий general*.bat');
+    }
+
     sendProgress?.({
       phase: 'start',
-      message: 'Подготовка к проверке стратегий...',
+      message: 'Подготовка к быстрому подбору...',
       current: 0,
-      total: 0,
-      percent: 0
+      total: validCandidates.length,
+      percent: 0,
+      timeElapsedSec: 0
     });
 
-    let pollTimer = null;
-    const stopProgressPolling = () => {
-      if (!pollTimer) return;
-      clearInterval(pollTimer);
-      pollTimer = null;
-    };
-    const startProgressPolling = () => {
-      pollTimer = setInterval(() => {
-        const progress = this.readStrategyProbeProgressFile(progressPath);
-        if (progress) sendProgress?.(progress);
-      }, 400);
-    };
+    const results = [];
 
     try {
-      const scriptB64 = this.encodePsPath(script);
-      const resultB64 = this.encodePsPath(resultPath);
-      const progressB64 = this.encodePsPath(progressPath);
-      const wdB64 = this.encodePsPath(path.dirname(script));
-      const elevated = this.isElevated();
-      const verb = elevated ? '' : ' -Verb RunAs';
-      const strategySuffix = mode === 'single'
-        ? ` + ' -StrategyFile "${strategyFile.replace(/"/g, '`"')}"'`
-        : '';
-      const startProcess = `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList $argString -WorkingDirectory $wd -PassThru -WindowStyle Hidden${verb}; if (-not $p) { exit 1 }; $p.WaitForExit(); $code = $p.ExitCode; if ($null -eq $code) { $code = 1 }; exit $code`;
-      const ps = [
-        `$script = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${scriptB64}'))`,
-        `$resultPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${resultB64}'))`,
-        `$progressPath = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${progressB64}'))`,
-        `$wd = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${wdB64}'))`,
-        `$env:NO_UPDATE_CHECK='1'`,
-        `$env:ZAPRET_TEST_HEADLESS='1'`,
-        `$env:ZAPRET_TEST_TYPE='standard'`,
-        `$env:ZAPRET_TEST_RESULT_JSON=$resultPath`,
-        `$env:ZAPRET_TEST_PROGRESS_JSON=$progressPath`,
-        `$env:ZAPRET_TEST_CANCEL_FILE='${cancelPath.replace(/'/g, "''")}'`,
-        mode === 'single' ? `$env:ZAPRET_TEST_STRATEGY='${strategyFile.replace(/'/g, "''")}'` : null,
-        `$argString = '-NoProfile -ExecutionPolicy Bypass -File "' + $script + '" -Headless -TestType standard -Mode ${mode} -ResultJsonPath "' + $resultPath + '" -ProgressJsonPath "' + $progressPath + '"'${strategySuffix}`,
-        startProcess
-      ].filter(Boolean).join('; ');
+      // 2. Stop running winws before probe to isolate tests
+      try {
+        await execAsync('taskkill /IM winws.exe /F /T', { windowsHide: true, timeout: 3000 });
+        await this.waitForProcessExit('winws.exe', 1000);
+      } catch {}
 
-      startProgressPolling();
+      // 3. Test each candidate sequentially in background
+      for (let i = 0; i < validCandidates.length; i++) {
+        if (this._strategyProbeCancelRequested) {
+          break;
+        }
 
-      const exitCode = await new Promise((resolve, reject) => {
-        const child = spawn('powershell', ['-NoProfile', '-Command', ps], { windowsHide: true });
-        this._strategyProbeChild = child;
-        let stderr = '';
-        child.stderr.on('data', (chunk) => { stderr += chunk; });
-        child.on('error', reject);
-        child.on('close', (code) => {
-          stopProgressPolling();
-          this._strategyProbeChild = null;
-          const parsed = this.readStrategyProbeResultFile(resultPath);
-          const normalized = this.normalizeExitCode(code);
-          const hasPartial = Boolean(parsed?.strategies?.length);
+        const cand = validCandidates[i];
+        const timeElapsedSec = Math.max(1, Math.round((Date.now() - t0) / 1000));
 
-          if (parsed?.__parseError) {
-            reject(new Error('Не удалось прочитать файл результатов проверки'));
-            return;
-          }
-          if (parsed?.error && !hasPartial) {
-            reject(new Error(parsed.error));
-            return;
-          }
-          if (hasPartial) {
-            resolve(normalized ?? 0);
-            return;
-          }
-          if (normalized === 0) {
-            resolve(0);
-            return;
-          }
-          if (normalized === 1223) {
-            reject(new Error('Запуск проверки отменён.'));
-            return;
-          }
-          if (normalized === 1) {
-            reject(new Error(
-              stderr.trim()
-                || 'Не удалось запустить проверку стратегий. Проверьте curl.exe, отсутствие службы zapret и целостность скрипта test zapret.ps1.'
-            ));
-            return;
-          }
-          reject(new Error(stderr.trim() || `Проверка завершилась с кодом ${normalized ?? code}`));
+        sendProgress?.({
+          phase: 'testing',
+          message: `Тестирование: ${cand.name} (${i + 1}/${validCandidates.length})...`,
+          current: i + 1,
+          total: validCandidates.length,
+          percent: Math.round(((i) / validCandidates.length) * 100),
+          strategy: cand.file,
+          strategyName: cand.name,
+          timeElapsedSec
         });
+
+        // Launch strategy hidden in background without any CMD window
+        try {
+          await this.startHiddenWinws(cand.file);
+          // Wait 500ms for WinDivert filter to attach
+          await new Promise(r => setTimeout(r, 500));
+        } catch (startErr) {
+          console.error('[StrategyProbe] Start failed for', cand.file, startErr);
+          continue;
+        }
+
+        // Test YouTube, Discord, and General site in parallel with 2.2s timeout
+        const testTargets = [
+          { name: 'youtube', url: 'https://www.youtube.com/generate_204' },
+          { name: 'discord', url: 'https://discord.com' },
+          { name: 'general', url: 'https://ntc.party' }
+        ];
+
+        const targetResults = await Promise.all(testTargets.map(async t => {
+          const reqStart = Date.now();
+          try {
+            const { stdout } = await execAsync(
+              `curl.exe "${t.url}" -s -o NUL -w "%{http_code}" --max-time 2.2`,
+              { windowsHide: true, timeout: 3000 }
+            );
+            const code = (stdout || '').trim();
+            const latency = Date.now() - reqStart;
+            const ok = ['200', '204', '301', '302'].includes(code);
+            return { ok, latency: ok ? latency : 9999, code };
+          } catch {
+            return { ok: false, latency: 9999, code: '000' };
+          }
+        }));
+
+        const ytRes = targetResults[0];
+        const dcRes = targetResults[1];
+        const genRes = targetResults[2];
+
+        // Stop this candidate's winws + WinDivert
+        try {
+          await execAsync('taskkill /IM winws.exe /F /T', { windowsHide: true, timeout: 3000 });
+          await this.waitForProcessExit('winws.exe', 600);
+        } catch {}
+        try {
+          await execAsync('sc stop WinDivert 2>nul', { windowsHide: true, timeout: 2000 });
+        } catch {}
+
+        let score = 0;
+        if (ytRes.ok) score += 40;
+        if (dcRes.ok) score += 40;
+        if (genRes.ok) score += 20;
+
+        const passedLatencies = targetResults.filter(r => r.ok).map(r => r.latency);
+        const avgPing = passedLatencies.length > 0
+          ? Math.round(passedLatencies.reduce((a, b) => a + b, 0) / passedLatencies.length)
+          : 9999;
+
+        results.push({
+          file: cand.file,
+          name: cand.name,
+          desc: cand.desc,
+          score,
+          ytOk: ytRes.ok,
+          dcOk: dcRes.ok,
+          genOk: genRes.ok,
+          avgPing: avgPing < 9999 ? avgPing : null,
+          status: score > 0 ? 'ok' : 'fail'
+        });
+      }
+
+      // 4. Sort results: highest score first, then lowest ping
+      results.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.avgPing || 9999) - (b.avgPing || 9999);
       });
 
-      const parsed = this.readStrategyProbeResultFile(resultPath);
-      if (!parsed) {
-        throw new Error(fs.existsSync(resultPath)
-          ? 'Не удалось прочитать файл результатов проверки'
-          : 'Файл результатов проверки не найден');
-      }
-      if (parsed.__parseError) {
-        throw new Error('Не удалось прочитать файл результатов проверки');
-      }
-      if (parsed.error && !parsed.strategies?.length) {
-        throw new Error(parsed.error);
-      }
-      if (!parsed.strategies.length) {
-        throw new Error('Проверка не вернула ни одной стратегии');
-      }
+      // 5. Select top 3 strategies
+      const top3 = results.slice(0, 3).map((r, idx) => ({
+        ...r,
+        rank: idx + 1,
+        badge: idx === 0 ? '#1 РЕКОМЕНДУЕМАЯ' : (idx === 1 ? '#2 АЛЬТЕРНАТИВНАЯ' : '#3 ЗАПАСНАЯ')
+      }));
 
-      const finalProgress = this.readStrategyProbeProgressFile(progressPath);
-      sendProgress?.(finalProgress || {
+      const totalTimeSec = Math.max(1, Math.round((Date.now() - t0) / 1000));
+
+      sendProgress?.({
         phase: 'done',
-        message: parsed.cancelled ? 'Проверка прервана' : 'Проверка завершена',
-        percent: 100
+        message: 'Подбор завершён',
+        percent: 100,
+        timeElapsedSec: totalTimeSec,
+        top3
       });
+
+      // Restore previous Zapret state if it was running
+      if (wasRunning) {
+        try {
+          await this.start(originalStrategy);
+        } catch {}
+      }
+
       const probeResult = {
-        ...parsed,
-        cancelled: Boolean(parsed.cancelled || this._strategyProbeCancelRequested || exitCode === 2),
-        exitCode,
-        mode,
-        strategyFile: mode === 'single' ? strategyFile : null
+        ok: true,
+        winner: top3[0]?.file || originalStrategy,
+        top3,
+        totalTested: results.length,
+        totalTimeSec,
+        strategies: results
       };
+
       this.saveLastStrategyProbe(probeResult);
       return probeResult;
     } finally {
-      stopProgressPolling();
       this._strategyProbeRunning = false;
-      this._strategyProbeChild = null;
-      this._strategyProbeCancelPath = null;
       this._strategyProbeCancelRequested = false;
-      for (const stale of [cancelPath]) {
-        try {
-          if (fs.existsSync(stale)) fs.unlinkSync(stale);
-        } catch {
-          // ignore cleanup errors
-        }
-      }
     }
   }
 

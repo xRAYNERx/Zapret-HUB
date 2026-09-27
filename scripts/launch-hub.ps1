@@ -1,8 +1,9 @@
-﻿# Zapret HUB launcher: dist\win-unpacked, rebuild when sources are newer.
+# Zapret HUB launcher: dist\win-unpacked, rebuild when sources are newer.
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $Exe = Join-Path $Root 'dist\win-unpacked\Zapret HUB.exe'
+$Asar = Join-Path $Root 'dist\win-unpacked\resources\app.asar'
 
 function Get-MaxWriteTime {
     param([string[]]$Paths)
@@ -26,14 +27,6 @@ function Test-ZapretHubRunning {
     return [bool]$p
 }
 
-if (Test-ZapretHubRunning) {
-    Write-Host ''
-    Write-Host 'Zapret HUB уже запущен - закройте его (включая трей) и запустите снова.'
-    Write-Host ''
-    Read-Host 'Enter - выход'
-    exit 1
-}
-
 $sourcePaths = @(
     (Join-Path $Root 'electron')
     (Join-Path $Root 'src')
@@ -41,28 +34,37 @@ $sourcePaths = @(
     (Join-Path $Root 'config.default.json')
     (Join-Path $Root 'package.json')
     (Join-Path $Root 'bundled')
-    (Join-Path $Root 'scripts\after-pack-icon.cjs')
-    (Join-Path $Root 'scripts\png-to-ico.mjs')
-    (Join-Path $Root 'scripts\fetch-bundled.mjs')
 )
 
+$builtTime = if (Test-Path $Asar) { (Get-Item $Asar).LastWriteTime } elseif (Test-Path $Exe) { (Get-Item $Exe).LastWriteTime } else { [datetime]::MinValue }
 $sourceTime = Get-MaxWriteTime -Paths $sourcePaths
-$exeTime = if (Test-Path $Exe) { (Get-Item $Exe).LastWriteTime } else { [datetime]::MinValue }
-$needsBuild = -not (Test-Path $Exe) -or ($sourceTime -gt $exeTime)
+$needsBuild = -not (Test-Path $Exe) -or ($sourceTime -gt $builtTime)
+
+if (Test-ZapretHubRunning) {
+    Write-Host 'Closing previous Zapret HUB instance...'
+    Stop-Process -Name 'Zapret HUB' -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 600
+}
 
 if ($needsBuild) {
     Write-Host ''
-    Write-Host 'Исходники новее сборки - запускаю npm run build...'
+    Write-Host 'Updating files - fast rebuild (2 sec)...'
     Write-Host ''
     Push-Location $Root
     try {
         $npm = Get-Command npm.cmd -ErrorAction Stop
-        & $npm.Source run build
+        & $npm.Source run build:fast
         if ($LASTEXITCODE -ne 0) {
             Write-Host ''
-            Write-Host "Сборка завершилась с кодом $LASTEXITCODE"
-            Read-Host 'Enter - выход'
+            Write-Host 'Build failed'
+            Read-Host 'Press Enter to exit'
             exit $LASTEXITCODE
+        }
+        if (Test-Path $Exe) {
+            (Get-Item $Exe).LastWriteTime = (Get-Date).AddSeconds(5)
+        }
+        if (Test-Path $Asar) {
+            (Get-Item $Asar).LastWriteTime = (Get-Date).AddSeconds(5)
         }
     } finally {
         Pop-Location
@@ -71,12 +73,13 @@ if ($needsBuild) {
 
 if (-not (Test-Path $Exe)) {
     Write-Host ''
-    Write-Host "Сборка не найдена: $Exe"
-    Write-Host 'Выполните: npm run build'
+    Write-Host 'Executable not found:' $Exe
+    Write-Host 'Please run: npm run build:fast'
     Write-Host ''
-    Read-Host 'Enter - выход'
+    Read-Host 'Press Enter to exit'
     exit 1
 }
 
-Start-Process -FilePath $Exe
+Write-Host 'Launching Zapret HUB...'
+Start-Process -FilePath $Exe -WorkingDirectory (Split-Path -Parent $Exe)
 exit 0

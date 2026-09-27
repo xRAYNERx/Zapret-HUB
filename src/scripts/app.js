@@ -1,2223 +1,2035 @@
+// =========================================================================
+// Zapret HUB v2.0 - Elevated Slate Engine Script
+// =========================================================================
+
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
-const HELP_TEXTS = {
-  'game-filter': {
-    title: 'Игровой фильтр',
-    body: `
-      <p>Расширяет обход блокировок на <strong>игровой трафик</strong> (порты TCP/UDP 1024–65535). Полезно, если сайты открываются, а онлайн-игры — нет.</p>
-      <p>Если Zapret уже работает, после включения нужно <strong>выключить и снова включить</strong> обход.</p>
-    `
-  },
-  'ipset-filter': {
-    title: 'IPSet фильтр',
-    body: `
-      <p>Управляет списком IP-адресов (<code>ipset-all.txt</code>), к которым применяется обход.</p>
-      <p><strong>Загружен</strong> — используется актуальный список IP (рекомендуется).<br>
-      <strong>Отключён</strong> — список IP не применяется.<br>
-      <strong>Любые IP</strong> — обход без фильтрации по списку.</p>
-      <p><strong>Где настроить:</strong> раздел <strong>Сервис</strong> → блок «IPSet фильтр».</p>
-      <p>Обновить сам список IP можно в папке Zapret: <code>service.bat</code> → пункт 7 «Update IPSet List».</p>
-    `
-  },
-  'autostart-zapret': {
-    title: 'Автозапуск обхода',
-    body: `
-      <p>При загрузке Windows Zapret HUB запускается в трее и автоматически включает обход по последней стратегии.</p>
-      <p>Кнопка «Включить/Выключить» останавливает обход сейчас, но автозапуск остаётся для следующей загрузки.</p>
-      <p>Автозагрузка регистрируется через планировщик Windows с повышенными правами — не ставьте галочку «Запуск от имени администратора» на ярлыке, если включён автозапуск.</p>
-    `
-  },
-  'autostart-tg': {
-    title: 'Автозапуск TG Proxy',
-    body: `
-      <p>При загрузке Windows Zapret HUB запускается в трее и автоматически включает TG Proxy.</p>
-      <p>Кнопка на карточке «Прокси для Telegram» останавливает прокси сейчас, но автозапуск остаётся для следующей загрузки.</p>
-      <p>Права администратора <strong>не нужны</strong>. Можно включить только TG Proxy, только обход или оба — переключатели работают независимо.</p>
-    `
-  }
-};
-
+// Unified State
 let state = {
-  running: false,
-  strategies: [],
-  sites: [],
-  sitesSearchQuery: '',
-  sitesExpanded: true,
-  sitesSaving: false,
-  customLists: { lists: [], activeId: null },
-  customSites: [],
-  customSitesSearchQuery: '',
-  customListEditing: null,
-  customSitesExpanded: true,
-  customSitesSaving: false,
-  busy: false,
-  pendingUpdate: null,
-  pendingStartupUpdates: null,
-  updating: false,
-  hubUpdating: false,
-  startupUpdating: false,
-  updateContext: 'manual',
-  pendingStartStrategy: null,
-  autoCheckUpdates: true,
-  closeBehavior: null,
-  lastStrategyProbe: null,
-  onboardingCompleted: true,
-  tgProxy: { running: false, installed: false, busy: false },
-  lastAllUpdates: null,
-  tgUpdateFromService: false
+  activeTab: 'home',
+  zapret: {
+    running: false,
+    activeStrategy: 'general.bat',
+    strategies: [],
+    busy: false
+  },
+  vpn: {
+    running: false,
+    activeServerIndex: -1,
+    activeServer: null,
+    servers: [],
+    subscriptionUrl: '',
+    subUrl: '',
+    subService: 'DedVPN Private',
+    daysLeft: null,
+    systemProxy: true,
+    autoFallback: true,
+    testingAll: false
+  },
+  tg: {
+    running: false,
+    installed: false,
+    host: '127.0.0.1',
+    port: 1443,
+    proxyUrl: null,
+    busy: false
+  },
+  sites: {
+    main: [],
+    searchQuery: '',
+    customLists: [],
+    activeListId: null,
+    customSites: [],
+    customSearchQuery: ''
+  },
+  settings: {
+    closeBehavior: 'tray', // 'ask' | 'tray' | 'quit'
+    startMinimized: false,
+    autostart: false,
+    autoUpdates: true,
+    ipsetMode: 'loaded' // 'loaded' | 'none' | 'any'
+  }
 };
 
-const ONBOARDING_STEPS = [
-  {
-    title: 'Добро пожаловать в Zapret HUB',
-    text: 'Панель для обхода блокировок YouTube, Discord и прокси Telegram. Пройдём быструю настройку.',
-    body: '<ul class="onboarding-step-list"><li>Подберём рабочую стратегию под ваш провайдер</li><li>Включим обход одним переключателем</li><li>При желании — TG Proxy и автозапуск</li></ul>'
-  },
-  {
-    title: 'Шаг 1 — подбор стратегии',
-    text: 'Стратегии отличаются способом обхода DPI. Лучше проверить, какая работает на вашем ПК.',
-    action: 'probe'
-  },
-  {
-    title: 'Шаг 2 — включите обход',
-    text: 'После подбора примените лучшую стратегию и включите переключатель «ВКЛ» на главной.',
-    action: 'power'
-  },
-  {
-    title: 'Шаг 3 — TG Proxy (по желанию)',
-    text: 'Локальный прокси для Telegram. При включении откроется Telegram с настройками — останется нажать «Применить».',
-    action: 'tg'
-  },
-  {
-    title: 'Шаг 4 — автозапуск (по желанию)',
-    text: 'Можно включить автозапуск обхода и/или TG Proxy — программа стартует свёрнутой в трей.',
-    action: 'autostart',
-    body: '<div class="onboarding-highlight">Для быстрого переключения обхода поставьте галочку «Запуск от имени администратора» в свойствах ярлыка Zapret HUB. Автозагрузка настроится автоматически.</div>'
-  },
-  {
-    title: 'Готово',
-    text: 'Настройка завершена. Обновления HUB, движка и TG Proxy проверяются при каждом запуске.',
-    action: 'done'
-  }
-];
-
-let onboardingStep = 0;
-
-let suppressStrategyChange = false;
-let strategyProbeRunning = false;
-let strategyProbeResult = null;
-
-function getStrategyProbeStatus(row) {
-  if (row.error) return { label: 'Ошибка', className: 'failed' };
-  if (row.working) return { label: 'Работает', className: 'working' };
-  if (row.httpOk > 0 || row.pingOk > 0) return { label: 'Частично', className: 'partial' };
-  return { label: 'Не работает', className: 'failed' };
-}
-
-function formatStrategyProbeMeta(row) {
-  const parts = [];
-  parts.push(`HTTP ✓ ${row.httpOk}`);
-  if (row.httpError > 0) parts.push(`HTTP ✗ ${row.httpError}`);
-  if (row.httpUnsup > 0) parts.push(`неподдерж. ${row.httpUnsup}`);
-  parts.push(`ping ✓ ${row.pingOk}`);
-  if (row.pingFail > 0) parts.push(`ping ✗ ${row.pingFail}`);
-  if (row.error) parts.push(row.error);
-  return parts.join(' · ');
-}
-
+// ─── IPC Wrapper ───
 async function api(method, ...args) {
   const fn = window.zapretAPI?.[method];
   if (!fn) throw new Error('API недоступен');
   const result = await fn(...args);
-  if (!result.ok) throw new Error(result.error);
-  return result.data;
+  if (result && typeof result === 'object' && 'ok' in result) {
+    if (!result.ok) throw new Error(result.error || 'Ошибка вызова API');
+    return result.data;
+  }
+  return result;
 }
 
-const NOTIFY_DISPLAY_MS = 4000;
-const NOTIFY_FADE_MS = 300;
-const NOTIFY_MAX_STACK = 4;
-
-function formatEngineVersion(version) {
-  if (!version || version === '—' || version === 'unknown') return '—';
-  const normalized = String(version).trim().replace(/^\uFEFF/, '');
-  const match = normalized.match(/^(\d+\.\d+\.\d+[a-z]*)$/i);
-  return match ? match[1] : '—';
-}
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function formatUpdateVersion(version) {
-  const normalized = String(version || '').trim().replace(/^\uFEFF/, '');
-  const match = normalized.match(/^(\d+\.\d+\.\d+[a-z]*)$/i);
-  if (match) return match[1];
-  if (!normalized || normalized === 'unknown' || normalized === 'не установлен') return normalized || '—';
-  return null;
-}
-
-const TOAST_OFF_MESSAGES = new Set([
-  'Выключение обхода',
-  'TG Proxy выключен'
-]);
-
-function toastKindForMessage(message, kind = 'success') {
-  if (kind === 'off') return 'off';
-  if (kind !== 'success' || !message) return kind;
-  if (TOAST_OFF_MESSAGES.has(message)) return 'off';
-  return kind;
-}
-
+// ─── Toast System ───
 function toast(message, kind = 'success') {
   const container = $('#toastContainer');
   if (!container || !message) return;
 
-  while (container.children.length >= NOTIFY_MAX_STACK) {
-    container.firstElementChild?.remove();
-  }
+  const toastEl = document.createElement('div');
+  const borderCol = kind === 'error' ? 'border-rose-500/40 bg-rose-950/80 text-rose-200' :
+                    kind === 'info' ? 'border-teal-500/40 bg-slate-900/90 text-teal-200' :
+                    'border-emerald-500/40 bg-slate-900/90 text-emerald-200';
 
-  const resolvedKind = toastKindForMessage(message, kind);
-  const el = document.createElement('div');
-  el.className = `toast${resolvedKind && resolvedKind !== 'success' ? ` toast-${resolvedKind}` : ''}`;
-  el.setAttribute('role', 'status');
-  el.setAttribute('aria-live', 'polite');
-  el.textContent = message;
-  container.appendChild(el);
+  toastEl.className = `px-4 py-2.5 rounded-2xl text-xs font-semibold border shadow-lg backdrop-blur-md transition-all duration-300 pointer-events-auto flex items-center gap-2 ${borderCol}`;
+  toastEl.innerText = message;
 
-  const hide = () => {
-    el.classList.add('toast-out');
-    setTimeout(() => el.remove(), NOTIFY_FADE_MS);
-  };
-
-  setTimeout(hide, NOTIFY_DISPLAY_MS);
+  container.appendChild(toastEl);
+  setTimeout(() => {
+    toastEl.style.opacity = '0';
+    toastEl.style.transform = 'translateY(10px)';
+    setTimeout(() => toastEl.remove(), 300);
+  }, 3500);
 }
 
-function showTgDownloadProgress(percent, message) {
-  const block = $('#tgProxyDownloadBlock');
-  const fill = $('#tgProxyDownloadFill');
-  const label = $('#tgProxyDownloadLabel');
-  if (!block || !fill || !label) return;
-
-  block.classList.remove('hidden');
-  fill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-  if (message) label.textContent = message;
+// ─── Navigation Tabs ───
+function selectNavTab(el) {
+  const targetPage = el.getAttribute('data-page');
+  navigateTo(targetPage);
 }
 
-function hideTgDownloadProgress() {
-  const block = $('#tgProxyDownloadBlock');
-  const fill = $('#tgProxyDownloadFill');
-  if (!block || !fill) return;
+function navigateTo(pageId) {
+  state.activeTab = pageId;
 
-  block.classList.add('hidden');
-  fill.style.width = '0';
-  $('#tgProxyDownloadLabel').textContent = 'Скачивание…';
-}
-
-function renderTgUpdateProgressInService(progress) {
-  const el = $('#updateResult');
-  if (!el) return;
-  const percent = Math.max(0, Math.min(100, progress.percent || 0));
-  el.innerHTML = `
-    <div class="update-progress">
-      <div class="update-progress-bar">
-        <div class="update-progress-fill" style="width:${percent}%"></div>
-      </div>
-      <p class="update-progress-label">${escapeHtml(progress.message || 'Обновление TG Proxy...')}</p>
-    </div>`;
-}
-
-async function refreshTgProxyState() {
-  try {
-    const status = await api('getTgProxyStatus');
-    updateTgProxyUI(status);
-    return status;
-  } catch {
-    return null;
-  }
-}
-
-async function refreshServiceUpdateResults() {
-  try {
-    const all = await api('checkAllUpdates', { force: true });
-    state.lastAllUpdates = all;
-    const el = $('#updateResult');
-    if (el && el.innerHTML.trim()) {
-      renderUpdateCheckResults(all);
+  // Update nav buttons
+  $$('.app-nav-item').forEach(btn => {
+    if (btn.getAttribute('data-page') === pageId) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
     }
-    return all;
-  } catch {
-    return null;
+  });
+
+  // Switch pages
+  const pages = ['home', 'vpn', 'sites', 'settings'];
+  pages.forEach(p => {
+    const pageEl = $(`#page-${p}`);
+    if (pageEl) {
+      if (p === pageId) {
+        pageEl.classList.remove('hidden');
+      } else {
+        pageEl.classList.add('hidden');
+      }
+    }
+  });
+}
+
+// ─── Mutual Exclusion Conflict Modal ───
+let pendingConflictAction = null;
+let suppressConflictModal = false;
+try {
+  suppressConflictModal = localStorage.getItem('zapret_suppress_conflict_modal') === 'true';
+} catch(e) {}
+
+function showConflictModal(title, text, action, fromService, toService) {
+  pendingConflictAction = action;
+  const modal = $('#conflict-modal-backdrop');
+  const titleEl = $('#conflict-modal-title');
+  const textEl = $('#conflict-modal-text');
+  const fromEl = $('#conflict-from-service');
+  const toEl = $('#conflict-to-service');
+  const checkEl = $('#conflict-dont-show');
+
+  if (titleEl) titleEl.innerText = title;
+  if (textEl) textEl.innerText = text;
+  if (fromEl) fromEl.innerText = fromService;
+  if (toEl) toEl.innerText = toService;
+  if (checkEl) checkEl.checked = false;
+  if (modal) modal.classList.remove('hidden');
+}
+
+function cancelConflictSwitch() {
+  pendingConflictAction = null;
+  const modal = $('#conflict-modal-backdrop');
+  if (modal) modal.classList.add('hidden');
+}
+
+function confirmConflictSwitch() {
+  const checkEl = $('#conflict-dont-show');
+  if (checkEl && checkEl.checked) {
+    suppressConflictModal = true;
+    try { localStorage.setItem('zapret_suppress_conflict_modal', 'true'); } catch(e){}
+  }
+
+  const modal = $('#conflict-modal-backdrop');
+  if (modal) modal.classList.add('hidden');
+
+  if (pendingConflictAction) {
+    const act = pendingConflictAction;
+    pendingConflictAction = null;
+    act();
   }
 }
 
-async function runTgProxyUpdateFlow(options = {}) {
-  const { fromService = false, silent = false } = options;
-  if (state.tgProxy.busy) return null;
+// ─── Changelog Modal ───
+function openChangelogModal() {
+  const modal = $('#changelog-modal-backdrop');
+  if (modal) modal.classList.remove('hidden');
+}
 
-  state.tgUpdateFromService = fromService;
-  setTgProxyBusy(true);
+function closeChangelogModal() {
+  const modal = $('#changelog-modal-backdrop');
+  if (modal) modal.classList.add('hidden');
+}
+
+window.openChangelogModal = openChangelogModal;
+window.closeChangelogModal = closeChangelogModal;
+
+// ─── Strategy Selector Dropdown ───
+function renderStrategyDropdown() {
+  const container = $('#strategy-dropdown-items');
+  const countEl = $('#strategy-dropdown-count');
+  if (!state.zapret.strategies || state.zapret.strategies.length === 0) return;
+
+  if (countEl) countEl.innerText = `${state.zapret.strategies.length}`;
+
+  if (container) {
+    container.innerHTML = state.zapret.strategies.map(s => {
+      const fileName = typeof s === 'string' ? s : (s.file || s.name || '');
+      const displayName = typeof s === 'string' ? s.replace(/\.bat$/i, '') : (s.name || s.file || '').replace(/\.bat$/i, '');
+      const isActive = state.zapret.activeStrategy === fileName;
+      return `
+        <button data-strategy="${encodeURIComponent(fileName)}" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono ${isActive ? 'text-emerald-400 bg-emerald-500/15 font-bold border border-emerald-500/25 active-strat-btn' : 'text-slate-200 hover:text-white hover:bg-white/10'} flex items-center justify-between cursor-pointer transition-colors">
+          <span class="truncate pointer-events-none">${displayName}</span>
+          ${isActive ? '<span class="text-[9px] font-sans font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 ml-1.5 flex-shrink-0 pointer-events-none">Активна</span>' : ''}
+        </button>
+      `;
+    }).join('');
+
+    if (!container._hasDelegatedListener) {
+      container._hasDelegatedListener = true;
+      container.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-strategy]');
+        if (btn && btn.dataset.strategy) {
+          selectStrategy(decodeURIComponent(btn.dataset.strategy));
+        }
+      });
+    }
+  }
+}
+
+function toggleStrategyMenu(e) {
+  e.stopPropagation();
+  const dropdown = $('#strategy-dropdown');
+  if (dropdown) {
+    const isHidden = dropdown.classList.contains('hidden');
+    dropdown.classList.toggle('hidden');
+    if (isHidden) {
+      setTimeout(() => {
+        const activeBtn = dropdown.querySelector('.active-strat-btn');
+        if (activeBtn) activeBtn.scrollIntoView({ block: 'nearest' });
+      }, 30);
+    }
+  }
+}
+
+window.addEventListener('click', () => {
+  const dropdown = $('#strategy-dropdown');
+  if (dropdown && !dropdown.classList.contains('hidden')) {
+    dropdown.classList.add('hidden');
+  }
+});
+
+// Intercept all external links and open in default OS browser
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a');
+  if (a && a.href && (a.href.startsWith('http://') || a.href.startsWith('https://') || a.href.startsWith('tg://'))) {
+    e.preventDefault();
+    if (window.zapretAPI?.openExternal) {
+      window.zapretAPI.openExternal(a.href);
+    } else {
+      window.open(a.href);
+    }
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    cancelConflictSwitch();
+    closeChangelogModal();
+    const dropdown = $('#strategy-dropdown');
+    if (dropdown) dropdown.classList.add('hidden');
+    $('#closeChoiceModal')?.classList.add('hidden');
+    $('#appRestartModal')?.classList.add('hidden');
+    dismissFirstLaunchProbeModal();
+  }
+});
+
+async function selectStrategy(name) {
+  const dropdown = $('#strategy-dropdown');
+  if (dropdown) dropdown.classList.add('hidden');
 
   try {
-    const result = await api('applyTgProxyUpdate');
-    const status = await refreshTgProxyState();
+    state.zapret.activeStrategy = name;
+    $('#active-strategy-name').innerText = name.replace(/\.bat$/i, '');
+    renderStrategyDropdown();
 
-    if (result.updated) {
-      if (!silent) {
-        toast(`TG Proxy обновлён до ${result.local || status?.local || 'новой версии'}`, 'success');
-      }
-      if (result.wasRunning) {
-        toast('Перезапустите прокси, если он был активен', 'info');
-      }
-    } else if (!silent) {
-      toast('Уже актуальная версия', 'success');
+    if (state.zapret.running) {
+      toast(`Перезапуск с «${name.replace(/\.bat$/i, '')}»...`, 'info');
+      await api('restart', name);
+    } else {
+      await api('setStrategy', name);
+      toast(`Выбрана стратегия «${name.replace(/\.bat$/i, '')}»`, 'success');
     }
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
 
-    await refreshServiceUpdateResults();
-    return { result, status };
+// ─── Power Button Helpers (Pure Circular Spinner) ───
+const SPINNER_CIRCLE_HTML = '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5" stroke-dasharray="36" stroke-dashoffset="10" stroke-linecap="round" fill="none"/>';
+const POWER_ICON_HTML = '<path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/>';
+
+function setPowerBtnLoading(btnId, iconId, textId, loadingText) {
+  const btn = $(`#${btnId}`);
+  const icon = $(`#${iconId}`);
+  const text = $(`#${textId}`);
+  if (btn) btn.disabled = true;
+  if (icon) {
+    icon.innerHTML = SPINNER_CIRCLE_HTML;
+    icon.classList.add('animate-spin');
+  }
+  if (text && loadingText) text.innerText = loadingText;
+}
+
+function clearPowerBtnLoading(btnId, iconId) {
+  const btn = $(`#${btnId}`);
+  const icon = $(`#${iconId}`);
+  if (btn) btn.disabled = false;
+  if (icon) {
+    icon.innerHTML = POWER_ICON_HTML;
+    icon.classList.remove('animate-spin');
+  }
+}
+
+// ─── Zapret Power Toggle ───
+async function toggleZapret() {
+  if (state.zapret.busy) return;
+
+  if (!state.zapret.running) {
+    // Turning Zapret ON: Check if VPN is running
+    if (state.vpn.running) {
+      if (!suppressConflictModal) {
+        showConflictModal(
+          'Переключение на Обход',
+          'При включении Обхода закроется подключение VPN (VLESS Reality), чтобы не возникало конфликтов сетевых шлюзов.',
+          async () => {
+            await doStopVpn();
+            await doStartZapret();
+          },
+          'VPN (VLESS Reality)',
+          'Обход (Zapret DPI)'
+        );
+        return;
+      } else {
+        await doStopVpn();
+      }
+    }
+    await doStartZapret();
+  } else {
+    // Turning Zapret OFF
+    await doStopZapret();
+  }
+}
+
+async function doStartZapret() {
+  try {
+    state.zapret.busy = true;
+    setPowerBtnLoading('btn-zapret-power', 'zapret-power-icon', 'zapret-power-text', 'ВКЛЮЧЕНИЕ...');
+    toast('Включение обхода...', 'info');
+    await api('start', state.zapret.activeStrategy);
   } catch (e) {
-    hideTgDownloadProgress();
     toast(e.message, 'error');
-    throw e;
   } finally {
-    state.tgUpdateFromService = false;
-    setTgProxyBusy(false);
+    state.zapret.busy = false;
+    clearPowerBtnLoading('btn-zapret-power', 'zapret-power-icon');
+    const status = await api('getStatus');
+    updateZapretUI(status);
   }
 }
 
-function showCloseChoiceModal() {
-  $('#closeChoiceModal')?.classList.remove('hidden');
+async function doStopZapret() {
+  try {
+    state.zapret.busy = true;
+    setPowerBtnLoading('btn-zapret-power', 'zapret-power-icon', 'zapret-power-text', 'ВЫКЛЮЧЕНИЕ...');
+    toast('Выключение обхода...', 'info');
+    await api('stop');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    state.zapret.busy = false;
+    clearPowerBtnLoading('btn-zapret-power', 'zapret-power-icon');
+    const status = await api('getStatus');
+    updateZapretUI(status);
+  }
 }
 
-function hideCloseChoiceModal() {
-  $('#closeChoiceModal')?.classList.add('hidden');
+// ─── Country Flags & Server Name Helpers ───
+const COUNTRY_FLAGS = {
+  PL: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#fff" d="M0 0h640v240H0z"/><path fill="#dc143c" d="M0 240h640v240H0z"/></svg>',
+  NL: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#ae1c28" d="M0 0h640v160H0z"/><path fill="#fff" d="M0 160h640v160H0z"/><path fill="#21468b" d="M0 320h640v160H0z"/></svg>',
+  DE: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#000" d="M0 0h640v160H0z"/><path fill="#d00" d="M0 160h640v160H0z"/><path fill="#ffce00" d="M0 320h640v160H0z"/></svg>',
+  GB: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#012169" d="M0 0h640v480H0z"/><path stroke="#fff" stroke-width="60" d="m0 0 640 480M640 0 0 480"/><path stroke="#c8102e" stroke-width="40" d="m0 0 640 480M640 0 0 480"/><path stroke="#fff" stroke-width="100" d="M320 0v480M0 240h640"/><path stroke="#c8102e" stroke-width="60" d="M320 0v480M0 240h640"/></svg>',
+  UK: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#012169" d="M0 0h640v480H0z"/><path stroke="#fff" stroke-width="60" d="m0 0 640 480M640 0 0 480"/><path stroke="#c8102e" stroke-width="40" d="m0 0 640 480M640 0 0 480"/><path stroke="#fff" stroke-width="100" d="M320 0v480M0 240h640"/><path stroke="#c8102e" stroke-width="60" d="M320 0v480M0 240h640"/></svg>',
+  US: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#b22234" d="M0 0h640v480H0z"/><path stroke="#fff" stroke-width="37" stroke-dasharray="37" d="M0 55.4h640M0 129.2h640M0 203h640M0 276.9h640M0 350.8h640M0 424.6h640"/><path fill="#3c3b6e" d="M0 0h256v258.5H0z"/><circle cx="128" cy="129" r="60" fill="#fff" opacity="0.4"/></svg>',
+  FR: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#002654" d="M0 0h213.3v480H0z"/><path fill="#fff" d="M213.3 0h213.4v480H213.3z"/><path fill="#ce1126" d="M426.7 0H640v480H426.7z"/></svg>',
+  IT: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#009246" d="M0 0h213.3v480H0z"/><path fill="#fff" d="M213.3 0h213.4v480H213.3z"/><path fill="#ce2b37" d="M426.7 0H640v480H426.7z"/></svg>',
+  KZ: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#00afca" d="M0 0h640v480H0z"/><circle cx="320" cy="240" r="65" fill="#fec50c"/><path d="M240 310c40-30 120-30 160 0-40-15-120-15-160 0z" fill="#fec50c"/></svg>',
+  TR: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#e30a17" d="M0 0h640v480H0z"/><circle cx="260" cy="240" r="120" fill="#fff"/><circle cx="290" cy="240" r="96" fill="#e30a17"/><polygon points="380,240 435,258 401,211 401,269 435,222" fill="#fff"/></svg>',
+  FI: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#fff" d="M0 0h640v480H0z"/><path fill="#002f6c" d="M175 0h90v480h-90z"/><path fill="#002f6c" d="M0 195h640v90H0z"/></svg>',
+  SE: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#005293" d="M0 0h640v480H0z"/><path fill="#fecb00" d="M175 0h90v480h-90z"/><path fill="#fecb00" d="M0 195h640v90H0z"/></svg>',
+  UA: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#005bbb" d="M0 0h640v240H0z"/><path fill="#ffd500" d="M0 240h640v240H0z"/></svg>',
+  JP: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#fff" d="M0 0h640v480H0z"/><circle cx="320" cy="240" r="140" fill="#bc002d"/></svg>',
+  SG: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#ed2939" d="M0 0h640v240H0z"/><path fill="#fff" d="M0 240h640v240H0z"/><circle cx="110" cy="120" r="65" fill="#fff"/><circle cx="128" cy="120" r="60" fill="#ed2939"/></svg>',
+  HK: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#c8102e" d="M0 0h640v480H0z"/><circle cx="320" cy="240" r="80" fill="#fff" opacity="0.85"/></svg>',
+  RU: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#fff" d="M0 0h640v160H0z"/><path fill="#0039a6" d="M0 160h640v160H0z"/><path fill="#d52b1e" d="M0 320h640v160H0z"/></svg>',
+  ES: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#aa151b" d="M0 0h640v120H0z"/><path fill="#f1bf00" d="M0 120h640v240H0z"/><path fill="#aa151b" d="M0 360h640v120H0z"/></svg>',
+  CH: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#d52b1e" d="M0 0h640v480H0z"/><path fill="#fff" d="M280 130h80v220h-80z"/><path fill="#fff" d="M210 200h220v80H210z"/></svg>',
+  AT: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#c8102e" d="M0 0h640v160H0z"/><path fill="#fff" d="M0 160h640v160H0z"/><path fill="#c8102e" d="M0 320h640v160H0z"/></svg>',
+  CZ: '<svg viewBox="0 0 640 480" class="w-full h-full object-cover"><path fill="#fff" d="M0 0h640v240H0z"/><path fill="#d7141a" d="M0 240h640v240H0z"/><polygon fill="#11457e" points="0,0 320,240 0,480"/></svg>',
+  GLOBAL: '<svg viewBox="0 0 24 24" class="w-full h-full p-0.5 stroke-slate-300 stroke-2 fill-none"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+};
+
+function getCountryFlagSvg(code = 'GLOBAL') {
+  const c = String(code).toUpperCase();
+  return COUNTRY_FLAGS[c] || COUNTRY_FLAGS['GLOBAL'];
 }
 
-let confirmResolver = null;
+function detectCountryCode(name = '') {
+  const str = String(name || '').trim();
+  const regMatch = str.match(/[\u{1F1E6}-\u{1F1FF}]{2}/u);
+  if (regMatch) {
+    const chars = [...regMatch[0]];
+    const code = chars.map(c => String.fromCharCode(c.codePointAt(0) - 127397)).join('').toUpperCase();
+    if (code && COUNTRY_FLAGS[code]) return code;
+  }
+  const lower = str.toLowerCase();
+  if (/\bpl\b|польш|poland|warsaw/i.test(lower)) return 'PL';
+  if (/\bnl\b|нидерланд|голландия|netherlands|amsterdam/i.test(lower)) return 'NL';
+  if (/\bde\b|германи|deutschland|germany|frankfurt|berlin/i.test(lower)) return 'DE';
+  if (/\bgb\b|\buk\b|великобритан|англия|united kingdom|london/i.test(lower)) return 'GB';
+  if (/\bus\b|\busa\b|сша|америка|united states/i.test(lower)) return 'US';
+  if (/\bfr\b|франци|france|paris/i.test(lower)) return 'FR';
+  if (/\bkz\b|казахстан|kazakhstan|almaty|astana/i.test(lower)) return 'KZ';
+  if (/\btr\b|турци|turkey|istanbul/i.test(lower)) return 'TR';
+  if (/\bfi\b|финлянди|finland|helsinki/i.test(lower)) return 'FI';
+  if (/\bse\b|швеци|sweden|stockholm/i.test(lower)) return 'SE';
+  if (/\bua\b|украин|ukraine|kyiv/i.test(lower)) return 'UA';
+  if (/\bjp\b|япони|japan|tokyo/i.test(lower)) return 'JP';
+  if (/\bsg\b|сингапур|singapore/i.test(lower)) return 'SG';
+  if (/\bhk\b|гонконг|hong kong/i.test(lower)) return 'HK';
+  if (/\bru\b|росси|russia|moscow/i.test(lower)) return 'RU';
+  if (/\bes\b|испани|spain|madrid/i.test(lower)) return 'ES';
+  if (/\bit\b|итали|italy|rome|milan/i.test(lower)) return 'IT';
+  if (/\bch\b|швейцари|switzerland|zurich/i.test(lower)) return 'CH';
+  if (/\bat\b|австри|austria|vienna/i.test(lower)) return 'AT';
+  if (/\bcz\b|чехи|czech|prague/i.test(lower)) return 'CZ';
 
-function hideConfirmModal() {
-  $('#confirmModal')?.classList.add('hidden');
+  const m = str.match(/^([A-Za-z]{2})[\s\-_]/);
+  if (m && COUNTRY_FLAGS[m[1].toUpperCase()]) return m[1].toUpperCase();
+
+  return 'GLOBAL';
 }
 
-function showConfirmModal({ title, text, confirmLabel = 'Удалить' }) {
-  return new Promise((resolve) => {
-    confirmResolver = resolve;
-    $('#confirmModalTitle').textContent = title || 'Подтверждение';
-    $('#confirmModalText').textContent = text || '';
-    $('#btnConfirmOk').textContent = confirmLabel;
-    $('#confirmModal')?.classList.remove('hidden');
-  });
+function cleanServerName(name = '') {
+  let cleaned = String(name || '');
+  cleaned = cleaned.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '');
+  cleaned = cleaned.replace(/\p{Extended_Pictographic}/gu, '');
+  cleaned = cleaned.trim();
+  cleaned = cleaned.replace(/^[A-Za-z]{2}\s*[-–—:\s]\s*([А-Яа-яA-Za-z])/u, '$1');
+  cleaned = cleaned.trim();
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return cleaned || name;
 }
 
-function resolveConfirmModal(confirmed) {
-  if (!confirmResolver) return;
-  const resolve = confirmResolver;
-  confirmResolver = null;
-  hideConfirmModal();
-  resolve(confirmed);
+function pluralizeDays(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'дней';
+  if (mod10 === 1) return 'день';
+  if (mod10 >= 2 && mod10 <= 4) return 'дня';
+  return 'дней';
 }
 
-function setupConfirmModal() {
-  $('#btnConfirmCancel')?.addEventListener('click', () => resolveConfirmModal(false));
-  $('#btnConfirmOk')?.addEventListener('click', () => resolveConfirmModal(true));
-  $('#confirmModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#confirmModal')) resolveConfirmModal(false);
-  });
-}
-
-function setupCloseModals() {
-  const sendChoice = (choice) => {
-    hideCloseChoiceModal();
-    window.zapretAPI.windowCloseChoice(choice);
-  };
-
-  $('#btnCloseToTray')?.addEventListener('click', () => sendChoice('tray'));
-  $('#btnCloseQuit')?.addEventListener('click', () => sendChoice('quit'));
-
-  $('#closeChoiceModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#closeChoiceModal')) sendChoice('cancel');
-  });
-
-  window.zapretAPI.onShowCloseDialog(() => {
-    showCloseChoiceModal();
-  });
-}
-
-function setBusy(busy) {
-  state.busy = busy;
-  $('#btnPower').disabled = busy;
-  updateStrategyProbeButton();
-}
-
-function playStatusAnimation(wasRunning, isRunning) {
-  if (wasRunning === isRunning) return;
-  const hero = $('#heroCard');
-  hero.classList.remove('toggling-on', 'toggling-off');
-  void hero.offsetWidth;
-  hero.classList.add(isRunning ? 'toggling-on' : 'toggling-off');
-  setTimeout(() => hero.classList.remove('toggling-on', 'toggling-off'), 1200);
-}
-
-function updateUI(status) {
-  const wasRunning = state.running;
-  state.running = status.running;
-
-  const hero = $('#heroCard');
-  const title = $('#statusTitle');
-  const desc = $('#statusDesc');
-
-  playStatusAnimation(wasRunning, status.running);
-
-  if (status.running) {
-    hero.classList.add('running');
-    title.textContent = 'Работает';
-    desc.textContent = 'Обход блокировок YouTube и Discord активен';
+// ─── VPN Power Toggle ───
+async function toggleVpn() {
+  if (!state.vpn.running) {
+    // Turning VPN ON: Check if Zapret is running
+    if (state.zapret.running) {
+      if (!suppressConflictModal) {
+        showConflictModal(
+          'Переключение на VPN',
+          'При включении VPN закроется подключение Обхода YouTube и Discord, чтобы избежать конфликта маршрутизации.',
+          async () => {
+            await doStopZapret();
+            await doConnectVpnBestOrFirst();
+          },
+          'Обход (Zapret DPI)',
+          'VPN (VLESS Reality)'
+        );
+        return;
+      } else {
+        await doStopZapret();
+      }
+    }
+    await doConnectVpnBestOrFirst();
   } else {
-    hero.classList.remove('running');
-    title.textContent = 'Выключено';
-    desc.textContent = 'Переключите переключатель, чтобы включить обход блокировок YouTube и Discord';
-  }
-
-  $('#infoVersion').textContent = status.appVersion ? `v${status.appVersion}` : '—';
-  const aboutVersion = $('#aboutHubVersion');
-  if (aboutVersion) {
-    aboutVersion.textContent = status.appVersion ? `Версия ${status.appVersion}` : 'Версия —';
-  }
-
-  state.autoCheckUpdates = status.autoUpdate?.enabled !== false;
-  state.closeBehavior = status.closeBehavior ?? null;
-  state.lastStrategyProbe = status.lastStrategyProbe || null;
-  state.onboardingCompleted = Boolean(status.onboardingCompleted);
-  updateHomeControls(status);
-  updateIpsetToggles(status);
-  updateCloseBehaviorToggles(status.closeBehavior);
-  updateAutoCheckUpdatesToggle(status);
-  updateStrategyProbeBadge();
-}
-
-function updateAutostartHint(status) {
-  const hint = $('#autostartHint');
-  if (!hint) return;
-  const visible = Boolean(status.autostartZapretEnabled || status.autostartTgProxyEnabled);
-  hint.classList.toggle('hidden', !visible);
-}
-
-function updateHomeControls(status) {
-  const gameToggle = $('#gameFilterToggle');
-  const autostartZapretToggle = $('#autostartZapretToggle');
-  const autostartTgToggle = $('#autostartTgToggle');
-  const startMinimizedToggle = $('#startMinimizedToggle');
-  if (gameToggle && !gameToggle.dataset.busy) {
-    gameToggle.checked = Boolean(status.gameFilter?.enabled);
-  }
-  if (autostartZapretToggle && !autostartZapretToggle.dataset.busy) {
-    autostartZapretToggle.checked = Boolean(status.autostartZapretEnabled);
-  }
-  if (autostartTgToggle && !autostartTgToggle.dataset.busy) {
-    autostartTgToggle.checked = Boolean(status.autostartTgProxyEnabled);
-  }
-  if (startMinimizedToggle && !startMinimizedToggle.dataset.busy) {
-    startMinimizedToggle.checked = Boolean(status.startMinimized);
-  }
-
-  updateAutostartHint(status);
-}
-
-function updateIpsetToggles(status) {
-  const ip = status.ipset?.status || 'loaded';
-  $$('#ipsetGroup .toggle-btn').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.value === ip);
-  });
-}
-
-function updateShellForPage(page) {
-  const isHome = page === 'home';
-  $('.shell')?.classList.toggle('shell--home', isHome);
-  document.body.classList.toggle('page-home', isHome);
-}
-
-function navigateTo(page) {
-  $$('.nav-item').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.page === page);
-  });
-  $$('.page').forEach((p) => p.classList.remove('active'));
-  $(`#page-${page}`)?.classList.add('active');
-  updateShellForPage(page);
-  hideHelpPopover();
-
-  if (page === 'home') {
-    refreshTgProxyState();
+    // Turning VPN OFF
+    await doStopVpn();
   }
 }
 
-function showRestartModal(message) {
-  $('#restartModalText').textContent = message;
-  $('#restartModal').classList.remove('hidden');
-}
-
-function hideRestartModal() {
-  $('#restartModal').classList.add('hidden');
-}
-
-function notifyIfRestartNeeded(wasRunning, message) {
-  if (wasRunning) {
-    showRestartModal(message);
-  } else {
-    toast('Настройка сохранена', 'success');
+async function doStopVpn() {
+  try {
+    setPowerBtnLoading('btn-vpn-power', 'vpn-power-icon', 'vpn-power-text', 'ОТКЛЮЧЕНИЕ...');
+    const status = await api('vlessDisconnect');
+    updateVpnUI(status);
+    toast('VPN отключён', 'info');
+  } catch (e) {
+    toast(e.message || 'Ошибка отключения', 'error');
+    const status = await api('vlessGetStatus');
+    updateVpnUI(status);
+  } finally {
+    clearPowerBtnLoading('btn-vpn-power', 'vpn-power-icon');
   }
 }
 
-function sitesChangeNeedsAppRestart() {
-  return state.running;
-}
+async function doConnectVpnBestOrFirst() {
+  try {
+    if (state.vpn.servers.length === 0) {
+      toast('Список серверов пуст — обновите подписку', 'error');
+      navigateTo('vpn');
+      return;
+    }
 
-function showAppRestartModal() {
-  $('#appRestartModal')?.classList.remove('hidden');
-}
+    // 1. Try to find the last active connected server
+    const lastName = localStorage.getItem('vpn_last_active_server_name');
+    let targetIdx = -1;
 
-function hideAppRestartModal() {
-  $('#appRestartModal')?.classList.add('hidden');
-}
+    if (lastName) {
+      targetIdx = state.vpn.servers.findIndex(s => s.name === lastName);
+    }
 
-function notifySitesRestartIfNeeded() {
-  if (sitesChangeNeedsAppRestart()) {
-    showAppRestartModal();
+    if (targetIdx < 0 && typeof state.vpn.activeServerIndex === 'number' && state.vpn.activeServerIndex >= 0 && state.vpn.activeServerIndex < state.vpn.servers.length) {
+      targetIdx = state.vpn.activeServerIndex;
+    }
+
+    // 2. If previously connected server is in the current subscription list: connect to it
+    if (targetIdx >= 0) {
+      await doConnectServer(targetIdx);
+      return;
+    }
+
+    // 3. If there was NO prior connection: connect to the BEST server
+    toast('Подключение к лучшему серверу...', 'info');
+    await vpnSmartConnect();
+  } catch (e) {
+    toast(e.message, 'error');
   }
 }
 
-function renderStrategies(strategies, selectedFile) {
-  const select = $('#strategySelect');
-  select.innerHTML = '';
-
-  for (const s of strategies) {
-    const opt = document.createElement('option');
-    opt.value = s.file;
-    opt.textContent = s.name;
-    if (s.file === selectedFile) opt.selected = true;
-    select.appendChild(opt);
+async function connectServer(serverIdx) {
+  if (state.zapret.running) {
+    if (!suppressConflictModal) {
+      showConflictModal(
+        'Переключение на VPN',
+        'При включении VPN закроется подключение Обхода YouTube и Discord, чтобы избежать конфликта маршрутизации.',
+        async () => {
+          await doStopZapret();
+          await doConnectServer(serverIdx);
+        },
+        'Обход (Zapret DPI)',
+        'VPN (VLESS Reality)'
+      );
+      return;
+    } else {
+      await doStopZapret();
+    }
   }
 
-  updateStrategyProbeButton();
-  updateStrategyProbeBadge();
+  await doConnectServer(serverIdx);
 }
 
-function updateStrategyProbeBadge() {
-  const badge = $('#strategyProbeBadge');
-  if (!badge) return;
+async function doConnectServer(serverIdx) {
+  setPowerBtnLoading('btn-vpn-power', 'vpn-power-icon', 'vpn-power-text', 'ПОДКЛЮЧЕНИЕ...');
 
-  const probe = state.lastStrategyProbe;
-  if (!probe?.strategyName) {
-    badge.classList.add('hidden');
-    badge.textContent = '';
+  const srv = state.vpn.servers[serverIdx];
+  const srvName = cleanServerName(srv?.name || `Сервер #${serverIdx + 1}`);
+  toast(`Подключение к ${srvName}...`, 'info');
+
+  try {
+    const status = await api('vlessConnect', serverIdx);
+    if (srv?.name) {
+      localStorage.setItem('vpn_last_active_server_name', srv.name);
+    } else if (status.activeServer?.name) {
+      localStorage.setItem('vpn_last_active_server_name', status.activeServer.name);
+    }
+    updateVpnUI(status);
+    toast(`Подключено: ${cleanServerName(status.activeServer?.name || srvName)}`, 'success');
+  } catch (e) {
+    toast(e.message || 'Ошибка подключения к серверу', 'error');
+    const status = await api('vlessGetStatus');
+    updateVpnUI(status);
+  } finally {
+    clearPowerBtnLoading('btn-vpn-power', 'vpn-power-icon');
+  }
+}
+
+async function vpnSmartConnect() {
+  if (state.vpn.servers.length === 0) {
+    toast('Список серверов пуст — обновите подписку', 'error');
     return;
   }
 
-  const sitesPart = probe.sitesTotal
-    ? `${probe.sitesOk}/${probe.sitesTotal} сайтов`
-    : 'проверено';
-  badge.textContent = `Рекомендовано: ${probe.strategyName}, ${sitesPart}`;
-  badge.classList.toggle('partial', !probe.working);
-  badge.classList.remove('hidden');
-}
+  const btnText = $('#vpn-smart-text');
+  const pingBadge = $('#vpn-smart-ping-badge');
 
-function updateStrategyProbeButton() {
-  const btn = $('#btnStrategyProbe');
-  const label = $('#btnStrategyProbeLabel');
-  if (!btn) return;
-  btn.disabled = state.busy || strategyProbeRunning || state.strategies.length <= 1;
-  btn.classList.toggle('loading', strategyProbeRunning);
-  if (label) {
-    label.textContent = strategyProbeRunning
-      ? 'Проверка стратегий…'
-      : 'Подбор рабочей стратегии';
-  }
-}
+  // Check if we already have measured working servers
+  let working = (state.vpn.servers || [])
+    .map((s, idx) => ({ ...s, idx }))
+    .filter(s => s.status === 'ok' && typeof s.ping === 'number' && s.ping > 0)
+    .sort((a, b) => (a.ping - b.ping));
 
-function showStrategyProbeProgressModal() {
-  updateStrategyProbeProgress({
-    phase: 'start',
-    message: 'Подготовка к проверке стратегий...',
-    current: 0,
-    total: 0,
-    percent: 0
-  });
-  $('#strategyProbeProgressModal')?.classList.remove('hidden');
-}
-
-function hideStrategyProbeProgressModal() {
-  $('#strategyProbeProgressModal')?.classList.add('hidden');
-}
-
-function updateStrategyProbeProgress(progress = {}) {
-  const text = $('#strategyProbeProgressText');
-  const fill = $('#strategyProbeProgressFill');
-  const meta = $('#strategyProbeProgressMeta');
-  const bar = $('#strategyProbeProgressBar');
-  const spinner = $('#strategyProbeSpinner');
-  const isDone = progress.phase === 'done';
-  let percent = Math.max(0, Math.min(100, Number(progress.percent) || 0));
-  if (!isDone) {
-    percent = Math.min(percent, 99);
-  }
-
-  if (text) {
-    text.textContent = progress.message || 'Проверяем стратегии...';
-  }
-  if (fill) {
-    fill.style.width = `${percent}%`;
-  }
-  if (bar) {
-    bar.classList.toggle('is-active', !isDone);
-  }
-  if (spinner) {
-    spinner.classList.toggle('hidden', isDone);
-  }
-  if (meta) {
-    if (progress.total > 0) {
-      const stage = isDone ? progress.total : Math.min(progress.current || 0, progress.total);
-      meta.textContent = `Этап ${stage} из ${progress.total}${progress.config ? ` · ${progress.config}` : ''}`;
-    } else if (progress.config) {
-      meta.textContent = progress.config;
-    } else {
-      meta.textContent = '';
+  if (working.length > 0) {
+    const best = working[0];
+    if (pingBadge && best.ping) {
+      pingBadge.innerText = `${best.ping} мс`;
     }
-  }
-}
-
-function hideStrategyProbeModal() {
-  $('#strategyProbeModal')?.classList.add('hidden');
-}
-
-function showStrategyProbeModal(result) {
-  strategyProbeResult = result;
-  const working = result.strategies.filter((row) => row.working);
-  const summary = $('#strategyProbeSummary');
-  const list = $('#strategyProbeList');
-  const applyBtn = $('#btnStrategyProbeApply');
-  const title = $('#strategyProbeResultTitle');
-  const isSingle = result.mode === 'single' && result.strategies.length === 1;
-
-  if (title) {
-    title.textContent = isSingle ? 'Результат проверки' : 'Результаты проверки';
+    toast(`Лучший узел: ${cleanServerName(best.name)} (${best.ping} мс)`, 'info');
+    await connectServer(best.idx);
+    return;
   }
 
-  if (summary) {
-    if (result.cancelled) {
-      const checked = result.strategies.length;
-      summary.textContent = checked
-        ? `Проверка прервана. Показаны результаты ${checked} ${checked === 1 ? 'стратегии' : 'стратегий'}.`
-        : 'Проверка прервана до получения результатов.';
-    } else if (isSingle) {
-      const row = result.strategies[0];
-      const status = getStrategyProbeStatus(row);
-      summary.textContent = row.error
-        ? `${row.name}: ${row.error}`
-        : status.className === 'working'
-          ? `${row.name} подходит для вашего ПК.`
-          : status.className === 'partial'
-            ? `${row.name} работает частично — попробуйте другую стратегию.`
-            : `${row.name} не прошла проверку. Попробуйте другую стратегию или обновите движок.`;
-    } else if (working.length) {
-      const best = result.strategies.find((row) => row.file === result.bestStrategy);
-      summary.textContent = best
-        ? `На вашем ПК подходят ${working.length} из ${result.strategies.length} стратегий. Лучший вариант: ${best.name}.`
-        : `На вашем ПК подходят ${working.length} из ${result.strategies.length} стратегий.`;
-    } else {
-      summary.textContent = 'Ни одна стратегия не прошла проверку полностью. Попробуйте повторить тест или обновить движок.';
-    }
-  }
-
-  if (list) {
-    list.innerHTML = '';
-    for (const row of result.strategies) {
-      const status = getStrategyProbeStatus(row);
-      const item = document.createElement('div');
-      item.className = `strategy-probe-item ${status.className}${row.file === result.bestStrategy ? ' best' : ''}`;
-      item.innerHTML = `
-        <div>
-          <div class="strategy-probe-name">${row.name}</div>
-          <div class="strategy-probe-meta">${formatStrategyProbeMeta(row)}</div>
-        </div>
-        <div class="strategy-probe-status">${status.label}</div>
-      `;
-      list.appendChild(item);
-    }
-  }
-
-  if (applyBtn) {
-    applyBtn.disabled = !result.bestStrategy || !working.some((row) => row.file === result.bestStrategy);
-  }
-
-  $('#strategyProbeModal')?.classList.remove('hidden');
-}
-
-function setupStrategyProbeModal() {
-  $('#btnStrategyProbeClose')?.addEventListener('click', hideStrategyProbeModal);
-  $('#strategyProbeModal')?.addEventListener('click', (e) => {
-    if (e.target === $('#strategyProbeModal')) hideStrategyProbeModal();
-  });
-  $('#btnStrategyProbeApply')?.addEventListener('click', async () => {
-    if (!strategyProbeResult?.bestStrategy) return;
-    hideStrategyProbeModal();
-    suppressStrategyChange = true;
-    $('#strategySelect').value = strategyProbeResult.bestStrategy;
-    suppressStrategyChange = false;
-    await applyStrategy(strategyProbeResult.bestStrategy);
-  });
-
-  $('#btnStrategyProbeCancel')?.addEventListener('click', async () => {
-    const btn = $('#btnStrategyProbeCancel');
-    if (!strategyProbeRunning || !btn) return;
-    btn.disabled = true;
-    btn.textContent = 'Останавливаем…';
-    try {
-      await api('cancelStrategyProbe');
-    } catch (e) {
-      toast(e.message, 'error');
-      btn.disabled = false;
-      btn.textContent = 'Прервать проверку';
-    }
-  });
-}
-
-async function runStrategyProbeFlow() {
-  if (state.busy || strategyProbeRunning || state.strategies.length <= 1) return false;
-
-  const confirmed = await showConfirmModal({
-    title: 'Подбор рабочей стратегии',
-    text: 'Будут проверены все доступные конфиги. Это может занять несколько минут. Продолжить?',
-    confirmLabel: 'Начать подбор'
-  });
-  if (!confirmed) return false;
-
-  const options = { mode: 'all' };
-
-  strategyProbeRunning = true;
-  updateStrategyProbeButton();
-  showStrategyProbeProgressModal();
-  const cancelBtn = $('#btnStrategyProbeCancel');
-  if (cancelBtn) {
-    cancelBtn.disabled = false;
-    cancelBtn.textContent = 'Прервать проверку';
-  }
+  // If no servers have measured pings yet, run measurement test
+  setPowerBtnLoading('btn-vpn-power', 'vpn-power-icon', 'vpn-power-text', 'ПОДКЛЮЧЕНИЕ...');
+  if (btnText) btnText.innerText = 'Замер пинга...';
+  if (pingBadge) pingBadge.innerText = 'Тест...';
+  toast('Замер пинга и поиск лучшего узла...', 'info');
 
   try {
-    const result = await api('runStrategyProbe', options);
-    const status = await api('getStatus');
-    state.lastStrategyProbe = status.lastStrategyProbe || null;
-    updateUI(status);
-    updateStrategyProbeBadge();
-    hideStrategyProbeProgressModal();
-    showStrategyProbeModal(result);
-    if (result.cancelled) {
-      toast('Проверка прервана', 'info');
+    // 1. Sync subscription first to ensure we test the latest servers
+    if (state.vpn.subUrl && /^https?:\/\//i.test(state.vpn.subUrl)) {
+      try {
+        await api('vlessUpdateSubscription');
+      } catch {}
     }
-    return true;
+
+    // 2. Run ping test across all servers
+    await api('vlessTestAll');
+    const status = await api('vlessGetStatus');
+    updateVpnUI(status);
+    const servers = status.servers || [];
+
+    // 3. Strictly filter servers that are ok and have real ping > 0
+    working = servers
+      .map((s, idx) => ({ ...s, idx }))
+      .filter(s => s.status === 'ok' && typeof s.ping === 'number' && s.ping > 0)
+      .sort((a, b) => (a.ping - b.ping));
+
+    if (working.length === 0) {
+      toast('Все серверы подписки заблокированы ТСПУ', 'error');
+      return;
+    }
+
+    const best = working[0];
+    if (pingBadge && best.ping) {
+      pingBadge.innerText = `${best.ping} мс`;
+    }
+
+    toast(`Лучший узел: ${cleanServerName(best.name)} (${best.ping} мс)`, 'success');
+    await connectServer(best.idx);
   } catch (e) {
-    hideStrategyProbeProgressModal();
-    toast(e.message, 'error');
-    return false;
+    toast(e.message || 'Ошибка поиска лучшего узла', 'error');
   } finally {
-    strategyProbeRunning = false;
-    updateStrategyProbeButton();
+    if (btnText) btnText.innerText = 'Подключить лучший';
+    clearPowerBtnLoading('btn-vpn-power', 'vpn-power-icon');
   }
+}
+window.vpnSmartConnect = vpnSmartConnect;
+
+function toggleSubVisibility(e) {
+  if (e) e.stopPropagation();
+  const input = $('#vpn-sub-input');
+  const icon = $('#icon-sub-eye');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) {
+      icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    }
+  } else {
+    input.type = 'password';
+    if (icon) {
+      icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/>';
+    }
+  }
+}
+window.toggleSubBlur = toggleSubVisibility;
+window.toggleSubVisibility = toggleSubVisibility;
+
+async function copySubUrl(e) {
+  if (e) e.stopPropagation();
+  const input = $('#vpn-sub-input');
+  const val = (input ? input.value : '').trim();
+  if (!val) {
+    toast('Ссылка пуста', 'error');
+    return;
+  }
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(val);
+    }
+    const btn = $('#btn-copy-sub');
+    if (btn) {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<svg class="w-3.5 h-3.5 stroke-emerald-400 stroke-2 fill-none" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+      setTimeout(() => { btn.innerHTML = orig; }, 1500);
+    }
+    toast('Ссылка скопирована', 'info');
+  } catch (err) {
+    toast('Не удалось скопировать', 'error');
+  }
+}
+window.copySubUrl = copySubUrl;
+
+async function pasteVpnSub(e) {
+  if (e) e.stopPropagation();
+  try {
+    let text = '';
+    if (typeof api === 'function') {
+      try {
+        text = await api('readClipboardText');
+      } catch {}
+    }
+    if (!text && navigator.clipboard) {
+      try {
+        text = await navigator.clipboard.readText();
+      } catch {}
+    }
+    const input = $('#vpn-sub-input');
+    if (input && text && text.trim()) {
+      input.value = text.trim();
+      input.focus();
+      toast('Ссылка вставлена. Нажмите «Обновить»', 'info');
+    } else {
+      toast('Буфер обмена пуст', 'error');
+    }
+  } catch (e) {
+    toast('Не удалось прочитать буфер обмена', 'error');
+  }
+}
+window.pasteVpnSub = pasteVpnSub;
+
+async function updateVpnSub() {
+  const input = $('#vpn-sub-input');
+  const url = (input ? input.value : '').trim();
+  if (!url) {
+    toast('Введите ссылку на подписку VPN', 'error');
+    return;
+  }
+
+  const btn = $('#btn-update-sub');
+  const btnText = $('#btn-update-sub-text');
+  const icon = $('#update-sub-icon');
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.innerText = 'Загрузка...';
+  if (icon) icon.classList.add('animate-spin');
+
+  toast('Обновление серверов подписки...', 'info');
+  try {
+    const res = await api('vlessUpdateSubscription', url, true);
+    const count = res.count || res.serverCount || (res.servers ? res.servers.length : 0);
+    if (res && res.servers) {
+      state.vpn.servers = res.servers;
+      renderVpnServers();
+    }
+    toast(`Загружено серверов: ${count}. Замеряем пинг...`, 'info');
+    if (btnText) btnText.innerText = 'Замер...';
+
+    // Immediately test ping across fresh servers
+    await api('vlessTestAll');
+    const status = await api('vlessGetStatus');
+    updateVpnUI(status);
+    toast(`Подписка обновлена: ${count} узлов, пинг измерен`, 'success');
+  } catch (e) {
+    toast(e.message || 'Ошибка обновления подписки', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.innerText = 'Обновить';
+    if (icon) icon.classList.remove('animate-spin');
+  }
+}
+window.updateVpnSub = updateVpnSub;
+window.vpnUpdateSub = updateVpnSub;
+
+async function vpnTestAll() {
+  const btn = $('#btn-test-servers');
+  const btnText = $('#btn-test-servers-text');
+  const dial = $('#test-servers-dial') || $('#test-servers-icon');
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.innerText = 'Замер...';
+  if (dial) dial.classList.add('animate-spin');
+
+  toast('Замер пинга всех серверов...', 'info');
+  try {
+    const res = await api('vlessTestAll');
+    const summary = res.summary || {};
+    toast(`Тест: ${summary.ok || 0} доступно, ${summary.blocked || 0} блок`, 'info');
+    const status = await api('vlessGetStatus');
+    updateVpnUI(status);
+  } catch (e) {
+    toast(e.message || 'Ошибка замера пинга', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.innerText = 'Замерить пинг';
+    if (dial) dial.classList.remove('animate-spin');
+  }
+}
+window.vpnTestAll = vpnTestAll;
+window.testAllServers = vpnTestAll;
+
+// ─── Telegram Proxy Toggle ───
+async function toggleTg() {
+  if (state.tg.busy) return;
+  state.tg.busy = true;
+
+  try {
+    if (state.tg.running) {
+      setPowerBtnLoading('btn-tg-power', 'tg-power-icon', 'btn-tg-power-text', 'ВЫКЛЮЧЕНИЕ...');
+      toast('Выключение TG Proxy...', 'info');
+      await api('stopTgProxy');
+    } else {
+      setPowerBtnLoading('btn-tg-power', 'tg-power-icon', 'btn-tg-power-text', 'ПОДКЛЮЧЕНИЕ...');
+      toast('Запуск TG Proxy...', 'info');
+      await api('startTgProxy');
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    state.tg.busy = false;
+    clearPowerBtnLoading('btn-tg-power', 'tg-power-icon');
+    const status = await api('getTgProxyStatus');
+    updateTgProxyUI(status);
+  }
+}
+
+async function openTg1Click() {
+  try {
+    await api('openTgProxyTelegram');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+window.openTg1Click = openTg1Click;
+
+async function copyTgProxyLink() {
+  try {
+    const res = await api('copyTgProxyLink');
+    let link = res?.link;
+    if (!link) {
+      const host = state.tg.host || '127.0.0.1';
+      const port = state.tg.port || 1443;
+      link = `tg://proxy?server=${host}&port=${port}&secret=ee000000000000000000000000000000007777772e636c6f7564666c6172652e636f6d`;
+    }
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(link);
+    }
+    toast('Ссылка Telegram Proxy скопирована', 'success');
+  } catch (err) {
+    toast(err.message || 'Не удалось скопировать ссылку', 'error');
+  }
+}
+window.copyTgProxyLink = copyTgProxyLink;
+
+// ─── Strategy Probe ───
+let probeTimerInterval = null;
+let probeStartTime = 0;
+
+async function runStrategyProbeFlow() {
+  const modal = $('#strategyProbeProgressModal');
+  const textEl = $('#strategyProbeProgressText');
+  const fillEl = $('#strategyProbeProgressFill');
+  const sumEl = $('#strategyProbeSummary');
+  const timerEl = $('#strategyProbeTimer');
+  const percentEl = $('#strategyProbePercent');
+
+  if (modal) modal.classList.remove('hidden');
+  if (textEl) textEl.innerText = 'Подготовка к тестированию...';
+  if (fillEl) fillEl.style.width = '0%';
+  if (percentEl) percentEl.innerText = '0%';
+  if (sumEl) sumEl.innerText = 'Запуск быстрого подбора стратегий...';
+  if (timerEl) timerEl.innerText = '00:00';
+
+  probeStartTime = Date.now();
+  if (probeTimerInterval) clearInterval(probeTimerInterval);
+  probeTimerInterval = setInterval(() => {
+    const elapsedSec = Math.floor((Date.now() - probeStartTime) / 1000);
+    const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+    const secs = String(elapsedSec % 60).padStart(2, '0');
+    if (timerEl) timerEl.innerText = `${mins}:${secs}`;
+  }, 500);
+
+
+  try {
+    const result = await api('runStrategyProbe');
+    if (probeTimerInterval) {
+      clearInterval(probeTimerInterval);
+      probeTimerInterval = null;
+    }
+
+    if (modal) modal.classList.add('hidden');
+
+    if (result && result.top3 && result.top3.length > 0) {
+      const elapsed = result.totalTimeSec || Math.max(1, Math.round((Date.now() - probeStartTime) / 1000));
+      renderStrategyProbeResults(result.top3, elapsed);
+      const resModal = $('#strategyProbeResultsModal');
+      if (resModal) resModal.classList.remove('hidden');
+    } else {
+      toast('Не удалось подобрать стратегии или проверка была прервана', 'error');
+    }
+  } catch (e) {
+    if (probeTimerInterval) {
+      clearInterval(probeTimerInterval);
+      probeTimerInterval = null;
+    }
+    if (modal) modal.classList.add('hidden');
+    toast(e.message || 'Ошибка проверки стратегий', 'error');
+  }
+}
+window.runStrategyProbeFlow = runStrategyProbeFlow;
+window.runStrategyProbeSim = runStrategyProbeFlow; // Backward compatibility alias
+
+function renderStrategyProbeResults(top3, durationSec) {
+  const container = $('#strategyProbeCardsList');
+  if (!container) return;
+
+  const durationEl = $('#strategyProbeDurationText');
+  if (durationEl) {
+    durationEl.innerText = `Проверено ${top3.length} лучших стратегий за ${durationSec} сек`;
+  }
+
+  container.innerHTML = top3.map((strat, idx) => {
+    const isFirst = idx === 0;
+    const badgeBg = isFirst
+      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/35'
+      : (idx === 1 ? 'bg-teal-500/20 text-teal-300 border-teal-500/35' : 'bg-slate-500/20 text-slate-300 border-slate-500/30');
+
+    const cardBorder = isFirst
+      ? 'border-emerald-500/50 bg-[#141b25] shadow-[0_0_16px_rgba(16,185,129,0.12)] ring-1 ring-emerald-500/30'
+      : 'border-white/10 bg-[#131720]/80 hover:border-white/20';
+
+    const btnStyle = isFirst
+      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold shadow-[0_2px_10px_rgba(16,185,129,0.3)]'
+      : 'bg-white/10 hover:bg-white/15 text-slate-200 hover:text-white font-semibold border border-white/10';
+
+    const ytBadge = strat.ytOk
+      ? '<span class="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">YouTube: OK</span>'
+      : '<span class="text-[11px] font-medium text-slate-500 bg-white/[0.03] px-2 py-0.5 rounded border border-white/5">YouTube: —</span>';
+
+    const dcBadge = strat.dcOk
+      ? '<span class="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Discord: OK</span>'
+      : '<span class="text-[11px] font-medium text-slate-500 bg-white/[0.03] px-2 py-0.5 rounded border border-white/5">Discord: —</span>';
+
+    const pingText = strat.avgPing ? `${strat.avgPing} мс` : '—';
+
+    return `
+      <div class="inner-panel rounded-2xl p-3.5 border transition-all ${cardBorder}">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${badgeBg}">
+              ${strat.badge}
+            </span>
+            <span class="text-sm font-bold text-white truncate" title="${strat.name}">${strat.name}</span>
+          </div>
+          <button onclick="applyProbedStrategy('${strat.file}')" class="h-8 px-4 rounded-xl text-xs flex-shrink-0 cursor-pointer active:scale-95 transition-all ${btnStyle}">
+            Применить
+          </button>
+        </div>
+
+        <p class="text-xs text-slate-400 mt-1.5 line-clamp-1" title="${strat.desc || ''}">${strat.desc || 'Оптимизированный профиль обхода блокировок'}</p>
+
+        <div class="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            ${ytBadge}
+            ${dcBadge}
+          </div>
+          <div class="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+            <span>Пинг:</span>
+            <span class="text-emerald-400 font-bold">${pingText}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+window.renderStrategyProbeResults = renderStrategyProbeResults;
+
+async function applyProbedStrategy(stratFile) {
+  closeStrategyProbeResults();
+  await selectStrategy(stratFile);
+  toast(`Применена стратегия: ${stratFile.replace(/\.bat$/i, '')}`, 'success');
+}
+window.applyProbedStrategy = applyProbedStrategy;
+
+function closeStrategyProbeResults() {
+  $('#strategyProbeResultsModal')?.classList.add('hidden');
+}
+window.closeStrategyProbeResults = closeStrategyProbeResults;
+
+async function cancelStrategyProbe() {
+  if (probeTimerInterval) {
+    clearInterval(probeTimerInterval);
+    probeTimerInterval = null;
+  }
+  $('#strategyProbeProgressModal')?.classList.add('hidden');
+  try {
+    await api('cancelStrategyProbe');
+  } catch {}
+  toast('Подбор стратегий отменён', 'info');
+}
+window.cancelStrategyProbe = cancelStrategyProbe;
+
+// ─── First Launch Strategy Probe Offer ───
+async function dismissFirstLaunchProbeModal() {
+  $('#firstLaunchProbeModal')?.classList.add('hidden');
+  try {
+    localStorage.setItem('zapret_first_probe_dismissed', 'true');
+  } catch {}
+  try {
+    await api('setFirstProbeDismissed');
+  } catch {}
+}
+window.dismissFirstLaunchProbeModal = dismissFirstLaunchProbeModal;
+
+async function startFirstLaunchProbe() {
+  await dismissFirstLaunchProbeModal();
+  runStrategyProbeFlow();
+}
+window.startFirstLaunchProbe = startFirstLaunchProbe;
+
+// ─── Sites Management ───
+function sanitizeDomain(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let str = raw.trim().toLowerCase();
+  str = str.replace(/^[a-z]+:\/\//i, '');
+  str = str.replace(/[/?#].*$/, '');
+  str = str.replace(/:\d+$/, '');
+  str = str.replace(/^[*@.]+/g, '');
+  str = str.replace(/\.+$/g, '');
+  if (/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(str)) {
+    return str;
+  }
+  if (str.includes('.') && !str.includes(' ') && str.length >= 3) {
+    return str;
+  }
+  return '';
+}
+
+async function handleSitesAdd(e) {
+  if (e) e.preventDefault();
+  const input = $('#sites-new-input');
+  if (!input) return;
+  const val = sanitizeDomain(input.value);
+  if (!val) {
+    toast('Введите корректный домен (например, notion.so)', 'error');
+    return;
+  }
+
+  if (state.sites.main.includes(val)) {
+    toast('Домен уже есть в списке', 'error');
+    input.value = '';
+    return;
+  }
+
+  const next = [val, ...state.sites.main];
+  try {
+    await api('saveSites', next);
+    state.sites.main = next;
+    input.value = '';
+    renderSites();
+    toast(`Домен ${val} добавлен в список`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+window.handleSitesAdd = handleSitesAdd;
+
+async function quickAddDomain(rawDomain) {
+  const domain = sanitizeDomain(rawDomain);
+  if (!domain) return;
+  if (state.sites.main.includes(domain)) {
+    toast(`Домен ${domain} уже в списке`, 'info');
+    return;
+  }
+  const next = [domain, ...state.sites.main];
+  try {
+    await api('saveSites', next);
+    state.sites.main = next;
+    renderSites();
+    toast(`Домен ${domain} добавлен`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+window.quickAddDomain = quickAddDomain;
+
+async function handleSitesPaste() {
+  try {
+    let text = '';
+    if (typeof api === 'function') {
+      try { text = await api('readClipboardText'); } catch {}
+    }
+    if (!text && navigator.clipboard) {
+      try { text = await navigator.clipboard.readText(); } catch {}
+    }
+    if (!text || !text.trim()) {
+      toast('Буфер обмена пуст', 'error');
+      return;
+    }
+    const lines = text.split(/[\r\n,;\s]+/);
+    const candidates = lines.map(sanitizeDomain).filter(Boolean);
+    if (candidates.length === 0) {
+      toast('В буфере обмена не найдено доменов', 'error');
+      return;
+    }
+    const existing = new Set(state.sites.main);
+    const added = [];
+    for (const c of candidates) {
+      if (!existing.has(c)) {
+        existing.add(c);
+        added.push(c);
+      }
+    }
+    if (added.length === 0) {
+      toast('Все домены из буфера уже есть в списке', 'info');
+      return;
+    }
+    const next = [...added, ...state.sites.main];
+    await api('saveSites', next);
+    state.sites.main = next;
+    renderSites();
+    toast(`Добавлено новых доменов: ${added.length}`, 'success');
+  } catch (err) {
+    toast(err.message || 'Ошибка вставки', 'error');
+  }
+}
+window.handleSitesPaste = handleSitesPaste;
+
+async function handleSitesExport() {
+  try {
+    const res = await api('exportSitesDialog', { defaultName: 'list-general.txt' });
+    if (res && res.saved) {
+      toast(`Список сохранён: ${res.count || 0} доменов`, 'success');
+    }
+  } catch (err) {
+    toast(err.message || 'Ошибка экспорта', 'error');
+  }
+}
+window.handleSitesExport = handleSitesExport;
+
+async function handleSitesImport() {
+  try {
+    const res = await api('importSitesDialog', { mode: 'merge' });
+    if (res && res.imported && Array.isArray(res.sites)) {
+      state.sites.main = res.sites;
+      renderSites();
+      toast(`Импортировано. Всего в списке: ${res.sites.length}`, 'success');
+    }
+  } catch (err) {
+    toast(err.message || 'Ошибка импорта', 'error');
+  }
+}
+window.handleSitesImport = handleSitesImport;
+
+function handleSitesSearch(val) {
+  state.sites.searchQuery = (val || '').trim();
+  renderSites();
+}
+window.handleSitesSearch = handleSitesSearch;
+
+// ─── Custom Domain Lists ───
+async function loadCustomLists() {
+  try {
+    const res = await api('getCustomLists').catch(() => null);
+    if (!res) return;
+    state.sites.customLists = res.lists || [];
+    state.sites.activeListId = res.activeListId || null;
+    renderCustomLists();
+  } catch {}
+}
+
+function renderCustomLists() {
+  const select = $('#custom-list-select');
+  const badge = $('#custom-list-active-badge');
+  if (!select) return;
+
+  const html = [];
+  (state.sites.customLists || []).forEach(l => {
+    const isSel = l.id === state.sites.activeListId ? 'selected' : '';
+    const countStr = typeof l.count === 'number' ? ` (${l.count})` : '';
+    html.push(`<option value="${l.id}" ${isSel}>${l.name || l.id}.txt${countStr}</option>`);
+  });
+  html.push(`<option value="" ${!state.sites.activeListId ? 'selected' : ''}>Не использовать</option>`);
+  select.innerHTML = html.join('');
+
+  if (badge) {
+    if (state.sites.activeListId) {
+      badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      badge.innerText = 'Активен';
+    } else {
+      badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10';
+      badge.innerText = 'Отключён';
+    }
+  }
+}
+
+async function handleCustomListChange(listId) {
+  try {
+    const res = await api('setActiveCustomList', listId || null);
+    state.sites.activeListId = listId || null;
+    if (res && res.lists) state.sites.customLists = res.lists;
+    renderCustomLists();
+    toast(listId ? 'Дополнительный список активирован' : 'Дополнительный список отключён', 'info');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+window.handleCustomListChange = handleCustomListChange;
+
+async function handleCreateCustomList() {
+  const name = prompt('Введите имя нового списка (например: work-sites):');
+  if (!name || !name.trim()) return;
+  try {
+    const res = await api('createCustomList', name.trim());
+    if (res && res.lists) {
+      state.sites.customLists = res.lists;
+      state.sites.activeListId = res.createdId || res.activeListId;
+      renderCustomLists();
+      toast(`Список «${name.trim()}» создан и подключён`, 'success');
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+window.handleCreateCustomList = handleCreateCustomList;
+
+async function handleDeleteCustomList() {
+  const curId = state.sites.activeListId;
+  if (!curId) {
+    toast('Выберите дополнительный список для удаления', 'info');
+    return;
+  }
+  const item = state.sites.customLists.find(l => l.id === curId);
+  const displayName = item ? item.name : curId;
+  if (!confirm(`Удалить список «${displayName}»?`)) return;
+
+  try {
+    const res = await api('deleteCustomList', curId);
+    if (res && res.lists) {
+      state.sites.customLists = res.lists;
+      state.sites.activeListId = res.activeListId || null;
+      renderCustomLists();
+      toast(`Список «${displayName}» удалён`, 'info');
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+window.handleDeleteCustomList = handleDeleteCustomList;
+
+function toggleIpsetHelp() {
+  toast('IPSet фильтрация: перехватывает запросы только к заблокированным IP-адресам (ipset-all.txt), снижая нагрузку. Рекомендуется «Загружен».', 'info');
+}
+window.toggleIpsetHelp = toggleIpsetHelp;
+
+async function deleteSite(site) {
+  const next = state.sites.main.filter(s => s !== site);
+  try {
+    await api('saveSites', next);
+    state.sites.main = next;
+    renderSites();
+    toast(`Домен ${site} удалён`, 'info');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+window.deleteSite = deleteSite;
+
+function renderSites() {
+  const container = $('#sites-list-container');
+  const countPill = $('#sites-count-pill');
+  if (!container) return;
+
+  const query = (state.sites.searchQuery || '').toLowerCase();
+  const filtered = state.sites.main.filter(s => s.toLowerCase().includes(query));
+
+  if (countPill) countPill.innerText = `${state.sites.main.length} доменов`;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="h-32 flex flex-col items-center justify-center text-slate-500 text-xs">
+        ${query ? 'Ничего не найдено' : 'Список доменов пуст'}
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(site => `
+    <div class="inner-panel rounded-xl px-3 py-2 flex items-center justify-between gap-2 group hover:border-white/20 transition-all">
+      <span class="text-xs font-mono text-slate-200 truncate select-text">${site}</span>
+      <button data-site="${encodeURIComponent(site)}" class="text-slate-500 hover:text-rose-400 p-1 rounded-md transition-colors cursor-pointer" title="Удалить домен">
+        <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none pointer-events-none" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+      </button>
+    </div>
+  `).join('');
+
+  if (!container._hasDelegatedListener) {
+    container._hasDelegatedListener = true;
+    container.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-site]');
+      if (btn && btn.dataset.site) {
+        deleteSite(decodeURIComponent(btn.dataset.site));
+      }
+    });
+  }
+}
+
+// ─── Settings Controls ───
+async function setCloseBehavior(mode) {
+  state.settings.closeBehavior = mode;
+  ['ask', 'tray', 'quit'].forEach(m => {
+    const btn = $(`#btn-close-${m}`);
+    if (btn) {
+      if (m === mode) {
+        btn.className = 'h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center';
+      } else {
+        btn.className = 'h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center';
+      }
+    }
+  });
+  try {
+    await api('setCloseBehavior', mode);
+    toast(`Режим закрытия: ${mode === 'tray' ? 'В трей' : mode === 'ask' ? 'Спрашивать' : 'Закрывать'}`, 'info');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function toggleSetting(key, checked) {
+  try {
+    if (key === 'startMinimized') {
+      state.settings.startMinimized = checked;
+      await api('setStartMinimized', checked);
+    } else if (key === 'autostart') {
+      state.settings.autostart = checked;
+      await api('setAutostartZapret', checked);
+      await api('setAutostartTg', checked);
+    } else if (key === 'autoUpdates') {
+      state.settings.autoUpdates = checked;
+      await api('setAutoUpdate', checked);
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function renderIpsetButtons(modeRaw) {
+  const mode = (typeof modeRaw === 'object' && modeRaw?.status) ? modeRaw.status : (typeof modeRaw === 'string' ? modeRaw : 'loaded');
+  state.settings.ipsetMode = mode;
+  ['loaded', 'none', 'any'].forEach(m => {
+    const btn = $(`#btn-ipset-${m}`);
+    if (btn) {
+      if (m === mode) {
+        btn.className = 'h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center';
+      } else {
+        btn.className = 'h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center';
+      }
+    }
+  });
+}
+window.renderIpsetButtons = renderIpsetButtons;
+
+async function setIpsetMode(modeRaw) {
+  const mode = (typeof modeRaw === 'object' && modeRaw?.status) ? modeRaw.status : (typeof modeRaw === 'string' ? modeRaw : 'loaded');
+  renderIpsetButtons(mode);
+  try {
+    const res = await api('setIpset', mode);
+    if (res?.status) renderIpsetButtons(res.status);
+    toast(`IPSet фильтр: ${mode === 'loaded' ? 'Загружен' : mode === 'none' ? 'Отключён' : 'Любые IP'}`, 'info');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function checkAllUpdatesSim() {
+  const btn = $('#btn-settings-update-text');
+  const icon = $('#settings-update-icon');
+  if (btn) btn.innerText = 'Проверка...';
+  if (icon) icon.classList.add('animate-spin');
+
+  try {
+    const all = await api('checkAllUpdates');
+    const hasAny = [all.hub, all.zapret, all.tg].some(i => i?.updateAvailable);
+    if (hasAny) {
+      toast('Доступна новая версия на GitHub!', 'success');
+      openChangelogModal();
+    } else {
+      toast('У вас установлены актуальные версии компонентов', 'success');
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    if (btn) btn.innerText = 'Обновить';
+    if (icon) icon.classList.remove('animate-spin');
+  }
+}
+
+async function runDiagnosticsSim() {
+  const btn = $('#btn-settings-diag-text');
+  const icon = $('#settings-diag-icon');
+  if (btn) btn.innerText = 'Проверка сети...';
+  if (icon) icon.classList.add('animate-pulse');
+
+  try {
+    const diag = await api('runDiagnostics');
+    const fails = Array.isArray(diag) ? diag.filter(r => r.severity === 'fail') : [];
+    const warns = Array.isArray(diag) ? diag.filter(r => r.severity === 'warn') : [];
+
+    if (fails.length > 0) {
+      toast(`Диагностика: найдено проблем — ${fails.length}. Проверьте настройки и службы.`, 'error');
+    } else if (warns.length > 0) {
+      toast(`Диагностика: ${warns.length} предупреждений, критических ошибок нет`, 'info');
+    } else {
+      toast('Диагностика завершена: все компоненты в норме', 'success');
+    }
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    if (btn) btn.innerText = 'Запустить проверку';
+    if (icon) icon.classList.remove('animate-pulse');
+  }
+}
+
+// ─── UI Renderers ───
+function updateZapretUI(status) {
+  state.zapret.running = Boolean(status?.running);
+  if (status?.lastStrategy) {
+    state.zapret.activeStrategy = status.lastStrategy;
+    $('#active-strategy-name').innerText = status.lastStrategy.replace(/\.bat$/i, '');
+    renderStrategyDropdown();
+  }
+
+  const card = $('#zapret-card');
+  const dot = $('#zapret-dot');
+  const title = $('#zapret-title');
+  const desc = $('#zapret-desc');
+  const btn = $('#btn-zapret-power');
+  const btnText = $('#zapret-power-text');
+  const zapretIcon = $('#zapret-power-icon');
+  const ytBadge = $('#yt-status-badge');
+  const discordBadge = $('#discord-status-badge');
+
+  if (state.zapret.running) {
+    if (card) {
+      card.classList.add('slate-card-active');
+    }
+    if (dot) dot.className = 'w-3 h-3 rounded-full bg-emerald-400 flex-shrink-0';
+    if (title) title.innerText = 'Обход включён';
+    if (desc) desc.innerText = 'YouTube и Discord работают без замедления и ограничений';
+    if (btn) {
+      btn.className = 'btn-power-on';
+    }
+    if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
+    if (zapretIcon) {
+      zapretIcon.innerHTML = POWER_ICON_HTML;
+      zapretIcon.classList.remove('animate-spin');
+      zapretIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+    }
+
+    if (ytBadge) {
+      ytBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1';
+      ytBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Включён';
+    }
+    if (discordBadge) {
+      discordBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1';
+      discordBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Включён';
+    }
+  } else {
+    if (card) {
+      card.classList.remove('slate-card-active');
+    }
+    if (dot) dot.className = 'w-3 h-3 rounded-full bg-slate-500 flex-shrink-0';
+    if (title) title.innerText = 'Обход выключен';
+    if (desc) desc.innerText = 'Нажмите «Включить», чтобы запустить обход блокировок';
+    if (btn) {
+      btn.className = 'btn-power-off';
+    }
+    if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
+    if (zapretIcon) {
+      zapretIcon.innerHTML = POWER_ICON_HTML;
+      zapretIcon.classList.remove('animate-spin');
+      zapretIcon.className = 'w-5 h-5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0';
+    }
+
+    if (ytBadge) {
+      ytBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10 flex items-center gap-1';
+      ytBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Пауза';
+    }
+    if (discordBadge) {
+      discordBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10 flex items-center gap-1';
+      discordBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Пауза';
+    }
+  }
+  updateFooterStatus();
+}
+
+function pluralizeNodes(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'узлов';
+  if (mod10 === 1) return 'узел';
+  if (mod10 >= 2 && mod10 <= 4) return 'узла';
+  return 'узлов';
+}
+
+function updateVpnUI(status) {
+  if (!status) return;
+  state.vpn.running = Boolean(status.running);
+  state.vpn.activeServerIndex = status.activeServerIndex ?? -1;
+  state.vpn.servers = status.servers || [];
+  state.vpn.activeServer = status.activeServer || null;
+  if (status.subscriptionUrl) {
+    state.vpn.subscriptionUrl = status.subscriptionUrl;
+    state.vpn.subUrl = status.subscriptionUrl;
+  }
+
+  const card = $('#vpn-hero-card');
+  const dot = $('#vpn-status-dot');
+  const title = $('#vpn-status-title');
+  const btn = $('#btn-vpn-power');
+  const btnText = $('#vpn-power-text');
+  const vpnIcon = $('#vpn-power-icon');
+  const connBar = $('#vpn-connection-bar');
+  const connDot = $('#vpn-active-dot');
+  const connPing = $('#vpn-active-ping');
+  const connIp = $('#vpn-active-ip');
+  const activeNode = $('#vpn-active-node');
+  const activeIndicator = $('#vpn-active-indicator');
+
+  // Subscription service name and days left
+  const subInfo = status.subscriptionInfo || {};
+  const serviceNameEl = $('#sub-service-name');
+  if (serviceNameEl) {
+    serviceNameEl.innerText = subInfo.serviceName || status.serviceName || 'DedVPN Private';
+  }
+  const daysLeftEl = $('#sub-days-left');
+  if (daysLeftEl) {
+    const days = typeof status.daysLeft === 'number'
+      ? status.daysLeft
+      : (typeof subInfo.daysLeft === 'number' ? subInfo.daysLeft : null);
+    if (typeof days === 'number') {
+      daysLeftEl.innerText = `Осталось ${days} ${pluralizeDays(days)}`;
+    } else {
+      daysLeftEl.innerText = 'Подписка активна';
+    }
+  }
+
+  // Populate subscription URL into input if input is currently empty
+  const subInput = $('#vpn-sub-input');
+  if (subInput && !subInput.value.trim() && (status.subscriptionUrl || status.subUrl)) {
+    subInput.value = status.subscriptionUrl || status.subUrl;
+  }
+
+  const total = state.vpn.servers.length;
+  const okCount = state.vpn.servers.filter(s => s.status === 'ok').length;
+  const blockedCount = state.vpn.servers.filter(s => s.status === 'blocked').length;
+
+  // Update smart ping badge with lowest ping among working servers
+  const workingServers = (state.vpn.servers || []).filter(s => s.status === 'ok' && typeof s.ping === 'number' && s.ping > 0);
+  const bestPing = workingServers.length > 0 ? Math.min(...workingServers.map(s => s.ping)) : null;
+  const smartPingBadge = $('#vpn-smart-ping-badge');
+  if (smartPingBadge) {
+    smartPingBadge.innerText = bestPing !== null ? `${bestPing} мс` : '—';
+  }
+
+  // Update nodes count badge
+  const badge = $('#sub-nodes-badge');
+  if (badge) {
+    if (blockedCount > 0) {
+      badge.innerHTML = `<span class="text-emerald-400 font-bold">${okCount}</span>/${total} активны`;
+    } else {
+      badge.innerText = `${total} ${pluralizeNodes(total)}`;
+    }
+  }
+
+  // Update sync status text
+  const syncStatus = $('#sub-sync-status');
+  if (syncStatus) {
+    if (total > 0) {
+      if (blockedCount > 0) {
+        syncStatus.innerHTML = `Доступно: <span class="text-emerald-400 font-semibold">${okCount}</span>, в блоке: <span class="text-rose-400 font-semibold">${blockedCount}</span>`;
+      } else {
+        syncStatus.innerText = `Узлов в базе: ${total}`;
+      }
+    } else {
+      syncStatus.innerText = 'Подписка не загружена';
+    }
+  }
+
+  // Update bottom summary in right card
+  const bottomSummary = $('#sub-bottom-summary');
+  if (bottomSummary) {
+    if (total > 0) {
+      if (blockedCount > 0 && okCount > 0) {
+        bottomSummary.innerHTML = `<span class="text-emerald-400 font-semibold">${okCount}</span> из ${total} ${pluralizeNodes(total)} готовы к работе <span class="text-rose-400/90 font-medium">(${blockedCount} в блоке)</span>`;
+      } else if (blockedCount > 0 && okCount === 0) {
+        bottomSummary.innerHTML = `<span class="text-rose-400 font-semibold">Все узлы (${blockedCount}) заблокированы ТСПУ</span>`;
+      } else if (okCount > 0 && blockedCount === 0) {
+        bottomSummary.innerHTML = `Все <span class="text-emerald-400 font-semibold">${total}</span> ${pluralizeNodes(total)} готовы к работе`;
+      } else {
+        bottomSummary.innerText = `В базе ${total} ${pluralizeNodes(total)} (замерьте пинг)`;
+      }
+    } else {
+      bottomSummary.innerText = 'Вставьте ссылку на подписку';
+    }
+  }
+
+  const flagContainer = $('#vpn-active-flag');
+
+  if (state.vpn.running) {
+    if (card) card.classList.add('slate-card-active');
+    if (dot) dot.className = 'w-3 h-3 rounded-full bg-emerald-400 flex-shrink-0';
+    if (title) title.innerText = 'VPN подключение';
+    if (btn) {
+      btn.className = 'w-full h-[48px] rounded-2xl font-bold text-sm bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] text-white border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+    }
+    if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
+    if (vpnIcon) {
+      vpnIcon.innerHTML = POWER_ICON_HTML;
+      vpnIcon.classList.remove('animate-spin');
+      vpnIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+    }
+    if (connBar) {
+      connBar.classList.remove('opacity-50');
+      connBar.style.borderColor = 'rgba(16, 185, 129, 0.45)';
+    }
+    if (connDot) connDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+    if (activeIndicator) {
+      activeIndicator.classList.add('active');
+      activeIndicator.title = 'Подключено';
+    }
+
+    const currentServer = state.vpn.servers[state.vpn.activeServerIndex] || status.activeServer;
+    if (currentServer) {
+      if (currentServer.name) {
+        localStorage.setItem('vpn_last_active_server_name', currentServer.name);
+      }
+      const cCode = detectCountryCode(currentServer.name || '');
+      if (flagContainer) {
+        flagContainer.innerHTML = `<div class="w-6 h-4 rounded-[3px] overflow-hidden shadow-sm flex-shrink-0 border border-white/15 select-none">${getCountryFlagSvg(cCode)}</div>`;
+      }
+      if (activeNode) activeNode.innerText = cleanServerName(currentServer.name || 'VLESS Node');
+      if (connPing) connPing.innerText = currentServer.ping ? `${currentServer.ping} мс` : '—';
+      if (connIp) connIp.innerText = currentServer.ip || currentServer.address || currentServer.server || '127.0.0.1';
+    }
+  } else {
+    if (card) card.classList.remove('slate-card-active');
+    if (dot) dot.className = 'w-3.5 h-3.5 rounded-full bg-slate-500';
+    if (title) title.innerText = 'VPN подключение (выкл)';
+    if (btn) {
+      btn.className = 'w-full h-[48px] rounded-2xl font-bold text-sm bg-[#333d52] hover:bg-[#3d4961] text-white border border-white/10 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+    }
+    if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
+    if (vpnIcon) {
+      vpnIcon.innerHTML = POWER_ICON_HTML;
+      vpnIcon.classList.remove('animate-spin');
+      vpnIcon.className = 'w-5 h-5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0';
+    }
+    if (connBar) {
+      connBar.classList.add('opacity-50');
+      connBar.style.borderColor = '';
+    }
+    if (connDot) connDot.className = 'w-1.5 h-1.5 rounded-full bg-slate-500';
+    if (activeIndicator) {
+      activeIndicator.classList.remove('active');
+      activeIndicator.title = 'Отключено';
+    }
+    if (flagContainer) {
+      flagContainer.innerHTML = `<div class="w-6 h-4 rounded-[3px] overflow-hidden shadow-sm flex-shrink-0 border border-white/15 select-none">${getCountryFlagSvg('GLOBAL')}</div>`;
+    }
+    if (activeNode) activeNode.innerText = 'Не подключено';
+    if (connPing) connPing.innerText = '—';
+    if (connIp) connIp.innerText = '—';
+  }
+
+  renderVpnServers();
+  updateFooterStatus();
+}
+
+function buildVpnPingBadge(srv) {
+  if (srv.status === 'blocked') {
+    return '<span class="text-[11px] font-mono text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">Блок</span>';
+  } else if (typeof srv.ping === 'number' && srv.ping > 0) {
+    const pingCol = srv.ping < 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : (srv.ping < 160 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-slate-400 bg-white/[0.04] border-white/5');
+    return `<span class="text-xs font-mono font-medium ${pingCol} px-2 py-0.5 rounded-md border">${srv.ping} мс</span>`;
+  }
+  return '<span class="text-xs font-mono text-slate-400 bg-white/[0.04] px-2 py-0.5 rounded-md border border-white/5">—</span>';
+}
+
+function updateVpnServerCard(idx, srv) {
+  const card = $(`#node-card-${idx}`);
+  if (!card) return;
+  const pingContainer = card.querySelector('[data-vpn-ping]');
+  if (pingContainer) {
+    pingContainer.innerHTML = buildVpnPingBadge(srv);
+  }
+}
+
+function renderVpnServers() {
+  const container = $('#vpn-servers-list') || $('#vpn-servers-scroll');
+  if (!container) return;
+
+  if (!state.vpn.servers || state.vpn.servers.length === 0) {
+    container.innerHTML = `
+      <div class="h-44 flex flex-col items-center justify-center text-center p-4 text-slate-500 text-xs">
+        <svg class="w-8 h-8 stroke-slate-600 stroke-1.5 fill-none mb-2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        <span>Список серверов пуст</span>
+        <span class="text-[11px] text-slate-600 mt-1">Вставьте ссылку на подписку и нажмите «Обновить»</span>
+      </div>`;
+    return;
+  }
+
+  // Targeted update if list count is unchanged
+  const existingCards = container.querySelectorAll('[id^="node-card-"]');
+  if (existingCards.length === state.vpn.servers.length) {
+    state.vpn.servers.forEach((srv, idx) => {
+      const card = $(`#node-card-${idx}`);
+      if (!card) return;
+      const isCurrent = state.vpn.running && state.vpn.activeServerIndex === idx;
+      if (isCurrent) {
+        card.className = 'inner-panel rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all node-card-active cursor-default';
+        card.removeAttribute('onclick');
+      } else {
+        card.className = 'inner-panel rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all border-white/10 hover:border-white/20 bg-[#141923]/60 hover:bg-[#141923] cursor-pointer active:scale-[0.99]';
+        card.setAttribute('onclick', `connectServer(${idx})`);
+      }
+      const pingContainer = card.querySelector('[data-vpn-ping]');
+      if (pingContainer) pingContainer.innerHTML = buildVpnPingBadge(srv);
+      const actionContainer = card.querySelector('[data-vpn-action]');
+      if (actionContainer) {
+        actionContainer.innerHTML = isCurrent
+          ? '<button class="h-7 px-3 rounded-lg text-[11px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 cursor-default">Подключено</button>'
+          : `<button onclick="event.stopPropagation(); connectServer(${idx})" class="h-7 px-3 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 cursor-pointer active:scale-95 transition-all">Подключить</button>`;
+      }
+    });
+    return;
+  }
+
+  container.innerHTML = state.vpn.servers.map((srv, idx) => {
+    const isCurrent = state.vpn.running && state.vpn.activeServerIndex === idx;
+    const pingBadge = buildVpnPingBadge(srv);
+
+    const rawName = srv.name || `Сервер #${idx + 1}`;
+    const cleanTitle = cleanServerName(rawName);
+    const countryCode = detectCountryCode(rawName);
+    const flagSvg = getCountryFlagSvg(countryCode);
+
+    const protoText = `${(srv.protocol || 'VLESS').toUpperCase()} · ${(srv.security === 'reality' ? 'Reality' : (srv.security ? srv.security.toUpperCase() : 'TLS'))} · ${(srv.network || 'tcp').toUpperCase()}`;
+    const hostPort = `${srv.address || srv.server || ''}:${srv.port || 443}`;
+
+    const cardBg = isCurrent
+      ? 'node-card-active'
+      : 'border-white/10 hover:border-white/20 bg-[#141923]/60 hover:bg-[#141923]';
+
+    const cardClickAttr = isCurrent ? '' : `onclick="connectServer(${idx})"`;
+    const cardCursorClass = isCurrent ? 'cursor-default' : 'cursor-pointer active:scale-[0.99]';
+
+    const btnHtml = isCurrent
+      ? '<button class="h-7 px-3 rounded-lg text-[11px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 cursor-default">Подключено</button>'
+      : `<button onclick="event.stopPropagation(); connectServer(${idx})" class="h-7 px-3 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 cursor-pointer active:scale-95 transition-all">Подключить</button>`;
+
+    return `
+      <div id="node-card-${idx}" ${cardClickAttr} class="inner-panel rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all ${cardBg} ${cardCursorClass}">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-6 h-4 rounded-[3px] overflow-hidden shadow-sm flex-shrink-0 border border-white/15 select-none">
+            ${flagSvg}
+          </div>
+          <div class="min-w-0">
+            <span class="text-xs font-bold text-white truncate block" title="${cleanTitle}">${cleanTitle}</span>
+            <span class="text-[11px] text-slate-400 block mt-0.5 truncate" title="${protoText} · ${hostPort}">${protoText} · ${hostPort}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5 flex-shrink-0">
+          <div data-vpn-ping>${pingBadge}</div>
+          <div data-vpn-action>${btnHtml}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function updateTgProxyUI(status) {
-  if (!status) return;
-  state.tgProxy = { ...state.tgProxy, ...status };
+  state.tg.running = Boolean(status?.running);
+  state.tg.installed = Boolean(status?.installed);
+  state.tg.proxyUrl = status?.proxyUrl || null;
 
-  const badge = $('#tgProxyBadge');
-  const toggle = $('#btnTgProxyToggle');
-  const address = $('#tgProxyAddress');
-  const updateBlock = $('#tgProxyUpdateBlock');
-  const updateText = $('#tgProxyUpdateText');
+  const card = $('#tg-card');
+  const badge = $('#tg-status-badge');
+  const clientDesc = $('#tg-client-desc');
+  const btn = $('#btn-tg-power');
+  const btnText = $('#btn-tg-power-text');
+  const tgIcon = $('#tg-power-icon');
 
-  if (status.running) {
-    badge.textContent = 'Работает';
-    badge.className = 'tg-proxy-badge on';
-    toggle.textContent = 'Выключить прокси';
-    toggle.classList.add('btn-danger');
+  if (state.tg.running) {
+    if (card) card.classList.add('tg-card-active');
+    if (badge) {
+      badge.className = 'px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#229ed9]/25 text-[#229ed9] border border-[#229ed9]/45 whitespace-nowrap flex-shrink-0';
+      badge.innerText = 'В СЕТИ';
+    }
+    if (clientDesc) {
+      clientDesc.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Готов к работе';
+      clientDesc.className = 'text-emerald-400 font-bold flex items-center gap-1.5';
+    }
+    if (btn) {
+      btn.className = 'w-full h-[48px] rounded-2xl text-sm font-bold bg-gradient-to-b from-[#1a85b8] to-[#156d98] hover:from-[#229ed9] hover:to-[#1a85b8] text-white border border-sky-500/30 shadow-[0_2px_8px_rgba(34,158,217,0.25)] hover:shadow-[0_4px_14px_rgba(34,158,217,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+    }
+    if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
+    if (tgIcon) {
+      tgIcon.innerHTML = POWER_ICON_HTML;
+      tgIcon.classList.remove('animate-spin');
+      tgIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+    }
+    const pingEl = $('#tg-ping-val');
+    if (pingEl) {
+      pingEl.innerText = status?.pingMs ? `${status.pingMs} мс` : '< 10 мс';
+      pingEl.className = 'text-emerald-400 font-mono font-semibold';
+    }
   } else {
-    badge.textContent = 'Выключен';
-    badge.className = 'tg-proxy-badge off';
-    toggle.textContent = status.installed ? 'Включить прокси' : 'Скачать и включить';
-    toggle.classList.remove('btn-danger');
+    if (card) card.classList.remove('tg-card-active');
+    if (badge) {
+      badge.className = 'px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#2b3548] text-slate-400 border border-white/10 whitespace-nowrap flex-shrink-0';
+      badge.innerText = 'ПАУЗА';
+    }
+    if (clientDesc) {
+      clientDesc.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Шлюз на паузе';
+      clientDesc.className = 'text-slate-400 font-bold flex items-center gap-1.5';
+    }
+    if (btn) {
+      btn.className = 'w-full h-[48px] rounded-2xl text-sm font-bold bg-[#333d52] hover:bg-[#3d4961] text-white border border-white/10 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+    }
+    if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
+    if (tgIcon) {
+      tgIcon.innerHTML = POWER_ICON_HTML;
+      tgIcon.classList.remove('animate-spin');
+      tgIcon.className = 'w-5 h-5 stroke-sky-400 stroke-2 fill-none flex-shrink-0';
+    }
+    const pingEl = $('#tg-ping-val');
+    if (pingEl) {
+      pingEl.innerText = '—';
+      pingEl.className = 'text-slate-500 font-mono font-semibold';
+    }
+  }
+}
+
+function updateFooterStatus() {
+  const dot = $('#footer-status-dot');
+  const desc = $('#footer-status-desc');
+  const pingEl = $('#footer-ping-text');
+
+  let activePing = null;
+  if (state.vpn.running) {
+    const cur = state.vpn.servers[state.vpn.activeServerIndex] || state.vpn.activeServer;
+    if (cur && cur.ping) activePing = `${cur.ping} мс`;
+    else activePing = '36 мс';
+  } else if (state.tg.running && state.tg.pingMs) {
+    activePing = `${state.tg.pingMs} мс`;
+  } else if (state.zapret.running) {
+    activePing = '< 20 мс';
   }
 
-  address.textContent = `${status.host || '127.0.0.1'}:${status.port || 1443}`;
+  if (pingEl) {
+    pingEl.innerText = activePing || '—';
+  }
 
-  toggle.disabled = state.tgProxy.busy;
-
-  if (status.updateAvailable && status.remote) {
-    updateBlock.classList.remove('hidden');
-    updateText.textContent = `Доступна версия ${status.remote}`;
+  if (state.zapret.running && state.vpn.running) {
+    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 transition-colors';
+    if (desc) desc.innerText = 'Zapret и VPN активны';
+  } else if (state.zapret.running) {
+    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 transition-colors';
+    if (desc) desc.innerText = 'Обход Zapret DPI активен';
+  } else if (state.vpn.running) {
+    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 transition-colors';
+    if (desc) desc.innerText = 'VPN VLESS Reality активен';
   } else {
-    updateBlock.classList.add('hidden');
+    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500 transition-colors';
+    if (desc) desc.innerText = 'Все сервисы остановлены';
   }
 }
 
-function setTgProxyBusy(busy) {
-  state.tgProxy.busy = busy;
-  updateTgProxyUI(state.tgProxy);
-}
+// ─── App Initialization ───
+document.addEventListener('DOMContentLoaded', async () => {
+  // Bind Window Controls
+  $('#btnWinMinimize')?.addEventListener('click', () => api('windowMinimize'));
+  $('#btnWinClose')?.addEventListener('click', () => api('windowClose'));
 
-async function applyStrategy(strategy, options = {}) {
-  if (!strategy) return;
+  // Close Choice Modal Actions
+  $('#btnCloseToTray')?.addEventListener('click', () => {
+    $('#closeChoiceModal')?.classList.add('hidden');
+    api('windowCloseChoice', 'tray');
+  });
+  $('#btnCloseQuit')?.addEventListener('click', () => {
+    $('#closeChoiceModal')?.classList.add('hidden');
+    api('windowCloseChoice', 'quit');
+  });
 
+  // Changelog Modal Close Button
+  $('#btn-close-changelog')?.addEventListener('click', closeChangelogModal);
+
+  // Strategy Probe Cancel
+  $('#btnStrategyProbeCancel')?.addEventListener('click', () => {
+    api('cancelStrategyProbe');
+    $('#strategyProbeProgressModal')?.classList.add('hidden');
+  });
+
+  // Sites Search
+  $('#sites-search-input')?.addEventListener('input', (e) => {
+    state.sites.searchQuery = e.target.value;
+    renderSites();
+  });
+
+  // Initial Data Fetch
   try {
-    await api('setStrategy', strategy);
-    if (state.running) {
-      setBusy(true);
-      await api('restart', strategy);
-      const status = await api('getStatus');
-      updateUI(status);
-      if (!options.silent) toast('Стратегия переключена', 'success');
-      setBusy(false);
-    } else if (!options.silent) {
-      toast('Стратегия выбрана', 'success');
-    }
-  } catch (e) {
-    toast(e.message, 'error');
-    setBusy(false);
-  }
-}
-
-function normalizeSiteInput(raw) {
-  return raw.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-}
-
-function updateSitesAccordion(accordionId, expanded) {
-  const accordion = $(accordionId);
-  const toggle = $(`${accordionId}Toggle`);
-  if (!accordion || !toggle) return;
-
-  accordion.classList.toggle('collapsed', !expanded);
-  toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-}
-
-function renderSiteItems({ sites, listEl, emptyEl, countEl, onRemove, allowEmpty = false, searchQuery = '' }) {
-  if (!listEl) return;
-
-  listEl.innerHTML = '';
-  const query = String(searchQuery || '').trim().toLowerCase();
-  const visibleSites = query
-    ? sites.filter((site) => site.toLowerCase().includes(query))
-    : sites;
-
-  if (sites.length === 0) {
-    if (emptyEl) emptyEl.hidden = false;
-  } else {
-    if (emptyEl) emptyEl.hidden = visibleSites.length > 0;
-    for (const site of visibleSites) {
-      const item = document.createElement('div');
-      item.className = 'site-item';
-      item.innerHTML = `
-        <svg class="site-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-        </svg>
-        <button class="site-item-remove" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
-            <path d="M10 11v6M14 11v6"/>
-          </svg>
-        </button>
-      `;
-      const domain = document.createElement('span');
-      domain.className = 'site-item-domain';
-      domain.title = site;
-      domain.textContent = site;
-      const removeBtn = item.querySelector('.site-item-remove');
-      removeBtn.title = `Удалить ${site}`;
-      removeBtn.setAttribute('aria-label', `Удалить ${site}`);
-      item.insertBefore(domain, removeBtn);
-      removeBtn.addEventListener('click', () => onRemove(site, item, allowEmpty));
-      listEl.appendChild(item);
-    }
-  }
-
-  if (countEl) {
-    countEl.textContent = query ? `${visibleSites.length}/${sites.length}` : String(sites.length);
-  }
-}
-
-function renderSites(sites) {
-  state.sites = [...sites];
-  renderSiteItems({
-    sites,
-    listEl: $('#sitesList'),
-    emptyEl: $('#sitesEmpty'),
-    countEl: $('#sitesCount'),
-    onRemove: removeSite,
-    allowEmpty: true,
-    searchQuery: state.sitesSearchQuery
-  });
-  updateSitesAccordion('#sitesAccordion', state.sitesExpanded);
-}
-
-function renderCustomSites(sites) {
-  state.customSites = [...sites];
-  renderSiteItems({
-    sites,
-    listEl: $('#customSitesList'),
-    emptyEl: $('#customSitesEmpty'),
-    countEl: $('#customSitesCount'),
-    onRemove: removeCustomSite,
-    allowEmpty: true,
-    searchQuery: state.customSitesSearchQuery
-  });
-  updateSitesAccordion('#customSitesAccordion', state.customSitesExpanded);
-}
-
-function renderCustomListUI() {
-  const select = $('#customListSelect');
-  const editor = $('#customListEditor');
-  const placeholder = $('#customListPlaceholder');
-  const deleteBtn = $('#btnDeleteCustomList');
-  const createForm = $('#customListCreateForm');
-  if (!select) return;
-
-  const { lists, activeId } = state.customLists;
-  const prevValue = state.customListEditing || select.value || '';
-
-  select.innerHTML = '<option value="">Не использовать</option>';
-  for (const list of lists) {
-    const opt = document.createElement('option');
-    opt.value = list.id;
-    opt.textContent = `${list.name} (${list.count})`;
-    select.appendChild(opt);
-  }
-
-  const activeValue = activeId || '';
-  select.value = lists.some((l) => l.id === prevValue) ? prevValue : activeValue;
-  state.customListEditing = select.value || null;
-
-  const hasSelection = Boolean(state.customListEditing);
-  if (editor) editor.hidden = !hasSelection;
-  if (placeholder) {
-    placeholder.hidden = hasSelection;
-    placeholder.textContent = lists.length
-      ? 'Выберите список в выпадающем меню или создайте новый'
-      : 'Создайте список или выберите существующий';
-  }
-  if (deleteBtn) deleteBtn.hidden = !hasSelection;
-  if (createForm) createForm.hidden = true;
-
-  const label = $('#customSitesAccordionLabel');
-  if (label && state.customListEditing) {
-    label.textContent = `Домены: ${state.customListEditing}`;
-  }
-}
-
-async function persistSites(options = {}) {
-  if (state.sitesSaving) return state.sites;
-  state.sitesSaving = true;
-
-  try {
-    const saved = await api('saveSites', state.sites);
-    renderSites(saved);
-    if (!options.silent) toast('Основной список сохранён', 'success');
-    notifySitesRestartIfNeeded();
-    return saved;
-  } catch (e) {
-    toast(e.message, 'error');
-    throw e;
-  } finally {
-    state.sitesSaving = false;
-  }
-}
-
-async function persistCustomSites(options = {}) {
-  if (!state.customListEditing) return state.customSites;
-  if (state.customSitesSaving) return state.customSites;
-  state.customSitesSaving = true;
-
-  try {
-    const saved = await api('saveCustomListSites', state.customListEditing, state.customSites);
-    renderCustomSites(saved);
-    const meta = await api('getCustomLists');
-    state.customLists = meta;
-    renderCustomListUI();
-    if (!options.silent) toast('Дополнительный список сохранён', 'success');
-    notifySitesRestartIfNeeded();
-    return saved;
-  } catch (e) {
-    toast(e.message, 'error');
-    throw e;
-  } finally {
-    state.customSitesSaving = false;
-  }
-}
-
-async function loadCustomLists() {
-  const meta = await api('getCustomLists');
-  state.customLists = meta;
-  renderCustomListUI();
-
-  if (state.customListEditing) {
-    const sites = await api('getCustomListSites', state.customListEditing);
-    renderCustomSites(sites);
-  } else {
-    renderCustomSites([]);
-  }
-}
-
-async function addSite() {
-  const input = $('#siteInput');
-  const val = normalizeSiteInput(input.value);
-  if (!val) return toast('Введите домен', 'error');
-  if (state.sites.includes(val)) return toast('Уже в списке', 'info');
-
-  state.sites.push(val);
-  renderSites(state.sites);
-  input.value = '';
-  state.sitesExpanded = true;
-  updateSitesAccordion('#sitesAccordion', state.sitesExpanded);
-
-  try {
-    await persistSites({ silent: true });
-    toast(`Добавлен ${val}`, 'success');
-  } catch {
-    // persistSites already toasts error
-  }
-}
-
-async function removeSite(site, itemEl) {
-  if (state.sitesSaving) return;
-  itemEl?.classList.add('removing');
-
-  const next = state.sites.filter((s) => s !== site);
-  state.sites = next;
-  renderSites(state.sites);
-
-  try {
-    await persistSites({ silent: true });
-    toast(`Удалён ${site}`, 'success');
-  } catch {
-    try {
-      const sites = await api('getSites');
-      renderSites(sites);
-    } catch {
-      // ignore
-    }
-  }
-}
-
-async function addCustomSite() {
-  if (!state.customListEditing) return toast('Выберите список', 'error');
-  const input = $('#customSiteInput');
-  const val = normalizeSiteInput(input.value);
-  if (!val) return toast('Введите домен', 'error');
-  if (state.customSites.includes(val)) return toast('Уже в списке', 'info');
-
-  state.customSites.push(val);
-  renderCustomSites(state.customSites);
-  input.value = '';
-  state.customSitesExpanded = true;
-  updateSitesAccordion('#customSitesAccordion', state.customSitesExpanded);
-
-  try {
-    await persistCustomSites({ silent: true });
-    toast(`Добавлен ${val}`, 'success');
-  } catch {
-    // persistCustomSites already toasts error
-  }
-}
-
-async function removeCustomSite(site, itemEl) {
-  if (!state.customListEditing || state.customSitesSaving) return;
-  itemEl?.classList.add('removing');
-
-  state.customSites = state.customSites.filter((s) => s !== site);
-  renderCustomSites(state.customSites);
-
-  try {
-    await persistCustomSites({ silent: true });
-    toast(`Удалён ${site}`, 'success');
-  } catch {
-    try {
-      const sites = await api('getCustomListSites', state.customListEditing);
-      renderCustomSites(sites);
-    } catch {
-      // ignore
-    }
-  }
-}
-
-function showCustomListCreateForm(show) {
-  const form = $('#customListCreateForm');
-  const input = $('#customListNameInput');
-  if (!form) return;
-  form.hidden = !show;
-  if (show) {
-    input.value = '';
-    input.focus();
-  }
-}
-
-async function createCustomList(name) {
-  const trimmed = name.trim();
-  if (!trimmed) return toast('Введите название списка', 'error');
-
-  const meta = await api('createCustomList', trimmed);
-  state.customLists = { lists: meta.lists, activeId: meta.activeId };
-  state.customListEditing = meta.createdId || null;
-
-  renderCustomListUI();
-  if (state.customListEditing) {
-    $('#customListSelect').value = state.customListEditing;
-    const sites = await api('getCustomListSites', state.customListEditing);
-    renderCustomSites(sites);
-  }
-  toast(`Список «${trimmed}» создан`, 'success');
-  notifySitesRestartIfNeeded();
-}
-
-async function onCustomListSelectChange() {
-  const select = $('#customListSelect');
-  const listId = select.value || null;
-  state.customListEditing = listId;
-
-  try {
-    const meta = await api('setActiveCustomList', listId);
-    state.customLists = meta;
-    renderCustomListUI();
-
-    if (listId) {
-      const sites = await api('getCustomListSites', listId);
-      renderCustomSites(sites);
-      notifySitesRestartIfNeeded();
-    } else {
-      renderCustomSites([]);
-    }
-  } catch (e) {
-    toast(e.message, 'error');
-    await loadCustomLists();
-  }
-}
-
-async function deleteSelectedCustomList() {
-  if (!state.customListEditing) return;
-  const id = state.customListEditing;
-  const confirmed = await showConfirmModal({
-    title: 'Удалить список?',
-    text: `Список «${id}» и все его домены будут удалены без возможности восстановления.`,
-    confirmLabel: 'Удалить'
-  });
-  if (!confirmed) return;
-
-  try {
-    const meta = await api('deleteCustomList', id);
-    state.customLists = meta;
-    state.customListEditing = null;
-    renderCustomSites([]);
-    renderCustomListUI();
-    toast('Список удалён', 'success');
-    notifySitesRestartIfNeeded();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-}
-
-function renderDiagnostics(results) {
-  const container = $('#diagResults');
-  container.innerHTML = '';
-
-  for (const r of results) {
-    const item = document.createElement('div');
-    item.className = 'diag-item';
-    const severity = r.severity || (r.ok ? 'ok' : 'fail');
-    const cls = severity === 'ok' ? 'diag-ok' : severity === 'warn' ? 'diag-warn' : 'diag-fail';
-    const icon = severity === 'ok' ? '✓' : severity === 'warn' ? '!' : '✗';
-    item.innerHTML = `<span class="${cls}">${icon}</span><span>${r.name}: ${r.message}</span>`;
-    container.appendChild(item);
-  }
-}
-
-function renderUpdateCheckResults(all) {
-  const el = $('#updateResult');
-  if (!el) return;
-
-  state.lastAllUpdates = all;
-  const rows = [all.hub, all.zapret, all.tg].filter(Boolean);
-  el.innerHTML = rows.map((info) => {
-    const label = escapeHtml(info.label || info.product || 'Компонент');
-    if (info.error) {
-      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Ошибка: ${escapeHtml(info.error)}</span></div>`;
-    }
-    const local = formatUpdateVersion(info.local) || 'неизвестно';
-    const remote = formatUpdateVersion(info.remote);
-    if (info.updateAvailable && remote) {
-      const action = info.product === 'hub'
-        ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="hub">Обновить</button>`
-        : info.product === 'zapret'
-          ? `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="zapret">Обновить</button>`
-          : `<button class="btn btn-ghost btn-sm update-row-action" type="button" data-update="tg">Обновить</button>`;
-      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Доступна ${escapeHtml(remote)} (у вас ${escapeHtml(local)})</span>${action}</div>`;
-    }
-    if (info.updateAvailable && !remote) {
-      return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-warn">Доступно обновление, но версия не распознана</span></div>`;
-    }
-    return `<div class="update-row"><span class="update-row-label">${label}</span><span class="diag-ok">✓ Актуально (${escapeHtml(local)})</span></div>`;
-  }).join('');
-
-  el.querySelector('[data-update="hub"]')?.addEventListener('click', () => {
-    runHubUpdate(all.hub);
-  });
-
-  el.querySelector('[data-update="zapret"]')?.addEventListener('click', () => {
-    showUpdateModal(all.zapret);
-  });
-
-  el.querySelector('[data-update="tg"]')?.addEventListener('click', () => {
-    runTgProxyUpdateFlow({ fromService: true });
-  });
-}
-
-function renderHubUpdateProgress(progress) {
-  const el = $('#updateResult');
-  if (!el) return;
-  const percent = Math.max(0, Math.min(100, progress.percent || 0));
-  el.innerHTML = `
-    <div class="update-progress">
-      <div class="update-progress-bar">
-        <div class="update-progress-fill" style="width:${percent}%"></div>
-      </div>
-      <p class="update-progress-label">${escapeHtml(progress.message || 'Обновление Zapret HUB...')}</p>
-    </div>`;
-}
-
-async function runHubUpdate(info) {
-  if (!info || state.hubUpdating) return;
-  state.hubUpdating = true;
-  renderHubUpdateProgress({ percent: 0, message: 'Подготовка к обновлению HUB...' });
-
-  try {
-    await api('applyHubUpdate');
-  } catch (e) {
-    state.hubUpdating = false;
-    toast(e.message, 'error');
-    try {
-      renderUpdateCheckResults(await api('checkAllUpdates', { force: true }));
-    } catch {
-      // ignore
-    }
-  }
-}
-
-function getPendingUpdateItems(all) {
-  if (!all) return [];
-  return [all.hub, all.zapret, all.tg].filter((info) => info?.updateAvailable && !info?.error);
-}
-
-function renderStartupUpdatesList(all) {
-  const el = $('#startupUpdatesList');
-  if (!el) return;
-
-  const rows = getPendingUpdateItems(all);
-  el.innerHTML = rows.map((info) => {
-    const label = info.label || info.product || 'Компонент';
-    return `<div class="update-row">
-      <span class="update-row-label">${label}</span>
-      <span class="diag-warn">${info.local} → ${info.remote}</span>
-    </div>`;
-  }).join('');
-}
-
-function setStartupUpdatesProgress(progress) {
-  $('#startupUpdatesProgress')?.classList.remove('hidden');
-  $('#startupUpdatesActions')?.classList.add('hidden');
-  const percent = Math.max(0, Math.min(100, progress.percent || 0));
-  const fill = $('#startupUpdatesProgressFill');
-  if (fill) fill.style.width = `${percent}%`;
-  const label = $('#startupUpdatesProgressLabel');
-  if (label) label.textContent = progress.message || 'Обновление...';
-}
-
-function hideStartupUpdatesModal() {
-  $('#startupUpdatesModal')?.classList.add('hidden');
-  $('#startupUpdatesProgress')?.classList.add('hidden');
-  $('#startupUpdatesActions')?.classList.remove('hidden');
-  const fill = $('#startupUpdatesProgressFill');
-  if (fill) fill.style.width = '0%';
-  state.pendingStartupUpdates = null;
-  state.startupUpdating = false;
-}
-
-function showStartupUpdatesModal(all) {
-  const rows = getPendingUpdateItems(all);
-  if (!rows.length) return;
-
-  state.pendingStartupUpdates = all;
-  renderStartupUpdatesList(all);
-
-  const hasHub = Boolean(all.hub?.updateAvailable && !all.hub?.error);
-  const hasAuto = Boolean(
-    (all.zapret?.updateAvailable && !all.zapret?.error)
-    || (all.tg?.updateAvailable && !all.tg?.error)
-  );
-  const btnAll = $('#btnStartupUpdateAll');
-  if (btnAll) {
-    if (hasHub && hasAuto) btnAll.textContent = 'Обновить всё';
-    else if (hasHub) btnAll.textContent = 'Обновить HUB';
-    else btnAll.textContent = 'Обновить автоматически';
-  }
-
-  $('#startupUpdatesText').textContent = rows.length === 1
-    ? 'При запуске найдена новая версия одного компонента.'
-    : `При запуске найдены новые версии ${rows.length} компонентов.`;
-
-  $('#startupUpdatesProgress')?.classList.add('hidden');
-  $('#startupUpdatesActions')?.classList.remove('hidden');
-  $('#startupUpdatesModal')?.classList.remove('hidden');
-}
-
-async function runStartupUpdateAll(all) {
-  if (!all || state.startupUpdating) return;
-  state.startupUpdating = true;
-  setStartupUpdatesProgress({ percent: 0, message: 'Подготовка к обновлению...' });
-
-  try {
-    if (all.zapret?.updateAvailable && !all.zapret?.error) {
-      setStartupUpdatesProgress({ percent: 10, message: `Обновление движка до ${all.zapret.remote}...` });
-      const result = await api('applyUpdate', all.zapret.remote);
-      const status = await api('getStatus');
-      updateUI(status);
-      state.strategies = await api('getStrategies');
-      renderStrategies(state.strategies, status.lastStrategy || 'general.bat');
-      toast(`Движок обновлён до ${result.local}`, 'success');
-    }
-
-    if (all.tg?.updateAvailable && !all.tg?.error) {
-      setStartupUpdatesProgress({ percent: 55, message: `Обновление TG Proxy до ${all.tg.remote}...` });
-      const tgResult = await runTgProxyUpdateFlow({ silent: true });
-      if (tgResult?.result?.updated) {
-        toast(`TG Proxy обновлён до ${tgResult.result.local || all.tg.remote}`, 'success');
-      }
-    }
-
-    if (all.hub?.updateAvailable && !all.hub?.error) {
-      setStartupUpdatesProgress({ percent: 85, message: `Обновление Zapret HUB до ${all.hub.remote}...` });
-      await api('applyHubUpdate');
-    }
-
-    hideStartupUpdatesModal();
-    const el = $('#updateResult');
-    if (el) {
-      try {
-        renderUpdateCheckResults(await api('checkAllUpdates', { force: true }));
-      } catch {
-        el.innerHTML = '<span class="diag-ok">✓ Обновления установлены</span>';
-      }
-    }
-  } catch (e) {
-    state.startupUpdating = false;
-    $('#startupUpdatesActions')?.classList.remove('hidden');
-    toast(e.message, 'error');
-  }
-}
-
-function setupStartupUpdatesModal() {
-  $('#btnStartupUpdateLater')?.addEventListener('click', hideStartupUpdatesModal);
-  $('#btnStartupUpdateAll')?.addEventListener('click', () => {
-    if (state.pendingStartupUpdates) {
-      runStartupUpdateAll(state.pendingStartupUpdates);
-    }
-  });
-  const startupModal = $('#startupUpdatesModal');
-  startupModal?.addEventListener('click', (e) => {
-    if (e.target === startupModal && !state.startupUpdating) {
-      hideStartupUpdatesModal();
-    }
-  });
-
-  window.zapretAPI.onHubUpdateProgress?.((progress) => {
-    if (state.startupUpdating) {
-      setStartupUpdatesProgress(progress);
-      return;
-    }
-    if (state.hubUpdating) {
-      renderHubUpdateProgress(progress);
-    }
-  });
-}
-
-function showUpdateModal(info, options = {}) {
-  state.pendingUpdate = info;
-  state.updateContext = options.context || 'manual';
-  state.pendingStartStrategy = options.strategy || null;
-
-  const beforeStart = state.updateContext === 'beforeStart';
-  const onStartup = state.updateContext === 'startup';
-  $('#updateModalText').textContent = beforeStart
-    ? `Перед запуском рекомендуем обновить Zapret: доступна версия ${info.remote} (у вас ${info.local}).`
-    : `Доступна версия ${info.remote}. У вас установлена ${info.local}. Обновить автоматически?`;
-
-  $('#btnUpdateLater').textContent = beforeStart ? 'Запустить без обновления' : 'Позже';
-  if (onStartup) {
-    $('#updateModalText').textContent =
-      `Вышла новая версия ${info.remote}. У вас установлена ${info.local}. Обновить автоматически?`;
-  }
-  $('#btnUpdateNow').textContent = 'Обновить';
-  $('#updateProgressBlock').classList.add('hidden');
-  $('#updateModalActions').classList.remove('hidden');
-  $('#updateProgressFill').style.width = '0%';
-  $('#updateProgressLabel').textContent = 'Подготовка...';
-  $('#updateModal').classList.remove('hidden');
-}
-
-function hideUpdateModal() {
-  $('#updateModal').classList.add('hidden');
-  state.pendingUpdate = null;
-  state.updating = false;
-  state.updateContext = 'manual';
-  state.pendingStartStrategy = null;
-}
-
-function setUpdateProgress(progress) {
-  $('#updateProgressBlock').classList.remove('hidden');
-  $('#updateModalActions').classList.add('hidden');
-  const percent = Math.max(0, Math.min(100, progress.percent || 0));
-  $('#updateProgressFill').style.width = `${percent}%`;
-  $('#updateProgressLabel').textContent = progress.message || 'Обновление...';
-}
-
-async function runUpdate(info) {
-  if (!info?.remote || state.updating) return;
-  state.updating = true;
-  setUpdateProgress({ percent: 0, message: 'Подготовка к обновлению...' });
-
-  try {
-    const result = await api('applyUpdate', info.remote);
-    const status = await api('getStatus');
-    updateUI(status);
-    state.strategies = await api('getStrategies');
-    renderStrategies(state.strategies, status.lastStrategy || 'general.bat');
-    hideUpdateModal();
-    toast(`Zapret обновлён до ${result.local}`, 'success');
-    const el = $('#updateResult');
-    if (el) {
-      el.innerHTML = `<span class="diag-ok">✓ Установлена актуальная версия (${result.local})</span>`;
-    }
-  } catch (e) {
-    state.updating = false;
-    $('#updateModalActions').classList.remove('hidden');
-    toast(e.message, 'error');
-  }
-}
-
-async function startZapret(strategy) {
-  await api('start', strategy);
-  const status = await api('getStatus');
-  updateUI(status);
-}
-
-function setupRestartModal() {
-  const modal = $('#restartModal');
-  $('#btnRestartOk')?.addEventListener('click', hideRestartModal);
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) hideRestartModal();
-  });
-}
-
-function setupAppRestartModal() {
-  const modal = $('#appRestartModal');
-  $('#btnAppRestartLater')?.addEventListener('click', hideAppRestartModal);
-  $('#btnAppRestartNow')?.addEventListener('click', async () => {
-    hideAppRestartModal();
-    try {
-      await api('relaunchApp');
-    } catch (e) {
-      toast(e.message, 'error');
-    }
-  });
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) hideAppRestartModal();
-  });
-}
-
-function setupUpdateModal() {
-  $('#btnUpdateLater')?.addEventListener('click', async () => {
-    const strategy = state.pendingStartStrategy;
-    const beforeStart = state.updateContext === 'beforeStart';
-    hideUpdateModal();
-    if (!beforeStart || !strategy) return;
-
-    setBusy(true);
-    try {
-      await startZapret(strategy);
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      setBusy(false);
-    }
-  });
-
-  $('#btnUpdateNow')?.addEventListener('click', () => {
-    if (state.pendingUpdate) runUpdate(state.pendingUpdate);
-  });
-
-  window.zapretAPI.onUpdateProgress((progress) => {
-    if (progress.phase === 'done') {
-      setTimeout(hideUpdateModal, 500);
-      return;
-    }
-
-    if ($('#updateModal').classList.contains('hidden')) {
-      $('#updateModalText').textContent = 'Устанавливаем обновление Zapret...';
-      $('#updateModal').classList.remove('hidden');
-      $('#updateModalActions').classList.add('hidden');
-      $('#updateProgressBlock').classList.remove('hidden');
-    }
-    setUpdateProgress(progress);
-  });
-}
-
-function setupNavigation() {
-  $$('.nav-item').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      navigateTo(btn.dataset.page);
-    });
-  });
-}
-
-let activeHelpBtn = null;
-
-function hideHelpPopover() {
-  const popover = $('#helpPopover');
-  popover.classList.add('hidden');
-  if (activeHelpBtn) {
-    activeHelpBtn.classList.remove('active');
-    activeHelpBtn = null;
-  }
-}
-
-function showHelpPopover(key, anchor) {
-  const help = HELP_TEXTS[key];
-  if (!help) return;
-
-  if (activeHelpBtn && activeHelpBtn !== anchor) {
-    activeHelpBtn.classList.remove('active');
-  }
-
-  const popover = $('#helpPopover');
-  $('#helpPopoverTitle').textContent = help.title;
-  $('#helpPopoverBody').innerHTML = help.body;
-
-  popover.classList.remove('hidden');
-
-  const rect = anchor.getBoundingClientRect();
-  const popRect = popover.getBoundingClientRect();
-  const margin = 12;
-  let top = rect.bottom + 8;
-  let left = rect.left + rect.width / 2 - popRect.width / 2;
-
-  if (left < margin) left = margin;
-  if (left + popRect.width > window.innerWidth - margin) {
-    left = window.innerWidth - popRect.width - margin;
-  }
-  if (top + popRect.height > window.innerHeight - margin) {
-    top = rect.top - popRect.height - 8;
-  }
-
-  popover.style.top = `${Math.max(margin, top)}px`;
-  popover.style.left = `${left}px`;
-
-  anchor.classList.add('active');
-  activeHelpBtn = anchor;
-}
-
-function updateCloseBehaviorToggles(mode) {
-  const value = mode || 'ask';
-  $$('#closeBehaviorGroup .toggle-btn').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.value === value);
-  });
-}
-
-function updateAutoCheckUpdatesToggle(status) {
-  const toggle = $('#autoCheckUpdatesToggle');
-  if (!toggle || toggle.dataset.busy) return;
-  toggle.checked = status.autoUpdate?.enabled !== false;
-}
-
-async function importSitesFromDialog({ listId = null } = {}) {
-  const mode = await showConfirmModal({
-    title: 'Импорт доменов',
-    text: 'Добавить домены к существующим или заменить список целиком?',
-    confirmLabel: 'Заменить список'
-  }) ? 'replace' : 'merge';
-
-  const result = await api('importSitesDialog', { listId, mode });
-  if (!result.imported) return;
-
-  if (listId) {
-    renderCustomSites(result.sites);
-    const meta = await api('getCustomLists');
-    state.customLists = meta;
-    renderCustomListUI();
-  } else {
-    renderSites(result.sites);
-  }
-
-  notifySitesRestartIfNeeded();
-  toast(`Импортировано ${result.sites.length} доменов`, 'success');
-}
-
-async function exportSitesToDialog({ listId = null, defaultName = 'list-general.txt' } = {}) {
-  const result = await api('exportSitesDialog', { listId, defaultName });
-  if (!result.saved) return;
-  toast(`Экспортировано ${result.count} доменов`, 'success');
-}
-
-async function pasteSitesFromClipboard({ listId = null } = {}) {
-  let text = '';
-  try {
-    text = await api('readClipboardText');
-  } catch {
-    if (navigator.clipboard?.readText) {
-      text = await navigator.clipboard.readText();
-    }
-  }
-
-  if (!text?.trim()) return toast('Буфер обмена пуст', 'info');
-
-  const lines = text.trim().split(/\r?\n/).filter(Boolean).length;
-  const mode = await showConfirmModal({
-    title: 'Вставка из буфера',
-    text: `Найдено ${lines} строк. Добавить к списку или заменить целиком?`,
-    confirmLabel: 'Заменить список'
-  }) ? 'replace' : 'merge';
-
-  const result = await api('importSitesText', { text, listId, mode });
-  if (listId) {
-    renderCustomSites(result.sites);
-    const meta = await api('getCustomLists');
-    state.customLists = meta;
-    renderCustomListUI();
-  } else {
-    renderSites(result.sites);
-  }
-
-  notifySitesRestartIfNeeded();
-  toast(`Добавлено из буфера: ${result.sites.length} доменов`, 'success');
-}
-
-function getRecommendedStrategyAction() {
-  const probe = state.lastStrategyProbe;
-  if (!probe?.strategyFile || !probe.working) return null;
-  const name = probe.strategyName
-    || state.strategies.find((s) => s.file === probe.strategyFile)?.name
-    || probe.strategyFile;
-  return { file: probe.strategyFile, name };
-}
-
-function showBypassDropModal(payload = {}) {
-  const text = $('#bypassDropText');
-  const recommendedBtn = $('#btnBypassDropRecommended');
-  const recommended = getRecommendedStrategyAction();
-
-  if (text) {
-    const strategyName = state.strategies.find((s) => s.file === payload.lastStrategy)?.name;
-    text.textContent = strategyName
-      ? `Обход (${strategyName}) неожиданно остановился. Включите снова или подберите другую стратегию.`
-      : 'Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.';
-  }
-
-  if (recommendedBtn) {
-    if (recommended) {
-      recommendedBtn.textContent = `Применить: ${recommended.name}`;
-      recommendedBtn.classList.remove('hidden');
-    } else {
-      recommendedBtn.classList.add('hidden');
-    }
-  }
-
-  $('#bypassDropModal')?.classList.remove('hidden');
-}
-
-function hideBypassDropModal() {
-  $('#bypassDropModal')?.classList.add('hidden');
-}
-
-function setupBypassDropModal() {
-  const modal = $('#bypassDropModal');
-  $('#btnBypassDropClose')?.addEventListener('click', hideBypassDropModal);
-  $('#btnBypassDropRecommended')?.addEventListener('click', async () => {
-    const recommended = getRecommendedStrategyAction();
-    if (!recommended) return;
-    hideBypassDropModal();
-    suppressStrategyChange = true;
-    $('#strategySelect').value = recommended.file;
-    suppressStrategyChange = false;
-    await applyStrategy(recommended.file);
-    if (!state.running) {
-      $('#btnPower')?.click();
-    } else {
-      toast(`Применена стратегия: ${recommended.name}`, 'success');
-    }
-  });
-  $('#btnBypassDropProbe')?.addEventListener('click', async () => {
-    hideBypassDropModal();
-    navigateTo('home');
-    await runStrategyProbeFlow();
-  });
-  $('#btnBypassDropRestart')?.addEventListener('click', async () => {
-    hideBypassDropModal();
-    $('#btnPower')?.click();
-  });
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) hideBypassDropModal();
-  });
-}
-
-function renderOnboardingStep() {
-  const step = ONBOARDING_STEPS[onboardingStep];
-  if (!step) return;
-
-  $('#onboardingTitle').textContent = step.title;
-  $('#onboardingText').textContent = step.text;
-
-  const body = $('#onboardingBody');
-  if (body) {
-    let html = step.body || '';
-    if (step.action === 'probe') {
-      html = '<div class="onboarding-highlight">Нажмите «Запустить подбор» — откроется проверка стратегий.</div>';
-    } else if (step.action === 'power') {
-      html = '<div class="onboarding-highlight">Переключатель ВКЛ/ВЫКЛ — в центре главной страницы.</div>';
-    } else if (step.action === 'tg') {
-      html = '<div class="onboarding-highlight">Карточка «Прокси для Telegram» на главной — включите переключатель, адрес для Telegram будет в карточке.</div>';
-    } else if (step.action === 'autostart') {
-      html = step.body || '<div class="onboarding-highlight">Тумблеры автозапуска — внизу главной страницы.</div>';
-    }
-    body.innerHTML = html;
-  }
-
-  const progress = $('#onboardingProgress');
-  if (progress) {
-    progress.innerHTML = ONBOARDING_STEPS.map((_, index) => {
-      const cls = index === onboardingStep ? 'active' : index < onboardingStep ? 'done' : '';
-      return `<span class="onboarding-dot ${cls}"></span>`;
-    }).join('');
-  }
-
-  const nextBtn = $('#btnOnboardingNext');
-  if (nextBtn) {
-    if (step.action === 'probe') nextBtn.textContent = 'Запустить подбор';
-    else if (step.action === 'done') nextBtn.textContent = 'Завершить';
-    else nextBtn.textContent = 'Далее';
-  }
-}
-
-function openOnboardingModal() {
-  renderOnboardingStep();
-  $('#onboardingModal')?.classList.remove('hidden');
-}
-
-function startOnboarding() {
-  onboardingStep = 0;
-  openOnboardingModal();
-}
-
-function hideOnboardingModal() {
-  $('#onboardingModal')?.classList.add('hidden');
-}
-
-async function completeOnboarding() {
-  await api('setOnboardingCompleted', true);
-  state.onboardingCompleted = true;
-  hideOnboardingModal();
-}
-
-function advanceOnboardingStep() {
-  if (onboardingStep >= ONBOARDING_STEPS.length - 1) {
-    completeOnboarding();
-    return;
-  }
-  onboardingStep += 1;
-  renderOnboardingStep();
-}
-
-
-
-async function handleOnboardingNext() {
-  const step = ONBOARDING_STEPS[onboardingStep];
-  if (!step) return;
-
-  if (step.action === 'probe') {
-    hideOnboardingModal();
-    const completed = await runStrategyProbeFlow();
-    if (completed) onboardingStep += 1;
-    openOnboardingModal();
-    return;
-  }
-
-  if (step.action === 'power') {
-    hideOnboardingModal();
-    navigateTo('home');
-    $('#heroCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    onboardingStep += 1;
-    setTimeout(openOnboardingModal, 400);
-    return;
-  }
-
-  if (step.action === 'tg' || step.action === 'autostart') {
-    hideOnboardingModal();
-    navigateTo('home');
-    onboardingStep += 1;
-    setTimeout(openOnboardingModal, 300);
-    return;
-  }
-
-  if (onboardingStep >= ONBOARDING_STEPS.length - 1) {
-    await completeOnboarding();
-    return;
-  }
-
-  onboardingStep += 1;
-  renderOnboardingStep();
-}
-
-function setupOnboardingModal() {
-  $('#btnOnboardingClose')?.addEventListener('click', () => completeOnboarding());
-$('#btnOnboardingSkip')?.addEventListener('click', () => advanceOnboardingStep());
-  $('#btnOnboardingNext')?.addEventListener('click', () => handleOnboardingNext());
-}
-
-function setupSitesTools() {
-  $('#sitesSearch')?.addEventListener('input', (e) => {
-    state.sitesSearchQuery = e.target.value;
-    renderSites(state.sites);
-  });
-
-  $('#customSitesSearch')?.addEventListener('input', (e) => {
-    state.customSitesSearchQuery = e.target.value;
-    renderCustomSites(state.customSites);
-  });
-
-  $('#btnSitesImport')?.addEventListener('click', () => importSitesFromDialog());
-  $('#btnSitesExport')?.addEventListener('click', () => exportSitesToDialog());
-  $('#btnSitesPaste')?.addEventListener('click', () => pasteSitesFromClipboard());
-
-  $('#btnCustomSitesImport')?.addEventListener('click', () => {
-    if (!state.customListEditing) return toast('Выберите список', 'error');
-    importSitesFromDialog({ listId: state.customListEditing });
-  });
-  $('#btnCustomSitesExport')?.addEventListener('click', () => {
-    if (!state.customListEditing) return toast('Выберите список', 'error');
-    exportSitesToDialog({
-      listId: state.customListEditing,
-      defaultName: `${state.customListEditing}.txt`
-    });
-  });
-  $('#btnCustomSitesPaste')?.addEventListener('click', () => {
-    if (!state.customListEditing) return toast('Выберите список', 'error');
-    pasteSitesFromClipboard({ listId: state.customListEditing });
-  });
-}
-
-function setupBehaviorSettings() {
-  $$('#closeBehaviorGroup .toggle-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const value = btn.dataset.value;
-      const mode = value === 'ask' ? null : value;
-      try {
-        const result = await api('setCloseBehavior', mode);
-        state.closeBehavior = result.closeBehavior ?? null;
-        updateCloseBehaviorToggles(state.closeBehavior);
-        toast('Настройка сохранена', 'success');
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    });
-  });
-
-  $('#autoCheckUpdatesToggle')?.addEventListener('change', async (e) => {
-    const toggle = e.target;
-    toggle.dataset.busy = '1';
-    toggle.disabled = true;
-    try {
-      await api('setAutoUpdate', toggle.checked);
-      const status = await api('getStatus');
-      updateUI(status);
-      toast(toggle.checked ? 'Автопроверка обновлений включена' : 'Автопроверка обновлений выключена', 'success');
-    } catch (err) {
-      toggle.checked = !toggle.checked;
-      toast(err.message, 'error');
-    } finally {
-      delete toggle.dataset.busy;
-      toggle.disabled = false;
-    }
-  });
-}
-
-function setupHelpTooltips() {
-  $$('.help-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const key = btn.dataset.help;
-      if (activeHelpBtn === btn && !$('#helpPopover').classList.contains('hidden')) {
-        hideHelpPopover();
-        return;
-      }
-      showHelpPopover(key, btn);
-    });
-  });
-
-  $('#helpPopoverClose').addEventListener('click', hideHelpPopover);
-
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('.help-btn') || e.target.closest('#helpPopover')) return;
-    hideHelpPopover();
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hideHelpPopover();
-  });
-}
-
-async function init() {
-  updateShellForPage('home');
-  setupNavigation();
-  setupHelpTooltips();
-  setupRestartModal();
-  setupAppRestartModal();
-  setupUpdateModal();
-  setupStartupUpdatesModal();
-  setupCloseModals();
-  setupConfirmModal();
-  setupStrategyProbeModal();
-  setupBypassDropModal();
-  setupOnboardingModal();
-  setupSitesTools();
-  setupBehaviorSettings();
-
-  window.zapretAPI.onStrategyProbeProgress?.((progress) => {
-    if (!strategyProbeRunning || !progress) return;
-    updateStrategyProbeProgress(progress);
-  });
-
-  try {
-    const [pathCheck, strategies, status, sites, tgStatus] = await Promise.all([
-      api('validatePath'),
-      api('getStrategies'),
-      api('getStatus'),
-      api('getSites'),
-      api('getTgProxyStatus')
+    const [status, strategies, sites, tgStatus, vlessStatus, settings] = await Promise.all([
+      api('getStatus').catch(() => null),
+      api('getStrategies').catch(() => []),
+      api('getSites').catch(() => []),
+      api('getTgProxyStatus').catch(() => null),
+      api('vlessGetStatus').catch(() => null),
+      api('getSettings').catch(() => null)
     ]);
 
-    if (!pathCheck.valid) {
-      toast('Папка Zapret не найдена — проверьте установку движка', 'error');
+    // Strategies
+    if (strategies && strategies.length > 0) {
+      state.zapret.strategies = strategies;
+      renderStrategyDropdown();
     }
 
-    state.strategies = strategies;
-    const selected = status.lastStrategy || 'general.bat';
-    renderStrategies(state.strategies, selected);
-    updateUI(status);
+    // Statuses
+    if (status) updateZapretUI(status);
+    if (tgStatus) updateTgProxyUI(tgStatus);
+    if (vlessStatus) updateVpnUI(vlessStatus);
 
-    renderSites(sites);
-    await loadCustomLists();
+    // Auto-sync VPN subscription in background on startup to guarantee fresh server list
+    api('vlessUpdateSubscription', null, false)
+      .then(res => {
+        if (res && res.servers) {
+          api('vlessGetStatus').then(s => updateVpnUI(s)).catch(() => {});
+        }
+      })
+      .catch(() => {});
 
-    updateTgProxyUI(tgStatus);
-
-    if (!status.onboardingCompleted) {
-      setTimeout(startOnboarding, 600);
+    // Sites
+    if (Array.isArray(sites)) {
+      state.sites.main = sites;
+      renderSites();
     }
-  } catch (e) {
-    toast(e.message, 'error');
+
+    // Settings
+    if (settings) {
+      if (settings.closeBehavior) setCloseBehavior(settings.closeBehavior);
+      if (typeof settings.startMinimized === 'boolean') {
+        const t = $('#toggle-start-minimized');
+        if (t) t.checked = settings.startMinimized;
+      }
+      if (typeof settings.autostartZapret === 'boolean') {
+        const t = $('#toggle-autostart');
+        if (t) t.checked = settings.autostartZapret;
+      }
+      if (typeof settings.autoCheckUpdates === 'boolean') {
+        const t = $('#toggle-auto-updates');
+        if (t) t.checked = settings.autoCheckUpdates;
+      }
+      renderIpsetButtons(settings.ipset || 'loaded');
+    } else {
+      renderIpsetButtons('loaded');
+    }
+
+    // Custom Lists
+    loadCustomLists().catch(() => {});
+
+    // First Launch Strategy Probe Check
+    try {
+      const cfg = await api('getConfig').catch(() => null);
+      const isDismissedConfig = Boolean(cfg?.firstProbePromptDismissed);
+      let isDismissedLocal = false;
+      try {
+        isDismissedLocal = localStorage.getItem('zapret_first_probe_dismissed') === 'true';
+      } catch {}
+      if (!isDismissedConfig && !isDismissedLocal) {
+        setTimeout(() => {
+          $('#firstLaunchProbeModal')?.classList.remove('hidden');
+        }, 500);
+      }
+    } catch {}
+  } catch (err) {
+    console.error('Initialization error:', err);
   }
 
-  $('#strategySelect').addEventListener('change', async () => {
-    if (state.busy || suppressStrategyChange) return;
-    await applyStrategy($('#strategySelect').value);
+  // Footer Quick Navigation
+  $('#footer-status-desc')?.parentElement?.classList.add('cursor-pointer', 'hover:opacity-80', 'transition-opacity');
+  $('#footer-status-desc')?.parentElement?.addEventListener('click', () => {
+    if (state.vpn.running) navigateTo('vpn');
+    else navigateTo('home');
+  });
+  $('#footer-ping-text')?.parentElement?.classList.add('cursor-pointer', 'hover:opacity-80', 'transition-opacity');
+  $('#footer-ping-text')?.parentElement?.addEventListener('click', () => {
+    navigateTo('vpn');
   });
 
-  $('#btnStrategyProbe')?.addEventListener('click', () => {
-    runStrategyProbeFlow();
-  });
-
-  $('#btnPower').addEventListener('click', async () => {
-    if (state.busy) return;
-    setBusy(true);
-    try {
-      if (state.running) {
-        const status = await api('stop');
-        updateUI(status);
-        if (status.running) {
-          toast('Не удалось выключить Zapret — проверьте права администратора', 'error');
-        }
-      } else {
-        const strategy = $('#strategySelect').value;
-        if (state.autoCheckUpdates) {
-          const info = await api('checkUpdates');
-          if (info.updateAvailable && !info.error) {
-            setBusy(false);
-            showUpdateModal(info, { context: 'beforeStart', strategy });
-            return;
-          }
-        }
-        await startZapret(strategy);
+  // Register Backend Events
+  window.zapretAPI?.onStatusChanged?.((newStatus) => updateZapretUI(newStatus));
+  window.zapretAPI?.onTgProxyChanged?.((newTg) => updateTgProxyUI(newTg));
+  window.zapretAPI?.onVlessStatusChanged?.((newVless) => updateVpnUI(newVless));
+  window.zapretAPI?.onVlessTestProgress?.((data) => {
+    if (!data) return;
+    const btnText = $('#btn-update-sub-text');
+    if (btnText && data.current && data.total) {
+      btnText.innerText = `${data.current}/${data.total}`;
+    }
+    if (typeof data.index === 'number' && data.server) {
+      if (state.vpn.servers && state.vpn.servers[data.index]) {
+        Object.assign(state.vpn.servers[data.index], data.server);
       }
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      setBusy(false);
+      updateVpnServerCard(data.index, data.server);
     }
   });
-
-  $('#sitesAddForm')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    addSite();
+  window.zapretAPI?.onShowCloseDialog?.(() => {
+    $('#closeChoiceModal')?.classList.remove('hidden');
   });
-
-  $('#sitesAccordionToggle')?.addEventListener('click', () => {
-    state.sitesExpanded = !state.sitesExpanded;
-    updateSitesAccordion('#sitesAccordion', state.sitesExpanded);
+  window.zapretAPI?.onStartupUpdatesAvailable?.(() => {
+    openChangelogModal();
   });
-
-  $('#customSitesAccordionToggle')?.addEventListener('click', () => {
-    state.customSitesExpanded = !state.customSitesExpanded;
-    updateSitesAccordion('#customSitesAccordion', state.customSitesExpanded);
-  });
-
-  $('#customListSelect')?.addEventListener('change', () => onCustomListSelectChange());
-
-  $('#btnCreateCustomList')?.addEventListener('click', () => showCustomListCreateForm(true));
-
-  $('#btnCancelCustomList')?.addEventListener('click', () => showCustomListCreateForm(false));
-
-  $('#customListCreateForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try {
-      await createCustomList($('#customListNameInput').value);
-      showCustomListCreateForm(false);
-    } catch (err) {
-      toast(err.message, 'error');
+  window.zapretAPI?.onStrategyProbeProgress?.((data) => {
+    if (!data) return;
+    const fillEl = $('#strategyProbeProgressFill');
+    const percentEl = $('#strategyProbePercent');
+    const textEl = $('#strategyProbeProgressText');
+    const sumEl = $('#strategyProbeSummary');
+    if (typeof data.percent === 'number' && fillEl) {
+      fillEl.style.width = `${Math.min(100, Math.max(0, data.percent))}%`;
+      if (percentEl) percentEl.innerText = `${data.percent}%`;
+    }
+    if (data.message && textEl) {
+      textEl.innerText = data.message;
+    }
+    if (data.strategyName && sumEl) {
+      sumEl.innerText = `Тестирование: ${data.strategyName} (YouTube / Discord / Web)`;
     }
   });
-
-  $('#customSitesAddForm')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    addCustomSite();
-  });
-
-  $('#btnDeleteCustomList')?.addEventListener('click', () => deleteSelectedCustomList());
-
-  $('#gameFilterToggle')?.addEventListener('change', async (e) => {
-    const toggle = e.target;
-    const mode = toggle.checked ? 'all' : 'disabled';
-    const wasRunning = state.running;
-    toggle.dataset.busy = '1';
-    toggle.disabled = true;
-
-    try {
-      await api('setGameFilter', mode);
-      const status = await api('getStatus');
-      updateUI(status);
-      notifyIfRestartNeeded(
-        wasRunning,
-        'Игровой фильтр изменён. Чтобы настройка вступила в силу, выключите и снова включите Zapret.'
-      );
-    } catch (err) {
-      toggle.checked = !toggle.checked;
-      toast(err.message, 'error');
-    } finally {
-      delete toggle.dataset.busy;
-      toggle.disabled = false;
-    }
-  });
-
-  function bindAutostartToggle(selector, apiMethod, onLabel, offLabel) {
-    $(selector)?.addEventListener('change', async (e) => {
-      const toggle = e.target;
-      const enabled = toggle.checked;
-      toggle.dataset.busy = '1';
-      toggle.disabled = true;
-
-      try {
-        const status = await api(apiMethod, enabled);
-        updateUI(status);
-        toast(enabled ? onLabel : offLabel, 'success');
-      } catch (err) {
-        toggle.checked = !toggle.checked;
-        toast(err.message, 'error');
-      } finally {
-        delete toggle.dataset.busy;
-        toggle.disabled = false;
-      }
-    });
-  }
-
-  bindAutostartToggle(
-    '#autostartZapretToggle',
-    'setAutostartZapret',
-    'Автозапуск обхода включён',
-    'Автозапуск обхода выключен'
-  );
-  bindAutostartToggle(
-    '#autostartTgToggle',
-    'setAutostartTg',
-    'Автозапуск TG Proxy включён',
-    'Автозапуск TG Proxy выключен'
-  );
-  bindAutostartToggle(
-    '#startMinimizedToggle',
-    'setStartMinimized',
-    'Окно будет сворачиваться в трей при запуске',
-    'Окно будет открываться при запуске'
-  );
-
-  $('#btnTgProxyCopyAddress')?.addEventListener('click', async () => {
-    const address = $('#tgProxyAddress')?.textContent?.trim();
-    if (!address) return;
-
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(address);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = address;
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      toast(`Адрес скопирован: ${address}`, 'success');
-    } catch (err) {
-      toast(err.message || 'Не удалось скопировать адрес', 'error');
-    }
-  });
-
-  $$('#ipsetGroup .toggle-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const wasRunning = state.running;
-      try {
-        await api('setIpset', btn.dataset.value);
-        const status = await api('getStatus');
-        updateUI(status);
-        notifyIfRestartNeeded(
-          wasRunning,
-          'IPSet изменён. Чтобы настройка вступила в силу, выключите и снова включите Zapret.'
-        );
-      } catch (err) {
-        toast(err.message, 'error');
-      }
-    });
-  });
-
-  $('#btnDiagnostics').addEventListener('click', async () => {
-    $('#btnDiagnostics').disabled = true;
-    try {
-      const results = await api('runDiagnostics');
-      renderDiagnostics(results);
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      $('#btnDiagnostics').disabled = false;
-    }
-  });
-
-  $('#btnCheckUpdates').addEventListener('click', async () => {
-    $('#btnCheckUpdates').disabled = true;
-    const el = $('#updateResult');
-    el.innerHTML = '<span style="color:var(--text-muted)">Проверяем Zapret HUB, движок и TG Proxy...</span>';
-    try {
-      const all = await api('checkAllUpdates', { force: true });
-      renderUpdateCheckResults(all);
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      $('#btnCheckUpdates').disabled = false;
-    }
-  });
-
-  $('#btnTgProxyToggle')?.addEventListener('click', async () => {
-    if (state.tgProxy.busy) return;
-    setTgProxyBusy(true);
-    try {
-      if (state.tgProxy.running) {
-        const status = await api('stopTgProxy');
-        updateTgProxyUI(status);
-        if (!status.running) {
-          toast('TG Proxy выключен', 'off');
-        }
-      } else {
-        const status = await api('startTgProxy');
-        updateTgProxyUI(status);
-        await refreshServiceUpdateResults();
-        if (!status.running) {
-          toast('Не удалось запустить прокси', 'error');
-        } else {
-          toast('TG Proxy включён', 'success');
-        }
-      }
-    } catch (e) {
-      hideTgDownloadProgress();
-      toast(e.message, 'error');
-    } finally {
-      setTgProxyBusy(false);
-    }
-  });
-
-  $('#btnTgProxyUpdate')?.addEventListener('click', () => {
-    runTgProxyUpdateFlow();
-  });
-
-  window.zapretAPI.onTgProxyProgress((progress) => {
-    if (!progress) return;
-
-    if (state.tgUpdateFromService) {
-      renderTgUpdateProgressInService(progress);
-    }
-
-    if (progress.percent >= 100) {
-      hideTgDownloadProgress();
-      if (!state.tgUpdateFromService) {
-        toast('TG WS Proxy скачан — можно включать', 'success');
-      }
-      return;
-    }
-
-    const label = progress.message || `Скачивание… ${progress.percent}%`;
-    showTgDownloadProgress(progress.percent, label);
-  });
-
-  $('#btnWinMinimize')?.addEventListener('click', () => {
-    window.zapretAPI.windowMinimize();
-  });
-
-  $('#btnWinClose')?.addEventListener('click', () => {
-    window.zapretAPI.windowClose();
-  });
-
-  window.zapretAPI.onStatusChanged((status) => updateUI(status));
-  window.zapretAPI.onTgProxyChanged((status) => updateTgProxyUI(status));
-  window.zapretAPI.onError((msg) => toast(msg));
-  window.zapretAPI.onNotify((msg) => toast(msg));
-  window.zapretAPI.onStartupUpdatesAvailable((all) => {
-    if (getPendingUpdateItems(all).length) {
-      showStartupUpdatesModal(all);
-    }
-  });
-
-  window.zapretAPI.onBypassDropped?.(async (payload) => {
-    try {
-      const status = await api('getStatus');
-      updateUI(status);
-    } catch {
-      state.running = false;
-    }
-    showBypassDropModal(payload);
-    toast('Обход неожиданно остановился', 'error');
-  });
-
-
-}
-
-document.addEventListener('DOMContentLoaded', init);
+});

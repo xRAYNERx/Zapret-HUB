@@ -3,559 +3,1227 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self';">
   <title>Zapret HUB</title>
-  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="./styles/main.css">
 </head>
-<body>
-  <div class="aurora-bg" aria-hidden="true">
-    <div class="aurora-blob aurora-blob-1"></div>
-    <div class="aurora-blob aurora-blob-2"></div>
-    <div class="aurora-blob aurora-blob-3"></div>
-  </div>
+<body class="bg-[#1e2534] text-white overflow-hidden select-none w-screen h-screen m-0 p-0">
+<div class="slate-window w-full h-full p-6 md:p-8 flex flex-col justify-between relative">
 
-  <div class="app">
-    <header class="topbar">
-      <div class="brand">
-        <img class="brand-logo" src="../assets/logo.png" alt="" width="36" height="36" aria-hidden="true">
-        <div class="brand-text">
-          <span class="logo-title">Zapret</span>
-          <span class="logo-sub">HUB</span>
+      <!-- ─── TOPBAR: BRAND LOCKUP + CLEAN MINIMAL NAVIGATION + WINDOW CONTROLS ─── -->
+      <header class="app-header flex items-center justify-between pb-5 border-b border-white/10 gap-4 flex-shrink-0 select-none">
+        
+        <!-- Left: BRAND LOCKUP (HEXAGON + LEAD FOCUS TYPOGRAPHY) -->
+        <div class="flex items-center gap-3.5 flex-shrink-0 select-none pointer-events-none">
+          <div class="relative w-11 h-11 flex-shrink-0 flex items-center justify-center">
+            <img src="../assets/logo.png" onerror="this.onerror=null; this.src='../assets/icon.png';" alt="Zapret HUB" class="w-11 h-11 object-contain group-hover:scale-105 transition-transform" />
+          </div>
+
+          <div class="flex items-baseline tracking-tight">
+            <span class="text-2xl font-black text-white tracking-[-0.03em]">ZAPRET</span>
+            <span class="text-2xl font-black ml-1.5 tracking-[-0.03em] leadfocus-gradient">HUB</span>
+          </div>
         </div>
-      </div>
 
-      <nav class="topnav">
-        <button class="nav-item active" data-page="home" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
-          Главная
-        </button>
-        <button class="nav-item" data-page="sites" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-          Сайты
-        </button>
-        <button class="nav-item" data-page="tools" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-          Сервис
-        </button>
-      </nav>
-
-      <div class="topbar-end">
-        <span class="app-version" id="infoVersion" title="Версия Zapret HUB">—</span>
-        <div class="window-controls" aria-label="Управление окном">
-          <button class="win-btn win-btn-min" id="btnWinMinimize" type="button" aria-label="Свернуть" title="Свернуть">
-            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <!-- Center: CLEAN, UNCLUTTERED NAVIGATION -->
+        <nav class="app-nav">
+          <!-- Главная -->
+          <button class="app-nav-item active" onclick="selectNavTab(this)" data-page="home">
+            <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Главная</span>
           </button>
-          <button class="win-btn win-btn-close" id="btnWinClose" type="button" aria-label="Закрыть" title="Закрыть">
-            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+
+          <!-- VPN (на 2-й позиции перед сайтами) -->
+          <button class="app-nav-item" onclick="selectNavTab(this)" data-page="vpn">
+            <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>VPN</span>
+          </button>
+
+          <!-- Сайты -->
+          <button class="app-nav-item" onclick="selectNavTab(this)" data-page="sites">
+            <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><ellipse cx="12" cy="12" rx="4.5" ry="10"/></svg>
+            <span>Сайты</span>
+          </button>
+
+          <!-- Настройки -->
+          <button class="app-nav-item" onclick="selectNavTab(this)" data-page="settings">
+            <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <span>Настройки</span>
+          </button>
+        </nav>
+
+        <!-- Right: CLEAN WINDOW CONTROLS -->
+        <div class="flex items-center gap-1.5 flex-shrink-0 app-no-drag">
+          <!-- Minimize -->
+          <button id="btnWinMinimize" class="win-btn" title="Свернуть">
+            <svg class="w-3.5 h-3.5 stroke-current stroke-2" viewBox="0 0 12 12"><path d="M2 6h8"/></svg>
+          </button>
+          <!-- Close -->
+          <button id="btnWinClose" class="win-btn win-btn-close" title="Закрыть">
+            <svg class="w-3.5 h-3.5 stroke-current stroke-2" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8"/></svg>
           </button>
         </div>
-      </div>
-    </header>
 
-    <div class="shell shell--home">
-      <main class="content">
-        <!-- HOME -->
-        <section class="page active" id="page-home">
-          <div class="control-theater pulse-hero" id="heroCard">
-            <div class="pulse-scanlines" aria-hidden="true"></div>
-            <div class="pulse-inner">
-              <div class="pulse-status-col">
-                <div class="hex-frame">
-                  <div class="status-ring" id="statusRing">
-                    <div class="status-ring-inner">
-                      <span class="status-dot-core" id="statusDot"></span>
-                    </div>
+      </header>
+
+      <!-- ─── WINDOW CONTENT VIEWPORT ─── -->
+      <main class="window-content py-1.5 flex flex-col relative">
+
+        <!-- ─── PAGE: HOME ─── -->
+        <div id="page-home" class="w-full my-auto">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
+
+        <!-- ══════════════════════════════════════════════════════════════
+             LEFT CARD: ZAPRET DPI HERO (Col 8)
+             ══════════════════════════════════════════════════════════════ -->
+        <div id="zapret-card" class="md:col-span-8 slate-card slate-card-active rounded-3xl p-6 md:p-7 flex flex-col justify-between min-h-[440px]">
+          
+          <!-- Top Section: Status + Locked Power Button -->
+          <div class="flex items-center justify-between gap-5">
+            <div class="flex flex-col justify-center space-y-1.5 min-w-0">
+              <div class="flex items-center gap-3">
+                <span id="zapret-dot" class="w-3 h-3 rounded-full bg-emerald-400 flex-shrink-0"></span>
+                <span id="zapret-title" class="text-2xl md:text-[26px] font-black text-white tracking-tight truncate">Обход включён</span>
+              </div>
+              <p id="zapret-desc" class="text-xs text-slate-300 font-medium truncate">
+                YouTube и Discord работают без замедления и ограничений
+              </p>
+            </div>
+
+            <!-- LOCKED POWER BUTTON -->
+            <button id="btn-zapret-power" onclick="toggleZapret()" class="w-[170px] h-[48px] rounded-2xl font-bold text-sm bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] text-white border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer flex-shrink-0 transition-all">
+              <svg id="zapret-power-icon" class="w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+              <span id="zapret-power-text" class="tracking-wide">ВЫКЛЮЧИТЬ</span>
+            </button>
+          </div>
+
+          <!-- Center Section: Protected Services (Spacious, frameless clean icons) -->
+          <div class="space-y-2.5 my-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Статус доступности сервисов
+              </span>
+              <span id="zapret-summary-count" class="text-[10px] font-medium text-emerald-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 3 из 3 активны
+              </span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              
+              <!-- YouTube Card -->
+              <div class="service-chip rounded-2xl p-4 flex flex-col justify-between min-h-[125px] transition-all">
+                <div class="flex items-center justify-between">
+                  <!-- Frameless Big YouTube Icon -->
+                  <div class="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-8 h-8 fill-[#FF0000]" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                   </div>
-                  <div class="hex-glow" aria-hidden="true"></div>
-                </div>
-
-                <div class="pulse-copy">
-                  <p class="pulse-eyebrow">Статус обхода YouTube и Discord</p>
-                  <h2 id="statusTitle">Выключено</h2>
-                  <p id="statusDesc">Переключите рычаг, чтобы включить обход блокировок YouTube и Discord</p>
-                </div>
-              </div>
-
-              <div class="power-switch-col">
-                <button class="btn-power" id="btnPower" type="button" aria-label="Включить или выключить обход">
-                  <span class="btn-power-dock">
-                    <span class="btn-power-glider" aria-hidden="true"></span>
-                    <span class="btn-power-seg btn-power-off">ВЫКЛ</span>
-                    <span class="btn-power-seg btn-power-on">ВКЛ</span>
+                  <span id="yt-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span id="yt-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Включён
                   </span>
-                </button>
+                </div>
+                <div class="mt-2">
+                  <h4 class="text-sm font-bold text-white leading-tight">YouTube</h4>
+                  <span id="yt-status-text" class="text-xs text-emerald-400 block whitespace-nowrap font-medium leading-tight mt-1">4K без задержек</span>
+                  <span class="text-[10px] text-slate-400 block whitespace-nowrap mt-0.5">DPI: Kyber / Fake TLS</span>
+                </div>
               </div>
+
+              <!-- Discord Card -->
+              <div class="service-chip rounded-2xl p-4 flex flex-col justify-between min-h-[125px] transition-all">
+                <div class="flex items-center justify-between">
+                  <!-- Frameless Big Discord Icon -->
+                  <div class="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-8 h-8 fill-[#5865F2]" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                  </div>
+                  <span id="discord-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span id="discord-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Включён
+                  </span>
+                </div>
+                <div class="mt-2">
+                  <h4 class="text-sm font-bold text-white leading-tight">Discord</h4>
+                  <span id="discord-status-text" class="text-xs text-emerald-400 block whitespace-nowrap font-medium leading-tight mt-1">Голос и текст</span>
+                  <span class="text-[10px] text-slate-400 block whitespace-nowrap mt-0.5">RTC / WebSocket активен</span>
+                </div>
+              </div>
+
+              <!-- Custom Sites Card (Clickable to switch tab) -->
+              <div onclick="navigateTo('sites')" class="service-chip rounded-2xl p-4 flex flex-col justify-between min-h-[125px] transition-all cursor-pointer hover:border-teal-400/40 hover:bg-teal-500/[0.04] group" title="Открыть управление списком сайтов">
+                <div class="flex items-center justify-between">
+                  <!-- Frameless Big Symmetrical Globe Icon -->
+                  <div class="w-8 h-8 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <svg class="w-7 h-7 stroke-[#2dd4bf] stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><ellipse cx="12" cy="12" rx="4.5" ry="10"/></svg>
+                  </div>
+                  <span id="sites-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center gap-1 group-hover:bg-teal-500/30 transition-colors">
+                    <span id="sites-status-dot" class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> 18 узлов
+                  </span>
+                </div>
+                <div class="mt-2 flex items-end justify-between">
+                  <div>
+                    <h4 class="text-sm font-bold text-white leading-tight group-hover:text-teal-300 transition-colors">Сайты</h4>
+                    <span class="text-xs text-teal-400 block whitespace-nowrap font-medium leading-tight mt-1">Список активен</span>
+                    <span class="text-[10px] text-slate-400 block whitespace-nowrap mt-0.5">Авто-маршрутизация</span>
+                  </div>
+                  <svg class="w-4 h-4 stroke-slate-500 group-hover:stroke-teal-400 stroke-2 fill-none mb-0.5 transition-colors" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                </div>
+              </div>
+
             </div>
           </div>
 
-          <div class="feature-row">
-            <article class="panel panel-tg card-tg-proxy glass-card">
-              <header class="panel-head">
-                <div class="panel-icon panel-icon-tg">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          <!-- Bottom Section: Dual-Compartment Strategy Control Bar (Spacious & No-Truncation) -->
+          <div class="inner-panel rounded-2xl p-4 flex items-center justify-between gap-4">
+            
+            <!-- Left Compartment: Active Strategy -->
+            <div class="flex-1 min-w-0 pr-4 border-r border-white/10 flex items-center justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Текущая стратегия</span>
+                <div id="active-strategy-name" class="text-sm font-bold text-white font-mono truncate mt-0.5" title="discord-youtube-alt">
+                  discord-youtube-alt
                 </div>
-                <div class="panel-head-text">
-                  <h3>Прокси для Telegram</h3>
-                  <p class="card-hint">Локальный SOCKS5 через WebSocket</p>
-                </div>
-              </header>
-
-              <div class="panel-meta-grid tg-proxy-status" id="tgProxyStatusBlock">
-                <div class="tg-proxy-status-line">
-                  <span class="tg-proxy-status-label">Статус:</span>
-                  <span class="tg-proxy-badge" id="tgProxyBadge">Выключен</span>
-                </div>
-                <div class="tg-proxy-address">
-                  <span class="panel-meta-label">Адрес</span>
-                  <div class="tg-proxy-address-row">
-                    <code class="panel-meta-value" id="tgProxyAddress">127.0.0.1:1443</code>
-                    <button class="btn-icon-copy" id="btnTgProxyCopyAddress" type="button" title="Копировать адрес" aria-label="Копировать адрес">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <rect x="9" y="9" width="13" height="13" rx="2"/>
-                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-                      </svg>
+              </div>
+              <div class="relative flex-shrink-0">
+                <button id="btn-change-strategy" onclick="toggleStrategyMenu(event)" class="h-8 px-3 rounded-lg text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 flex items-center gap-1.5 flex-shrink-0 cursor-pointer transition-all active:scale-95" title="Выбрать другую стратегию обхода">
+                  <span>Сменить</span>
+                  <svg class="w-3 h-3 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                <!-- Dropdown Menu -->
+                <div id="strategy-dropdown" class="hidden absolute right-0 bottom-full mb-2.5 w-64 max-h-[300px] flex flex-col rounded-2xl bg-[#18202e] border border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.7)] z-50 overflow-hidden">
+                  <div class="px-3.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[#131924] border-b border-white/10 flex items-center justify-between flex-shrink-0 select-none">
+                    <span>Выберите стратегию</span>
+                    <span id="strategy-dropdown-count" class="text-[10px] font-mono text-slate-500"></span>
+                  </div>
+                  <div id="strategy-dropdown-items" class="p-1.5 overflow-y-auto custom-scrollbar space-y-1 flex-1">
+                    <button onclick="selectStrategy('discord-youtube-alt')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
+                      <span class="truncate">discord-youtube-alt</span>
+                      <span class="text-[9px] font-sans font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">Реком.</span>
+                    </button>
+                    <button onclick="selectStrategy('general-fake-tls')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
+                      <span class="truncate">general-fake-tls</span>
+                      <span class="text-[9px] font-sans text-slate-400">DPI bypass</span>
+                    </button>
+                    <button onclick="selectStrategy('kyber-modern')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
+                      <span class="truncate">kyber-modern</span>
+                      <span class="text-[9px] font-sans text-slate-400">TLS 1.3</span>
+                    </button>
+                    <button onclick="selectStrategy('discord-voice-fix')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
+                      <span class="truncate">discord-voice-fix</span>
+                      <span class="text-[9px] font-sans text-slate-400">RTC UDP</span>
                     </button>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <button class="btn btn-primary btn-tg-proxy-toggle" id="btnTgProxyToggle" type="button">
-                Включить прокси
+            <!-- Right Compartment: Auto-Probe / Help -->
+            <div class="flex-shrink-0 flex items-center justify-between gap-3">
+              <div class="min-w-0 text-left">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Если есть сбои</span>
+                <span class="text-xs text-slate-300 block whitespace-nowrap mt-0.5">Авто-проверка</span>
+              </div>
+              <button onclick="runStrategyProbeFlow()" id="btn-probe" class="h-8 px-3.5 rounded-lg text-xs font-bold text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 flex items-center gap-1.5 flex-shrink-0 cursor-pointer transition-all active:scale-95">
+                <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <span id="btn-probe-text">Подобрать</span>
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- ══════════════════════════════════════════════════════════════
+             RIGHT CARD: TELEGRAM PROXY (Col 4)
+             ══════════════════════════════════════════════════════════════ -->
+        <div id="tg-card" class="md:col-span-4 slate-card tg-card-active rounded-3xl p-6 md:p-7 flex flex-col justify-between min-h-[440px]">
+          
+          <div class="space-y-4">
+            <!-- Header (Big frameless Telegram icon & no text truncation) -->
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0 flex-1">
+                <!-- Frameless Big Telegram Icon -->
+                <div class="w-10 h-10 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-10 h-10 fill-[#229ED9]" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.52 2.77-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+                </div>
+                <div class="min-w-0">
+                  <h4 class="text-base font-bold text-white whitespace-nowrap leading-tight">Telegram</h4>
+                  <p class="text-xs text-slate-300 whitespace-nowrap leading-tight mt-0.5">MTProto Fake-TLS</p>
+                </div>
+              </div>
+
+              <!-- Status Badge -->
+              <span id="tg-status-badge" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#229ed9]/25 text-[#229ed9] border border-[#229ed9]/45 whitespace-nowrap flex-shrink-0">
+                В СЕТИ
+              </span>
+            </div>
+
+            <!-- Rich Key-Value Status Panel -->
+            <div class="inner-panel rounded-2xl p-4 space-y-3 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Шлюз:</span>
+                <span class="font-mono font-bold text-white">127.0.0.1:1443</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Состояние:</span>
+                <span id="tg-client-desc" class="text-emerald-400 font-bold flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Готов к работе
+                </span>
+              </div>
+              <div class="flex items-center justify-between pt-3 border-t border-white/10">
+                <span class="text-slate-400">Протокол:</span>
+                <span class="text-slate-300 font-medium">MTProto / WebSocket</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Пинг шлюза:</span>
+                <span id="tg-ping-val" class="text-emerald-400 font-mono font-semibold">12 мс</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="space-y-3 pt-2">
+            <button id="btn-tg-power" onclick="toggleTg()" class="w-full h-[48px] rounded-2xl text-sm font-bold bg-gradient-to-b from-[#1a85b8] to-[#156d98] hover:from-[#229ed9] hover:to-[#1a85b8] text-white border border-sky-500/30 shadow-[0_2px_8px_rgba(34,158,217,0.25)] hover:shadow-[0_4px_14px_rgba(34,158,217,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all">
+              <svg id="tg-power-icon" class="w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+              <span id="btn-tg-power-text" class="tracking-wide">ВЫКЛЮЧИТЬ</span>
+            </button>
+
+            <!-- Action links: 1 click connect -->
+            <div class="flex items-center justify-center text-xs">
+              <button onclick="openTg1Click()" class="text-[#38bdf8] hover:text-[#7dd3fc] underline cursor-pointer transition-colors font-medium">
+                Подключить в 1 клик
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        </div> <!-- end grid -->
+      </div> <!-- end #page-home -->
+
+      <!-- ─── PAGE: VPN (VLESS / XRAY) ─── -->
+      <div id="page-vpn" class="hidden flex-1 min-h-0 py-0.5 px-0.5 flex flex-col justify-center">
+        
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch h-full">
+
+          <!-- ══════════════════════════════════════════════════════════════
+               LEFT COLUMN: MAIN CONTROLS, SERVICE & ACTIVE STATUS (Col 5)
+               ══════════════════════════════════════════════════════════════ -->
+          <div id="vpn-hero-card" class="md:col-span-5 slate-card rounded-3xl p-5 md:p-5.5 flex flex-col justify-between space-y-2.5 h-full max-h-[465px]">
+            
+            <!-- Top Section: Header + Power Switch + Smart Connect + Service -->
+            <div class="space-y-3">
+              <!-- Status Header -->
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                  <span id="vpn-status-dot" class="w-3.5 h-3.5 rounded-full bg-slate-500 flex-shrink-0"></span>
+                  <span id="vpn-status-title" class="text-sm font-semibold text-white">VPN подключение (выкл)</span>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-white/5 text-slate-400 border border-white/10">VLESS Reality</span>
+              </div>
+
+              <!-- Main Power Switch Button -->
+              <button id="btn-vpn-power" onclick="toggleVpn()" class="w-full h-[48px] rounded-2xl font-bold text-sm bg-[#333d52] hover:bg-[#3d4961] text-white border border-white/10 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all">
+                <svg id="vpn-power-icon" class="w-5 h-5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+                <span id="vpn-power-text" class="tracking-wide">ВКЛЮЧИТЬ</span>
               </button>
 
-              <div class="tg-proxy-download hidden" id="tgProxyDownloadBlock">
-                <div class="tg-proxy-download-bar">
-                  <div class="tg-proxy-download-fill" id="tgProxyDownloadFill"></div>
+              <!-- Smart Connect Button (Calm, dark secondary utility action) -->
+              <button onclick="vpnSmartConnect()" id="btn-vpn-smart" class="w-full h-[38px] px-3.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 flex items-center gap-2 cursor-pointer transition-all active:scale-95" title="Автоматически найти и подключить узел с наименьшим пингом">
+                <svg class="w-3.5 h-3.5 fill-slate-400 flex-shrink-0" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <span id="vpn-smart-text">Подключить лучший</span>
+                <span id="vpn-smart-ping-badge" class="ml-auto text-[11px] font-mono text-slate-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-md">—</span>
+              </button>
+
+              <!-- ПОД КНОПКАМИ ВКЛЮЧЕНИЯ: СЕРВИС ПОДПИСКИ И СРОК ДЕЙСТВИЯ (РАЗДЕЛЕНЫ ПОПОЛАМ СВЕРХУ ВНИЗ) -->
+              <div class="inner-panel rounded-2xl p-3.5 flex items-center justify-between">
+                <!-- Левая половина: Сервис подписки -->
+                <div class="flex-1 min-w-0 pr-3">
+                  <div class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-400 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">Сервис</span>
+                  </div>
+                  <span id="sub-service-name" class="text-xs font-bold text-white truncate block mt-1">DedVPN Private</span>
                 </div>
-                <p class="tg-proxy-download-label" id="tgProxyDownloadLabel">Скачивание…</p>
-              </div>
 
-              <div class="tg-proxy-update hidden" id="tgProxyUpdateBlock">
-                <span class="diag-warn" id="tgProxyUpdateText"></span>
-                <button class="btn btn-ghost btn-sm" id="btnTgProxyUpdate" type="button">Обновить</button>
-              </div>
-            </article>
+                <!-- Разделительная полосочка сверху вниз -->
+                <div class="w-[1px] h-7 bg-white/10 flex-shrink-0"></div>
 
-            <article class="panel panel-strategy glass-card">
-              <header class="panel-head">
-                <div class="panel-icon panel-icon-strategy">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h16"/></svg>
-                </div>
-                <div class="panel-head-text">
-                  <h3>Смена стратегии обхода блокировки YouTube и Discord</h3>
-                  <p class="card-hint">Рекомендуем пройти подбор рабочей стратегии</p>
-                </div>
-              </header>
-
-              <select class="select" id="strategySelect"></select>
-              <div class="strategy-probe-badge hidden" id="strategyProbeBadge" title="Результат последнего подбора"></div>
-              <div class="strategy-probe">
-                <button class="btn btn-primary btn-power-green btn-strategy-probe" id="btnStrategyProbe" type="button">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M9 11l3 3L22 4"/>
-                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-                  </svg>
-                  <span id="btnStrategyProbeLabel">Подбор рабочей стратегии</span>
-                </button>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <!-- SITES -->
-        <section class="page" id="page-sites">
-          <header class="page-header">
-            <div class="page-header-badge">Списки</div>
-            <h1>Мои сайты</h1>
-            <p class="subtitle">Основной список обхода и дополнительные списки по выбору</p>
-          </header>
-
-          <div class="sites-stack" role="group" aria-label="Списки доменов">
-            <article class="panel sites-card glass-card">
-              <header class="panel-head">
-                <div class="panel-icon panel-icon-sites">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-                  </svg>
-                </div>
-                <div class="panel-head-text">
-                  <h3>Основной список</h3>
-                  <p class="card-hint">Файл <code>list-general.txt</code> — Discord, YouTube и остальные домены обхода</p>
-                </div>
-              </header>
-
-              <div class="sites-toolbar">
-                <input type="search" class="input sites-search" id="sitesSearch" placeholder="Поиск по доменам…" spellcheck="false" autocomplete="off">
-                <div class="sites-toolbar-actions">
-                  <button class="btn btn-ghost btn-sm" id="btnSitesImport" type="button" title="Импорт из .txt">Импорт</button>
-                  <button class="btn btn-ghost btn-sm" id="btnSitesExport" type="button" title="Экспорт в .txt">Экспорт</button>
-                  <button class="btn btn-ghost btn-sm" id="btnSitesPaste" type="button" title="Вставить домены из буфера">Из буфера</button>
-                </div>
-              </div>
-
-              <form class="sites-add-row" id="sitesAddForm" autocomplete="off">
-                <input type="text" class="input" id="siteInput" placeholder="discord.com" spellcheck="false">
-                <button class="btn btn-primary btn-power-green sites-add-btn" id="btnAddSite" type="submit" title="Добавить домен">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14"/>
-                  </svg>
-                  <span>Добавить</span>
-                </button>
-              </form>
-              <p class="sites-add-hint">Только домен, без <code>https://</code> — например <code>youtube.com</code></p>
-
-              <div class="sites-accordion" id="sitesAccordion">
-                <button class="sites-accordion-toggle" id="sitesAccordionToggle" type="button" aria-expanded="true" aria-controls="sitesAccordionBody">
-                  <span class="sites-accordion-label">
-                    <svg class="sites-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                      <path d="M6 9l6 6 6-6"/>
-                    </svg>
-                    <span>Все домены</span>
-                  </span>
-                  <span class="sites-count-badge" id="sitesCount">0</span>
-                </button>
-                <div class="sites-accordion-body" id="sitesAccordionBody">
-                  <div class="sites-list" id="sitesList"></div>
-                  <p class="sites-empty" id="sitesEmpty" hidden>Список пуст — добавьте хотя бы один домен</p>
-                </div>
-              </div>
-            </article>
-
-            <article class="panel sites-card glass-card sites-card-extra">
-              <header class="panel-head">
-                <div class="panel-icon panel-icon-extra">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M4 6h16M4 12h16M4 18h10"/>
-                  </svg>
-                </div>
-                <div class="panel-head-text">
-                  <h3>Дополнительный список</h3>
-                  <p class="card-hint">Свои списки в <code>lists/custom/</code>; активный подключается как <code>list-general-user.txt</code></p>
-                </div>
-              </header>
-
-              <div class="custom-list-toolbar">
-                <label class="custom-list-field">
-                  <span class="custom-list-label">Активный список</span>
-                  <select class="input custom-list-select" id="customListSelect">
-                    <option value="">Не использовать</option>
-                  </select>
-                </label>
-                <button class="btn btn-secondary btn-sm" id="btnCreateCustomList" type="button">Создать</button>
-                <button class="btn btn-ghost btn-sm custom-list-delete" id="btnDeleteCustomList" type="button" title="Удалить выбранный список" hidden>Удалить</button>
-              </div>
-
-              <form class="custom-list-create-row" id="customListCreateForm" hidden autocomplete="off">
-                <input type="text" class="input" id="customListNameInput" placeholder="Название списка" spellcheck="false" maxlength="48">
-                <button class="btn btn-primary btn-power-green btn-sm" type="submit">OK</button>
-                <button class="btn btn-ghost btn-sm" id="btnCancelCustomList" type="button">Отмена</button>
-              </form>
-
-              <div class="custom-list-editor" id="customListEditor" hidden>
-                <div class="sites-toolbar">
-                  <input type="search" class="input sites-search" id="customSitesSearch" placeholder="Поиск по доменам…" spellcheck="false" autocomplete="off">
-                  <div class="sites-toolbar-actions">
-                    <button class="btn btn-ghost btn-sm" id="btnCustomSitesImport" type="button">Импорт</button>
-                    <button class="btn btn-ghost btn-sm" id="btnCustomSitesExport" type="button">Экспорт</button>
-                    <button class="btn btn-ghost btn-sm" id="btnCustomSitesPaste" type="button">Из буфера</button>
+                <!-- Правая половина: Срок действия -->
+                <div class="flex-1 min-w-0 pl-3">
+                  <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Срок действия</span>
+                  <div class="flex items-center gap-1.5 mt-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0"></span>
+                    <span id="sub-days-left" class="text-xs font-semibold text-slate-200 font-mono whitespace-nowrap">Синхронизация...</span>
                   </div>
                 </div>
-                <form class="sites-add-row" id="customSitesAddForm" autocomplete="off">
-                  <input type="text" class="input" id="customSiteInput" placeholder="example.com" spellcheck="false">
-                  <button class="btn btn-primary btn-power-green sites-add-btn" id="btnAddCustomSite" type="submit" title="Добавить домен">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                      <path d="M12 5v14M5 12h14"/>
+              </div>
+            </div>
+
+            <!-- Active Connection Card (Spacious, elegant 2-tier layout) -->
+            <div id="vpn-connection-bar" class="inner-panel rounded-2xl p-3.5 space-y-2.5 opacity-50">
+              <!-- Top row: Flag + Full Node Name + Status Badge -->
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span id="vpn-active-flag" class="flex-shrink-0 flex items-center justify-center">
+                    <svg class="w-6 h-4 rounded-[4px] shadow-sm flex-shrink-0 overflow-hidden border border-white/15" viewBox="0 0 640 480">
+                      <path fill="#21468b" d="M0 0h640v480H0z"/>
+                      <path fill="#fff" d="M0 0h640v320H0z"/>
+                      <path fill="#ae1c28" d="M0 0h640v160H0z"/>
                     </svg>
+                  </span>
+                  <div class="min-w-0">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Текущий узел</span>
+                    <span id="vpn-active-node" class="text-sm font-bold text-white tracking-tight truncate block mt-0.5">NL-Amsterdam-01</span>
+                  </div>
+                </div>
+
+                <!-- Status Indicator (Crisp anti-aliased vector ring & radial gradient) -->
+                <div id="vpn-active-indicator" class="vpn-indicator-ring" title="Отключено">
+                  <svg class="w-full h-full block" viewBox="0 0 24 24" fill="none">
+                    <defs>
+                      <radialGradient id="vpn-active-glow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#6ee7b7" stop-opacity="1" />
+                        <stop offset="35%" stop-color="#34d399" stop-opacity="0.95" />
+                        <stop offset="70%" stop-color="#10b981" stop-opacity="0.75" />
+                        <stop offset="92%" stop-color="#059669" stop-opacity="0.25" />
+                        <stop offset="100%" stop-color="#047857" stop-opacity="0" />
+                      </radialGradient>
+                    </defs>
+                    <circle class="vpn-indicator-svg-ring" cx="12" cy="12" r="10" stroke="rgba(255, 255, 255, 0.22)" stroke-width="1.5" />
+                    <circle class="vpn-indicator-svg-fill" cx="12" cy="12" r="9.2" fill="url(#vpn-active-glow)" />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Bottom row: Metrics strip with subtle divider -->
+              <div class="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+                <!-- Пинг -->
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400 text-[11px]">Пинг:</span>
+                  <div class="flex items-center gap-1.5">
+                    <span id="vpn-active-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span id="vpn-active-ping" class="font-bold text-emerald-400 font-mono text-xs">36 мс</span>
+                  </div>
+                </div>
+
+                <!-- Тонкий разделитель -->
+                <span class="h-3 w-[1px] bg-white/15"></span>
+
+                <!-- Внешний IP -->
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400 text-[11px]">Внешний IP:</span>
+                  <span id="vpn-active-ip" class="font-mono text-slate-200 text-xs font-medium" title="Внешний IP адрес">185.220.101.5</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom: Subscription URL Management Block with Strong Privacy Blur inside string -->
+            <div class="inner-panel rounded-2xl p-3.5 space-y-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <label for="vpn-sub-input" class="text-xs font-semibold text-slate-300 tracking-wide whitespace-nowrap">
+                  Ссылка на подписку VPN
+                </label>
+                <span class="text-[10px] px-2.5 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/10 font-medium flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+                  <svg class="w-2.5 h-2.5 stroke-slate-400 stroke-2 fill-none" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  Секретно
+                </span>
+              </div>
+
+              <!-- URL container: directly active & editable input with quick Paste, Eye toggle and Copy -->
+              <div class="relative flex items-center">
+                <input id="vpn-sub-input" type="password" value="" class="w-full h-10 pl-3.5 pr-24 rounded-xl bg-[#141923] border border-white/10 focus:border-emerald-500/50 text-xs text-slate-200 placeholder:text-slate-500 outline-none transition-all font-mono" spellcheck="false" placeholder="Вставьте ссылку на подписку или vless:// (Ctrl+V)" onkeydown="if(event.key==='Enter') vpnUpdateSub()" />
+                
+                <!-- Action buttons: Paste + Eye Toggle + Copy -->
+                <div class="absolute right-1.5 flex items-center gap-1">
+                  <button type="button" onclick="pasteVpnSub(event)" id="btn-paste-sub" class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors" title="Вставить из буфера обмена">
+                    <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                  </button>
+                  <button type="button" onclick="toggleSubVisibility(event)" id="btn-toggle-sub-eye" class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors" title="Показать / скрыть ключ">
+                    <svg id="icon-sub-eye" class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+                  </button>
+                  <button type="button" onclick="copySubUrl(event)" id="btn-copy-sub" class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors" title="Скопировать ссылку">
+                    <svg id="icon-copy-sub" class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+
+          <!-- ══════════════════════════════════════════════════════════════
+               RIGHT COLUMN: SERVER BROWSER (Col 7)
+               ══════════════════════════════════════════════════════════════ -->
+          <div class="md:col-span-7 slate-card rounded-3xl p-5 md:p-5.5 flex flex-col justify-between overflow-hidden h-full max-h-[465px]">
+            
+            <!-- List Header: Text directly (NO green icon on left) + Action Buttons -->
+            <div class="flex items-center justify-between gap-3 pb-3.5 border-b border-white/10 flex-shrink-0">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-bold text-white whitespace-nowrap">Доступные серверы</h3>
+                  <span id="sub-nodes-badge" class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 text-slate-400 border border-white/10 whitespace-nowrap">16 узлов</span>
+                </div>
+                <p id="sub-sync-status" class="text-[11px] text-slate-400 truncate mt-0.5">Синхронизировано сегодня в 18:00</p>
+              </div>
+
+              <!-- Compact Actions: Обновить узлы и пинг -->
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <button onclick="vpnUpdateSub()" id="btn-update-sub" class="h-8 px-3 rounded-xl text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 whitespace-nowrap flex-shrink-0 min-w-[92px]" title="Обновить список серверов и замерить пинг">
+                  <svg id="update-sub-icon" class="w-3.5 h-3.5 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M2.5 22v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L21.5 8M2.5 16l3.14 2.36A9 9 0 0 0 20.49 15"/></svg>
+                  <span id="btn-update-sub-text">Обновить</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Scrollable Server List (Only this list scrolls!) -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 py-2.5 pr-1.5 min-h-0 max-h-[360px]" id="vpn-servers-list">
+              <div class="h-44 flex flex-col items-center justify-center text-center p-4 text-slate-500 text-xs">
+                <svg class="w-8 h-8 stroke-slate-600 stroke-1.5 fill-none mb-2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                <span>Загрузка списка серверов...</span>
+              </div>
+            </div>
+
+            <!-- Bottom summary strip in right card -->
+            <div class="flex items-center justify-between text-[11px] text-slate-400 pt-3.5 border-t border-white/10 flex-shrink-0">
+              <div class="flex items-center gap-2">
+                <span id="sub-bottom-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span id="sub-bottom-summary">Все узлы готовы к подключению</span>
+              </div>
+              <span id="sub-bottom-port" class="font-mono text-slate-400">VLESS Reality · Порт 10809</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div> <!-- end #page-vpn -->
+            <!-- ─── PAGE: SITES (ДОМЕНЫ И СПИСКИ ОБХОДА) ─── -->
+      <div id="page-sites" class="hidden flex-1 min-h-0 py-0.5 px-0.5 flex flex-col justify-center">
+        
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch h-full">
+
+          <!-- ══════════════════════════════════════════════════════════════
+               LEFT COLUMN: ОСНОВНОЙ СПИСОК ДОМЕНОВ (Col 7)
+               ══════════════════════════════════════════════════════════════ -->
+          <div class="md:col-span-7 slate-card rounded-3xl p-5 md:p-5.5 flex flex-col justify-between overflow-hidden h-full max-h-[465px]">
+            
+            <!-- List Header: Title + Controls -->
+            <div class="pb-3 border-b border-white/10 flex-shrink-0 space-y-2.5">
+              
+              <!-- Row 1: Header + Action Buttons -->
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-bold text-white whitespace-nowrap">Основной список</h3>
+                    <span id="sites-count-pill" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30 whitespace-nowrap">18 доменов</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 whitespace-nowrap mt-0.5">Файл list-general.txt · Обход DPI</p>
+                </div>
+
+                <!-- Actions: Import / Export / Paste -->
+                <div class="flex items-center gap-1.5 flex-shrink-0">
+                  <button onclick="handleSitesImport()" class="h-7 px-2.5 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95" title="Импортировать список из .txt">
+                    <svg class="w-3 h-3 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    <span>Импорт</span>
+                  </button>
+                  <button onclick="handleSitesExport()" class="h-7 px-2.5 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95" title="Экспортировать список в .txt">
+                    <svg class="w-3 h-3 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                    <span>Экспорт</span>
+                  </button>
+                  <button onclick="handleSitesPaste()" class="h-7 px-2.5 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95" title="Вставить домены из буфера">
+                    <svg class="w-3 h-3 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Буфер</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Row 2: Search input & Add form -->
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                <!-- Search input -->
+                <div class="sm:col-span-6 relative flex items-center">
+                  <svg class="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input id="sites-search-input" oninput="handleSitesSearch(this.value)" type="search" placeholder="Поиск по доменам..." class="w-full h-8 pl-8 pr-3 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-teal-400/50 transition-all" spellcheck="false" autocomplete="off" />
+                </div>
+
+                <!-- Add domain input + button -->
+                <form id="sites-add-form" onsubmit="handleSitesAdd(event)" class="sm:col-span-6 flex items-center gap-1.5">
+                  <input id="sites-new-input" type="text" placeholder="Добавить домен..." class="flex-1 min-w-0 h-8 px-3 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-emerald-400/50 transition-all font-mono" spellcheck="false" autocomplete="off" />
+                  <button type="submit" class="h-8 px-3 rounded-xl text-xs font-bold text-gray-950 bg-gradient-to-r from-emerald-500 to-teal-400 hover:brightness-110 active:scale-95 flex items-center justify-center gap-1 cursor-pointer flex-shrink-0 transition-all shadow-sm">
+                    <svg class="w-3 h-3 stroke-current stroke-[3] fill-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Добавить</span>
                   </button>
                 </form>
+              </div>
+            </div>
 
-                <div class="sites-accordion" id="customSitesAccordion">
-                  <button class="sites-accordion-toggle" id="customSitesAccordionToggle" type="button" aria-expanded="true" aria-controls="customSitesAccordionBody">
-                    <span class="sites-accordion-label">
-                      <svg class="sites-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <path d="M6 9l6 6 6-6"/>
-                      </svg>
-                      <span id="customSitesAccordionLabel">Домены списка</span>
-                    </span>
-                    <span class="sites-count-badge" id="customSitesCount">0</span>
+            <!-- Scrollable Domain List -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar py-2 pr-1 space-y-1.5 min-h-0" id="sites-list-container">
+              <!-- Rendered via JS -->
+            </div>
+
+            <!-- Bottom summary strip in left card -->
+            <div class="flex items-center justify-between text-[11px] text-slate-400 pt-3 border-t border-white/10 flex-shrink-0">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span id="sites-status-summary">Маршрутизация: Kyber / Fake TLS активна</span>
+              </div>
+              <span class="font-mono text-slate-400 text-[10px]">Авто-сохранение при вводе</span>
+            </div>
+
+          </div>
+
+
+          <!-- ══════════════════════════════════════════════════════════════
+               RIGHT COLUMN: ПОЛЬЗОВАТЕЛЬСКИЕ СПИСКИ И ПРЕСЕТЫ (Col 5)
+               ══════════════════════════════════════════════════════════════ -->
+          <div class="md:col-span-5 slate-card rounded-3xl p-5 md:p-5.5 flex flex-col justify-between overflow-hidden h-full max-h-[465px] space-y-3">
+            
+            <!-- Section 1: Пользовательские списки (Custom Lists) -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+                  </div>
+                  <div>
+                    <h4 class="text-xs font-bold text-white leading-tight">Дополнительный список</h4>
+                    <span class="text-[10px] text-slate-400 block leading-tight">lists/custom/</span>
+                  </div>
+                </div>
+                <span id="custom-list-active-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Активен</span>
+              </div>
+
+              <!-- Selector + Actions Container -->
+              <div class="inner-panel rounded-2xl p-3 space-y-2">
+                <div class="flex items-center gap-2">
+                  <select id="custom-list-select" onchange="handleCustomListChange(this.value)" class="flex-1 min-w-0 h-8 px-2.5 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 outline-none focus:border-emerald-400/50 cursor-pointer truncate">
+                    <option value="user-extra-list">user-extra-list.txt (6)</option>
+                    <option value="gaming-voice">gaming-voice.txt (4)</option>
+                    <option value="work-services">work-services.txt (8)</option>
+                    <option value="">Не использовать</option>
+                  </select>
+                  <button onclick="handleCreateCustomList()" class="h-8 px-2.5 rounded-xl text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 flex items-center gap-1 cursor-pointer transition-all active:scale-95 flex-shrink-0" title="Создать новый список">
+                    <svg class="w-3 h-3 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                    <span>Создать</span>
                   </button>
-                  <div class="sites-accordion-body" id="customSitesAccordionBody">
-                    <div class="sites-list" id="customSitesList"></div>
-                    <p class="sites-empty" id="customSitesEmpty" hidden>Список пуст — добавьте домены</p>
+                  <button onclick="handleDeleteCustomList()" class="h-8 w-8 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 flex items-center justify-center cursor-pointer transition-all active:scale-95 flex-shrink-0" title="Удалить выбранный список">
+                    <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-snug">
+                  Подключается как <code class="text-slate-300 font-mono">list-general-user.txt</code>.
+                </p>
+              </div>
+            </div>
+
+            <!-- Section 2: Быстрое добавление (Популярные сервисы) -->
+            <div class="space-y-1.5">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Быстрое добавление (в 1 клик)
+              </span>
+              <div class="grid grid-cols-2 gap-2">
+                <button onclick="quickAddDomain('notion.so')" class="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-teal-400/40 text-left flex items-center justify-between transition-all cursor-pointer group">
+                  <span class="text-xs font-medium text-slate-200 group-hover:text-white truncate">Notion</span>
+                  <span class="text-[10px] text-teal-400 font-mono ml-1 truncate">+ notion.so</span>
+                </button>
+                <button onclick="quickAddDomain('x.com')" class="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-teal-400/40 text-left flex items-center justify-between transition-all cursor-pointer group">
+                  <span class="text-xs font-medium text-slate-200 group-hover:text-white truncate">Twitter / X</span>
+                  <span class="text-[10px] text-teal-400 font-mono ml-1 truncate">+ x.com</span>
+                </button>
+                <button onclick="quickAddDomain('canva.com')" class="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-teal-400/40 text-left flex items-center justify-between transition-all cursor-pointer group">
+                  <span class="text-xs font-medium text-slate-200 group-hover:text-white truncate">Canva</span>
+                  <span class="text-[10px] text-teal-400 font-mono ml-1 truncate">+ canva.com</span>
+                </button>
+                <button onclick="quickAddDomain('rutracker.org')" class="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-teal-400/40 text-left flex items-center justify-between transition-all cursor-pointer group">
+                  <span class="text-xs font-medium text-slate-200 group-hover:text-white truncate">RuTracker</span>
+                  <span class="text-[10px] text-teal-400 font-mono ml-1 truncate">+ rutracker</span>
+                </button>
+                <button onclick="quickAddDomain('spotify.com')" class="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-teal-400/40 text-left flex items-center justify-between transition-all cursor-pointer group">
+                  <span class="text-xs font-medium text-slate-200 group-hover:text-white truncate">Spotify</span>
+                  <span class="text-[10px] text-teal-400 font-mono ml-1 truncate">+ spotify.com</span>
+                </button>
+                <button onclick="quickAddDomain('chatgpt.com')" class="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-teal-400/40 text-left flex items-center justify-between transition-all cursor-pointer group">
+                  <span class="text-xs font-medium text-slate-200 group-hover:text-white truncate">ChatGPT</span>
+                  <span class="text-[10px] text-teal-400 font-mono ml-1 truncate">+ chatgpt</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 3: Подсказка по синтаксису (с четкой иконкой вопросика) -->
+            <div class="inner-panel rounded-2xl p-2.5 flex items-start gap-2.5 border border-white/5 bg-white/[0.02]">
+              <svg class="w-4 h-4 text-teal-400 flex-shrink-0 mt-0.5 fill-current" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
+              <div class="text-[11px] text-slate-400 leading-relaxed">
+                <span class="font-semibold text-slate-300">Подсказка:</span> Можно вставлять ссылки в любом виде (с <code class="text-teal-400">https://</code>, путями или префиксами) — программа сама очистит их до домена. Поддомены перехватываются автоматически.
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div> <!-- end #page-sites -->
+
+      <!-- ─── PAGE: SETTINGS (НАСТРОЙКИ И ОБСЛУЖИВАНИЕ) ─── -->
+      <div id="page-settings" class="hidden w-full my-auto">
+        
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
+
+          <!-- ══════════════════════════════════════════════════════════════
+               LEFT COLUMN: ПОВЕДЕНИЕ ПРОГРАММЫ И ФИЛЬТРАЦИЯ (Col 7)
+               ══════════════════════════════════════════════════════════════ -->
+          <div class="md:col-span-7 slate-card rounded-3xl p-5 flex flex-col justify-between overflow-hidden space-y-3">
+            
+            <!-- Top Section: Header + Unified Behavior Panel -->
+            <div class="space-y-2.5">
+              <div class="pb-1.5 border-b border-white/10">
+                <h3 class="text-sm font-bold text-white tracking-tight">Поведение программы</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Крестик окна, автозапуск и фоновый режим</p>
+              </div>
+
+              <!-- Unified Behavior Panel -->
+              <div class="inner-panel rounded-2xl p-3 space-y-2.5">
+                <!-- 1. Действие при закрытии окна (крестик) -->
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs font-semibold text-white">При нажатии на крестик</span>
+                    <span class="text-[10px] text-slate-400">фоновый режим в трее</span>
+                  </div>
+                  <!-- Segmented Toggle Group -->
+                  <div class="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[#141923] border border-white/10">
+                    <button type="button" onclick="setCloseBehavior('ask')" id="btn-close-ask" class="h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center">
+                      Спрашивать
+                    </button>
+                    <button type="button" onclick="setCloseBehavior('tray')" id="btn-close-tray" class="h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center">
+                      В трей
+                    </button>
+                    <button type="button" onclick="setCloseBehavior('quit')" id="btn-close-quit" class="h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center">
+                      Закрывать
+                    </button>
+                  </div>
+                </div>
+
+                <div class="h-[1px] bg-white/5"></div>
+
+                <!-- 2. Switches: Сворачивать при старте, Автозагрузка, Авто-проверка -->
+                <div class="space-y-2">
+                  <!-- Switch 1: Сворачивать при запуске -->
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <span class="text-xs font-medium text-slate-200 block">Сворачивать при запуске</span>
+                      <span class="text-[10px] text-slate-400 block leading-tight">Открывать в трей без показа главного окна</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <input type="checkbox" id="toggle-start-minimized" onchange="toggleSetting('startMinimized', this.checked)" class="sr-only peer">
+                      <div class="w-9 h-5 bg-[#1b2230] border border-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+
+                  <div class="h-[1px] bg-white/5"></div>
+
+                  <!-- Switch 2: Автозагрузка с Windows -->
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <span class="text-xs font-medium text-slate-200 block">Автозагрузка с Windows</span>
+                      <span class="text-[10px] text-slate-400 block leading-tight">Запуск Zapret HUB при входе в систему</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <input type="checkbox" id="toggle-autostart" checked onchange="toggleSetting('autostart', this.checked)" class="sr-only peer">
+                      <div class="w-9 h-5 bg-[#1b2230] border border-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+
+                  <div class="h-[1px] bg-white/5"></div>
+
+                  <!-- Switch 3: Авто-проверка обновлений -->
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <span class="text-xs font-medium text-slate-200 block">Авто-проверка обновлений</span>
+                      <span class="text-[10px] text-slate-400 block leading-tight">Уведомлять о свежих версиях с GitHub</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <input type="checkbox" id="toggle-auto-updates" checked onchange="toggleSetting('autoUpdates', this.checked)" class="sr-only peer">
+                      <div class="w-9 h-5 bg-[#1b2230] border border-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <p class="sites-empty custom-list-placeholder" id="customListPlaceholder">Создайте список или выберите существующий</p>
-            </article>
+            <!-- Bottom Section: IPSet фильтр -->
+            <div class="inner-panel rounded-2xl p-3 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs font-bold text-white">IPSet фильтрация</span>
+                  <button type="button" onclick="toggleIpsetHelp()" class="cursor-pointer text-slate-400 hover:text-teal-300 transition-colors" title="Что такое IPSet фильтр">
+                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
+                  </button>
+                </div>
+                <span class="text-[10px] text-slate-400">второй слой обхода</span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[#141923] border border-white/10">
+                <button type="button" onclick="setIpsetMode('loaded')" id="btn-ipset-loaded" class="h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center">
+                  Загружен
+                </button>
+                <button type="button" onclick="setIpsetMode('none')" id="btn-ipset-none" class="h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center">
+                  Отключён
+                </button>
+                <button type="button" onclick="setIpsetMode('any')" id="btn-ipset-any" class="h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center">
+                  Любые IP
+                </button>
+              </div>
+              <p class="text-[10px] text-slate-400 leading-tight">
+                Фильтрация по базе <code class="text-slate-300 font-mono">ipset-all.txt</code>. Рекомендуется: «Загружен».
+              </p>
+            </div>
+
           </div>
-        </section>
 
-        <!-- TOOLS -->
-        <section class="page" id="page-tools">
-          <header class="page-header">
-            <div class="page-header-badge">Инструменты</div>
-            <h1>Обслуживание</h1>
-            <p class="subtitle">Обновления, диагностика и расширенные настройки</p>
-          </header>
 
-          <div class="panel tool-card tool-card-updates glass-card">
-            <h3>Проверка обновлений</h3>
-            <p class="card-hint">Zapret HUB, движок обхода и TG Proxy — сравнение с GitHub</p>
-            <button class="btn btn-primary btn-power-green" id="btnCheckUpdates" type="button">Проверить все</button>
-            <div class="update-result" id="updateResult"></div>
-          </div>
+          <!-- ══════════════════════════════════════════════════════════════
+               RIGHT COLUMN: О ПРОГРАММЕ, ОБНОВЛЕНИЯ, ДИАГНОСТИКА (Col 5)
+               ══════════════════════════════════════════════════════════════ -->
+          <div class="md:col-span-5 slate-card rounded-3xl p-5 flex flex-col justify-between overflow-hidden space-y-3">
+            
+            <!-- 1. О программе и обновления -->
+            <div class="inner-panel rounded-2xl p-3.5 space-y-2.5">
+              <div class="flex items-start justify-between">
+                <div>
+                  <h4 class="text-xs font-bold text-white tracking-tight">Zapret HUB</h4>
+                  <span class="text-[11px] text-slate-400 block mt-0.5">Центр обхода и маршрутизации</span>
+                </div>
+                <span class="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">v2.0</span>
+              </div>
 
-          <div class="panel glass-card tools-settings-panel">
-            <h3 class="card-title-row">Поведение программы</h3>
-            <p class="card-hint">Крестик окна, сворачивание при старте и проверка обновлений</p>
-            <div class="settings-block">
-              <span class="settings-label">Крестик окна</span>
-              <div class="toggle-group" id="closeBehaviorGroup">
-                <button class="toggle-btn" data-value="ask" type="button">Спрашивать</button>
-                <button class="toggle-btn" data-value="tray" type="button">В трей</button>
-                <button class="toggle-btn" data-value="quit" type="button">Закрывать</button>
+              <!-- Действия обновлений -->
+              <div class="grid grid-cols-2 gap-2 pt-0.5">
+                <button type="button" onclick="checkAllUpdatesSim()" id="btn-settings-update" class="h-8 px-2.5 rounded-xl text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm">
+                  <svg id="settings-update-icon" class="w-3.5 h-3.5 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M2.5 22v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L21.5 8M2.5 16l3.14 2.36A9 9 0 0 0 20.49 15"/></svg>
+                  <span id="btn-settings-update-text">Обновить</span>
+                </button>
+
+                <button type="button" onclick="openChangelogModal()" class="h-8 px-2.5 rounded-xl text-xs font-semibold text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/25 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm">
+                  <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  <span>Патчи</span>
+                </button>
+              </div>
+
+              <!-- GitHub репозиторий -->
+              <div class="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] text-slate-400">
+                <a href="https://github.com/xRAYNERx/Zapret-HUB" target="_blank" class="hover:text-white flex items-center gap-1.5 transition-colors">
+                  <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                  <span class="font-medium">GitHub Репозиторий</span>
+                </a>
+                <span class="font-mono text-[10px]">GPL-3.0</span>
               </div>
             </div>
-            <div class="settings-divider" role="separator"></div>
-            <div class="settings-block settings-block-inline">
-              <span class="settings-label">Сворачивать при старте</span>
-              <label class="switch">
-                <input type="checkbox" id="startMinimizedToggle">
-                <span class="slider"></span>
-              </label>
-            </div>
-            <div class="settings-divider" role="separator"></div>
-            <div class="settings-block settings-block-inline">
-              <span class="settings-label">Проверять обновления при запуске</span>
-              <label class="switch">
-                <input type="checkbox" id="autoCheckUpdatesToggle">
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
 
-          <div class="panel glass-card tools-ipset-panel">
-            <h3 class="card-title-row">
-              IPSet фильтр
-              <button class="help-btn" type="button" aria-label="Что такое IPSet фильтр" data-help="ipset-filter">?</button>
-            </h3>
-            <p class="card-hint">Второй слой обхода по IP-адресам. Для большинства пользователей оставьте «Отключён».</p>
-            <div class="toggle-group" id="ipsetGroup">
-              <button class="toggle-btn" data-value="loaded" type="button">Загружен</button>
-              <button class="toggle-btn" data-value="none" type="button">Отключён</button>
-              <button class="toggle-btn" data-value="any" type="button">Любые IP</button>
-            </div>
-          </div>
-
-          <div class="tools-grid">
-            <div class="panel tool-card glass-card">
-              <h3>Диагностика</h3>
-              <p class="card-hint">Проверит конфликты и готовность системы</p>
-              <button class="btn btn-primary btn-power-green" id="btnDiagnostics" type="button">Запустить</button>
-              <div class="diag-results" id="diagResults"></div>
-            </div>
-
-            <div class="panel tool-card tool-card-about glass-card">
-              <h3>О программе</h3>
-              <div class="about-body">
-                <p class="about-tagline">Zapret HUB — панель обхода блокировок</p>
-                <p class="about-services">Discord · YouTube · Telegram</p>
-                <p class="about-version" id="aboutHubVersion">Версия —</p>
+            <!-- 2. Компоненты ядра системы -->
+            <div class="inner-panel rounded-2xl p-3.5 space-y-2">
+              <div class="flex items-center justify-between pb-1.5 border-b border-white/5">
+                <span class="text-xs font-bold text-white">Компоненты ядра</span>
+                <span class="text-[10px] font-medium text-emerald-400 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Все активны
+                </span>
+              </div>
+              <div class="space-y-1.5 text-xs">
+                <div class="flex items-center justify-between text-slate-300">
+                  <span class="text-slate-400">WinDivert Core:</span>
+                  <span class="font-mono text-slate-200">2.2.2-A</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-300">
+                  <span class="text-slate-400">VPN Reality Engine:</span>
+                  <span class="font-mono text-slate-200">Xray v1.8</span>
+                </div>
+                <div class="flex items-center justify-between text-slate-300">
+                  <span class="text-slate-400">Платформа:</span>
+                  <span class="font-mono text-slate-200">Electron 33</span>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
-      </main>
 
-      <footer class="quick-bar">
-        <div class="quick-bar-inner">
-        <div class="info-list sidebar-info-list">
-          <div class="info-chip info-chip-control">
-            <span class="info-label">
-              Игровой фильтр
-              <button class="help-btn" type="button" aria-label="Что такое игровой фильтр" data-help="game-filter">?</button>
-            </span>
-            <label class="switch">
-              <input type="checkbox" id="gameFilterToggle">
-              <span class="slider"></span>
-            </label>
+            <!-- 3. Диагностика системы -->
+            <div class="inner-panel rounded-2xl p-3.5 space-y-2">
+              <div>
+                <h4 class="text-xs font-bold text-white">Диагностика драйвера и сети</h4>
+                <p class="text-[10px] text-slate-400 leading-snug mt-0.5">
+                  Проверка портов 1080/10809, драйвера WinDivert и системных фильтров.
+                </p>
+              </div>
+
+              <button type="button" onclick="runDiagnosticsSim()" id="btn-settings-diag" class="w-full h-8 px-3 rounded-xl text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-sm">
+                <svg id="settings-diag-icon" class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                <span id="btn-settings-diag-text">Запустить проверку</span>
+              </button>
+            </div>
+
           </div>
-          <div class="info-chip info-chip-control">
-            <span class="info-label">
-              Автозапуск обхода
-              <button class="help-btn" type="button" aria-label="Что такое автозапуск обхода" data-help="autostart-zapret">?</button>
-            </span>
-            <label class="switch">
-              <input type="checkbox" id="autostartZapretToggle">
-              <span class="slider"></span>
-            </label>
+
+        </div>
+
+      </div> <!-- end #page-settings -->
+      </main> <!-- end .window-content -->
+
+      <!-- ─── REWORKED BOTTOM STATUS BAR ─── -->
+      <footer class="flex-shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/10 text-sm">
+        <div class="flex items-center gap-8">
+          <div class="flex items-center gap-2.5">
+            <span id="footer-status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 transition-colors"></span>
+            <span class="text-slate-400 font-medium">Задержка сети:</span>
+            <span id="footer-ping-text" class="text-white font-bold font-mono text-sm">24 мс</span>
           </div>
-          <div class="info-chip info-chip-control">
-            <span class="info-label">
-              Автозапуск TG Proxy
-              <button class="help-btn" type="button" aria-label="Что такое автозапуск TG Proxy" data-help="autostart-tg">?</button>
-            </span>
-            <label class="switch">
-              <input type="checkbox" id="autostartTgToggle">
-              <span class="slider"></span>
-            </label>
+
+          <span class="h-4 w-[1px] bg-white/15 hidden sm:block"></span>
+
+          <div class="flex items-center gap-2">
+            <span class="text-slate-400 font-medium">Состояние:</span>
+            <span id="footer-status-desc" class="text-emerald-400 font-semibold transition-colors">Все сервисы в норме</span>
           </div>
         </div>
-        <p class="autostart-hint hidden" id="autostartHint">
-          При включении любого автозапуска Zapret HUB добавляется в автозагрузку Windows.
-        </p>
+
+        <div class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400 font-mono tracking-tight" title="Версия">
+          v2.0
         </div>
       </footer>
-    </div>
-  </div>
 
-  <div class="help-popover hidden" id="helpPopover" role="tooltip">
-    <button class="help-popover-close" id="helpPopoverClose" type="button" aria-label="Закрыть">×</button>
-    <h4 class="help-popover-title" id="helpPopoverTitle"></h4>
-    <div class="help-popover-body" id="helpPopoverBody"></div>
-  </div>
+      <!-- ─── CONFLICT RESOLUTION MODAL (Mutual Exclusion: Zapret vs VPN) ─── -->
+      <div id="conflict-modal-backdrop" onclick="if (event.target === this) cancelConflictSwitch()" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-opacity">
+        <div class="slate-card rounded-3xl p-6 max-w-[460px] w-full shadow-[0_25px_60px_-10px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.18)] border border-white/15 space-y-4 relative">
+          
+          <!-- Top Header: Icon + Title + Close Button -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="flex items-center justify-center flex-shrink-0 text-teal-400">
+                <svg class="w-7 h-7 stroke-current stroke-[2.2] fill-none" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 8h16M16 4l4 4-4 4"/>
+                  <path d="M20 16H4M8 12l-4 4 4 4"/>
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <h3 id="conflict-modal-title" class="text-[15px] font-bold text-white tracking-tight leading-snug">Переключение на VPN</h3>
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mt-0.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> Автоматическое переключение
+                </span>
+              </div>
+            </div>
+            <button onclick="cancelConflictSwitch()" class="w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0" title="Закрыть">
+              <svg class="w-4 h-4 stroke-current stroke-2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
 
-  <div class="toast-container" id="toastContainer"></div>
+          <!-- Description message -->
+          <p id="conflict-modal-text" class="text-xs text-slate-300 leading-relaxed">
+            При включении VPN закроется подключение Обхода YouTube и Discord, чтобы не возникало конфликтов.
+          </p>
 
-  <div class="modal-overlay hidden" id="restartModal">
-    <div class="modal-card">
-      <h2>Нужен перезапуск</h2>
-      <p class="modal-text" id="restartModalText"></p>
-      <div class="modal-actions">
-        <button class="btn btn-primary" id="btnRestartOk" type="button">Понятно</button>
-      </div>
-    </div>
-  </div>
+          <!-- Visual Switching Status Panel -->
+          <div class="inner-panel rounded-2xl p-3 border border-white/10 space-y-2 bg-[#171e2c]">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                <span id="conflict-from-service" class="font-medium text-slate-300">Обход YouTube и Discord</span>
+              </div>
+              <span class="text-[10px] font-bold text-rose-400 bg-rose-500/15 px-2 py-0.5 rounded-md border border-rose-500/25">Отключится</span>
+            </div>
+            <div class="h-[1px] bg-white/5 w-full"></div>
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span id="conflict-to-service" class="font-medium text-slate-300">VPN (VLESS Reality)</span>
+              </div>
+              <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/25">Включится</span>
+            </div>
+          </div>
 
-  <div class="modal-overlay hidden" id="appRestartModal">
-    <div class="modal-card">
-      <h2>Перезапуск</h2>
-      <p class="modal-text">Чтобы изменения вступили в силу нужно перезапустить приложение. Перезапустить сейчас?</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnAppRestartLater" type="button">Позже</button>
-        <button class="btn btn-primary" id="btnAppRestartNow" type="button">Перезапустить</button>
-      </div>
-    </div>
-  </div>
+          <!-- Bottom: Custom Styled Checkbox + Action Buttons -->
+          <div class="pt-2 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <label class="flex items-center gap-2.5 cursor-pointer group select-none">
+              <input type="checkbox" id="conflict-dont-show" class="sr-only peer" />
+              <div class="w-4 h-4 rounded-md bg-[#131924] border border-white/20 peer-checked:bg-emerald-500 peer-checked:border-emerald-400 flex items-center justify-center transition-all group-hover:border-white/40 shadow-inner flex-shrink-0">
+                <svg class="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity stroke-current stroke-[2.5]" viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3" fill="none"/></svg>
+              </div>
+              <span class="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">Больше не показывать</span>
+            </label>
 
-  <div class="modal-overlay hidden" id="startupUpdatesModal">
-    <div class="modal-card modal-card-wide">
-      <h2>Доступны обновления</h2>
-      <p class="modal-text" id="startupUpdatesText">При запуске найдены новые версии компонентов.</p>
-      <div class="startup-updates-list" id="startupUpdatesList"></div>
-      <div class="update-progress hidden" id="startupUpdatesProgress">
-        <div class="update-progress-bar">
-          <div class="update-progress-fill" id="startupUpdatesProgressFill"></div>
+            <div class="flex items-center gap-2.5 self-end sm:self-auto">
+              <button onclick="cancelConflictSwitch()" class="h-9 px-4 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-[#2b3548] hover:bg-[#354157] border border-white/10 cursor-pointer transition-all active:scale-95">
+                Отмена
+              </button>
+              <button onclick="confirmConflictSwitch()" class="h-9 px-5 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)] cursor-pointer transition-all active:scale-95">
+                Окей
+              </button>
+            </div>
+          </div>
+
         </div>
-        <p class="update-progress-label" id="startupUpdatesProgressLabel">Подготовка...</p>
       </div>
-      <div class="modal-actions" id="startupUpdatesActions">
-        <button class="btn btn-primary" id="btnStartupUpdateAll" type="button">Обновить всё</button>
-        <button class="btn btn-ghost" id="btnStartupUpdateLater" type="button">Позже</button>
-      </div>
-    </div>
-  </div>
 
-  <div class="modal-overlay hidden" id="updateModal">
-    <div class="modal-card">
-      <h2>Обновление Zapret</h2>
-      <p class="modal-text" id="updateModalText">Доступна новая версия.</p>
-      <div class="update-progress hidden" id="updateProgressBlock">
-        <div class="update-progress-bar">
-          <div class="update-progress-fill" id="updateProgressFill"></div>
+      <!-- ─── CHANGELOG / UPDATES MODAL ─── -->
+      <div id="changelog-modal-backdrop" onclick="if (event.target === this) closeChangelogModal()" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-opacity app-no-drag">
+        <div class="slate-card rounded-3xl p-6 max-w-lg w-full max-h-[85vh] flex flex-col shadow-[0_25px_60px_-10px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.18)] border border-white/15 relative app-no-drag">
+          
+          <!-- Header -->
+          <div class="flex items-start justify-between gap-3 pb-4 border-b border-white/10 flex-shrink-0">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="flex items-center justify-center flex-shrink-0 text-teal-400">
+                <svg class="w-7 h-7 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-[15px] font-bold text-white tracking-tight leading-snug">История обновлений</h3>
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mt-0.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> Список изменений из GitHub
+                </span>
+              </div>
+            </div>
+            <button id="btn-close-changelog" type="button" onclick="closeChangelogModal()" class="w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0 app-no-drag" title="Закрыть">
+              <svg class="w-4 h-4 stroke-current stroke-2 pointer-events-none" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- Scrollable Releases List -->
+          <div id="changelog-container" class="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-3.5 pr-1 min-h-0">
+            <!-- Release Block 1 -->
+            <div class="inner-panel rounded-2xl p-4 border border-white/10 space-y-2.5 bg-[#171e2c]">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-white font-mono">v2.0</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Текущая версия</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-mono">24 сентября 2026</span>
+              </div>
+              <ul class="text-xs text-slate-300 space-y-1.5 leading-relaxed">
+                <li class="flex items-start gap-2">
+                  <span class="text-emerald-400 font-bold flex-shrink-0 mt-0.5">+</span>
+                  <span>Добавлен полноценный модуль <b>VPN (VLESS Reality)</b> со списком серверов, замером пинга и авто-выбором лучшей ноды.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-teal-400 font-bold flex-shrink-0 mt-0.5">+</span>
+                  <span>Защита от конфликтов сетевых драйверов: автоматическое безопасное переключение между Zapret DPI и VPN.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-sky-400 font-bold flex-shrink-0 mt-0.5">★</span>
+                  <span>Полный редизайн интерфейса <b>Elevated Slate 2.0</b> с улучшенной эргономикой и быстрой навигацией.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-slate-400 font-bold flex-shrink-0 mt-0.5">•</span>
+                  <span>Исправлены индикаторы состояния и анимация радиального свечения.</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Release Block 2 -->
+            <div class="inner-panel rounded-2xl p-4 border border-white/8 space-y-2.5 opacity-85 hover:opacity-100 transition-opacity bg-[#171e2c]">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-white font-mono">v1.1.5</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400 border border-white/10">Релиз</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-mono">15 июня 2026</span>
+              </div>
+              <ul class="text-xs text-slate-300 space-y-1.5 leading-relaxed">
+                <li class="flex items-start gap-2">
+                  <span class="text-emerald-400 font-bold flex-shrink-0 mt-0.5">+</span>
+                  <span>Интеграция встроенного <b>Telegram Proxy</b> (MTProto Fake-TLS) для ускорения медиа и голосовых без VPN.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-teal-400 font-bold flex-shrink-0 mt-0.5">+</span>
+                  <span>Поддержка пользовательских списков доменов и быстрого добавления из буфера обмена.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-slate-400 font-bold flex-shrink-0 mt-0.5">•</span>
+                  <span>Оптимизация работы службы WinDivert при выходе из спящего режима Windows.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Footer Actions -->
+          <div class="pt-3 border-t border-white/10 flex items-center justify-between flex-shrink-0">
+            <a href="https://github.com/xRAYNERx/Zapret-HUB/releases" target="_blank" class="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1.5 transition-colors">
+              <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span>Все релизы на GitHub</span>
+            </a>
+            <button onclick="closeChangelogModal()" class="h-9 px-5 rounded-xl text-xs font-semibold text-slate-200 hover:text-white bg-[#2b3548] hover:bg-[#354157] border border-white/10 cursor-pointer transition-all active:scale-95">
+              Закрыть
+            </button>
+          </div>
+
         </div>
-        <p class="update-progress-label" id="updateProgressLabel">Подготовка...</p>
       </div>
-      <div class="modal-actions" id="updateModalActions">
-        <button class="btn btn-primary" id="btnUpdateNow" type="button">Обновить</button>
-        <button class="btn btn-ghost" id="btnUpdateLater" type="button">Позже</button>
-      </div>
-    </div>
-  </div>
 
-  <div class="modal-overlay hidden" id="closeChoiceModal">
-    <div class="modal-card">
-      <h2>Закрыть Zapret HUB?</h2>
-      <p class="modal-text">Программа может свернуться в трей и продолжить работу в фоне.</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnCloseToTray" type="button">Свернуть в трей</button>
-        <button class="btn btn-primary" id="btnCloseQuit" type="button">Закрыть</button>
-      </div>
     </div>
-  </div>
 
-  <div class="modal-overlay hidden" id="confirmModal">
-    <div class="modal-card">
-      <h2 id="confirmModalTitle">Подтверждение</h2>
-      <p class="modal-text" id="confirmModalText"></p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnConfirmCancel" type="button">Отмена</button>
-        <button class="btn btn-danger" id="btnConfirmOk" type="button">Удалить</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay hidden" id="strategyProbeProgressModal">
-    <div class="modal-card">
-      <h2>Проверка стратегий</h2>
-      <div class="strategy-probe-progress-head">
-        <div class="loading-spinner" id="strategyProbeSpinner" aria-hidden="true"></div>
-        <p class="modal-text strategy-probe-progress-text" id="strategyProbeProgressText">Подготовка к проверке...</p>
-      </div>
-      <div class="strategy-probe-progress">
-        <div class="strategy-probe-progress-bar is-active" id="strategyProbeProgressBar">
-          <div class="strategy-probe-progress-fill" id="strategyProbeProgressFill"></div>
+  
+      <!-- Close Choice Modal (When setting is "Ask") -->
+      <div id="closeChoiceModal" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+        <div class="slate-card rounded-3xl p-6 max-w-sm w-full border border-white/15 space-y-4">
+          <div class="space-y-1">
+            <h3 class="text-base font-bold text-white">Закрыть Zapret HUB?</h3>
+            <p class="text-xs text-slate-400">Программа может свернуться в трей и продолжить обход в фоне.</p>
+          </div>
+          <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button id="btnCloseToTray" type="button" class="h-8 px-3.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-[#2b3548] hover:bg-[#354157] border border-white/10 cursor-pointer transition-all active:scale-95">
+              В трей
+            </button>
+            <button id="btnCloseQuit" type="button" class="h-8 px-3.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 cursor-pointer transition-all active:scale-95">
+              Закрыть
+            </button>
+          </div>
         </div>
-        <p class="strategy-probe-progress-meta" id="strategyProbeProgressMeta"></p>
       </div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnStrategyProbeCancel" type="button">Прервать проверку</button>
-      </div>
-    </div>
-  </div>
 
-  <div class="modal-overlay hidden" id="bypassDropModal">
-    <div class="modal-card modal-card-wide modal-card-bypass-drop">
-      <h2>Обход остановился</h2>
-      <p class="modal-text" id="bypassDropText">Процесс winws.exe завершился неожиданно. Попробуйте включить обход снова или сменить стратегию.</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnBypassDropClose" type="button">Понятно</button>
-        <button class="btn btn-ghost hidden" id="btnBypassDropRecommended" type="button">Применить рекомендованную</button>
-        <button class="btn btn-ghost" id="btnBypassDropProbe" type="button">Подобрать заново</button>
-        <button class="btn btn-primary" id="btnBypassDropRestart" type="button">Включить снова</button>
+      <!-- App Restart Modal -->
+      <div id="appRestartModal" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+        <div class="slate-card rounded-3xl p-6 max-w-sm w-full border border-white/15 space-y-4">
+          <div class="space-y-1">
+            <h3 class="text-base font-bold text-white">Требуется перезапуск</h3>
+            <p class="text-xs text-slate-400">Чтобы новые параметры вступили в силу, необходимо перезапустить приложение.</p>
+          </div>
+          <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+            <button id="btnAppRestartLater" type="button" class="h-8 px-3.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-[#2b3548] hover:bg-[#354157] border border-white/10 cursor-pointer transition-all active:scale-95">
+              Позже
+            </button>
+            <button id="btnAppRestartNow" type="button" class="h-8 px-3.5 rounded-xl text-xs font-semibold text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 cursor-pointer transition-all active:scale-95">
+              Перезапустить
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <div class="modal-overlay hidden" id="onboardingModal">
-    <div class="modal-card modal-card-wide onboarding-card">
-      <button class="modal-close-btn" id="btnOnboardingClose" type="button" aria-label="Закрыть обучение" title="Закрыть обучение">&times;</button>
-      <div class="onboarding-progress" id="onboardingProgress" aria-hidden="true"></div>
-      <h2 id="onboardingTitle">Добро пожаловать в Zapret HUB</h2>
-      <p class="modal-text" id="onboardingText">Короткий путеводитель поможет настроить обход за пару минут.</p>
-      <div class="onboarding-body" id="onboardingBody"></div>
-      <div class="modal-actions onboarding-actions">
-        <button class="btn btn-ghost" id="btnOnboardingSkip" type="button">Пропустить</button>
-        <button class="btn btn-primary" id="btnOnboardingNext" type="button">Далее</button>
+      <!-- Strategy Probe Progress Modal (with live timer & percent) -->
+      <div id="strategyProbeProgressModal" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="slate-card rounded-3xl p-6 md:p-7 max-w-md w-full border border-white/15 space-y-5 shadow-2xl">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <svg class="w-8 h-8 text-emerald-400 animate-spin flex-shrink-0" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+              <div class="min-w-0">
+                <h3 class="text-sm font-bold text-white tracking-tight">Подбор лучшей стратегии</h3>
+                <span id="strategyProbeProgressText" class="text-xs text-slate-400 block mt-0.5 truncate">Тестирование вариантов DPI...</span>
+              </div>
+            </div>
+            <!-- Stopwatch Timer Pill -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 flex-shrink-0">
+              <svg class="w-3.5 h-3.5 stroke-emerald-400 stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span id="strategyProbeTimer" class="font-mono text-xs font-bold text-emerald-400">00:00</span>
+            </div>
+          </div>
+
+          <!-- Progress Bar & Percentage -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400 text-[11px]">Прогресс проверки</span>
+              <span id="strategyProbePercent" class="font-mono text-[11px] font-bold text-slate-300">0%</span>
+            </div>
+            <div class="w-full bg-[#141923] h-2 rounded-full overflow-hidden border border-white/5">
+              <div id="strategyProbeProgressFill" class="bg-gradient-to-r from-teal-400 to-emerald-400 h-full w-0 transition-all duration-300"></div>
+            </div>
+          </div>
+
+          <div id="strategyProbeSummary" class="text-xs text-slate-300 font-mono bg-[#141923] p-3 rounded-2xl border border-white/5 min-h-[46px] flex items-center">
+            Инициализация тестирования...
+          </div>
+
+          <div class="flex justify-end pt-1">
+            <button id="btnStrategyProbeCancel" onclick="cancelStrategyProbe()" type="button" class="h-8 px-4 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer active:scale-95 transition-all">
+              Отмена
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <div class="modal-overlay hidden" id="strategyProbeModal">
-    <div class="modal-card modal-card-wide">
-      <h2 id="strategyProbeResultTitle">Результаты проверки</h2>
-      <p class="modal-text" id="strategyProbeSummary"></p>
-      <div class="strategy-probe-list" id="strategyProbeList"></div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btnStrategyProbeClose" type="button">Закрыть</button>
-        <button class="btn btn-primary" id="btnStrategyProbeApply" type="button">Применить лучшую</button>
+      <!-- Strategy Probe Results Modal (Top 3) -->
+      <div id="strategyProbeResultsModal" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="slate-card rounded-3xl p-6 md:p-7 max-w-lg w-full border border-white/15 space-y-4 shadow-2xl relative">
+          
+          <!-- Header (Large checkmark in circle, pure SVG without any background div) -->
+          <div class="flex items-center justify-between pb-3 border-b border-white/10">
+            <div class="flex items-center gap-3">
+              <svg class="w-9 h-9 text-emerald-400 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h3 class="text-base font-black text-white tracking-tight">3 Лучшие стратегии для вас</h3>
+                <span id="strategyProbeDurationText" class="text-xs text-slate-400 block mt-0.5">Проверка завершена за 15 сек</span>
+              </div>
+            </div>
+            <button onclick="closeStrategyProbeResults()" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-all active:scale-95" title="Закрыть">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- Cards List (Top 3) -->
+          <div id="strategyProbeCardsList" class="space-y-2.5">
+            <!-- Dynamically populated 3 cards -->
+          </div>
+
+          <!-- Footer -->
+          <div class="pt-2 flex items-center justify-between text-xs text-slate-400">
+            <span>Выберите стратегию для применения</span>
+            <button onclick="closeStrategyProbeResults()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-all">
+              Оставить текущую
+            </button>
+          </div>
+
+        </div>
       </div>
-    </div>
-  </div>
 
-  <script src="scripts/app.js"></script>
+      <!-- First Launch Strategy Probe Offer Modal -->
+      <div id="firstLaunchProbeModal" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="slate-card rounded-3xl p-6 md:p-8 max-w-lg w-full border border-white/15 space-y-6 shadow-2xl relative">
+          
+          <!-- Top Row: Icon + Close Button -->
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+              <!-- Pure magnifying glass SVG icon, no background div -->
+              <svg class="w-9 h-9 text-emerald-400 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <div class="space-y-1">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400">
+                  Первый запуск
+                </div>
+                <h3 class="text-lg font-black text-white tracking-tight">Подбор стратегии обхода</h3>
+              </div>
+            </div>
+            
+            <button onclick="dismissFirstLaunchProbeModal()" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-all active:scale-95" title="Закрыть">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- Description -->
+          <div class="space-y-3 text-sm text-slate-300 leading-relaxed">
+            <p>
+              Чтобы YouTube, Discord и заблокированные сайты работали на максимальной скорости и без зависаний, рекомендуется выполнить экспресс-подбор лучшей стратегии под вашего провайдера (~15 секунд).
+            </p>
+            
+            <div class="p-3.5 rounded-2xl bg-white/[0.04] text-xs text-slate-400 space-y-1.5">
+              <div class="flex items-center gap-2 text-slate-200 font-semibold">
+                <svg class="w-4 h-4 text-emerald-400 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <span>Уведомление появляется только один раз</span>
+              </div>
+              <p>
+                Если вы закроете это окно, программа больше не будет его показывать. В дальнейшем вы сможете запустить подбор самостоятельно в любое время кнопкой <strong class="text-emerald-400 font-semibold">«Подобрать»</strong> в блоке <strong class="text-slate-300">«Если есть сбои»</strong>.
+              </p>
+            </div>
+          </div>
+
+          <!-- Actions: Only action button ("Позже" removed) -->
+          <div class="flex items-center justify-end pt-2">
+            <button onclick="startFirstLaunchProbe()" type="button" class="h-11 px-7 rounded-2xl text-xs font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_2px_14px_rgba(16,185,129,0.35)] cursor-pointer active:scale-95 transition-all flex items-center gap-2">
+              <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <span>Подобрать сейчас (~15 сек)</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Toast Container -->
+      <div id="toastContainer" class="absolute bottom-6 right-6 z-50 space-y-2 pointer-events-none"></div>
+
+</div>
+
+  
+  <script src="./scripts/app.js"></script>
 </body>
 </html>

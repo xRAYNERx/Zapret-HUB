@@ -1,17 +1,20 @@
 {
   "name": "zapret-hub",
-  "version": "1.1.5",
+  "version": "2.0.0",
   "description": "Zapret HUB — панель обхода блокировок Discord, YouTube, Telegram",
   "main": "electron/main.js",
   "author": "RAYNER",
-  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "electron .",
-    "dev": "electron .",
+    "dev": "electron . --dev-tools",
     "icon:ico": "node scripts/png-to-ico.mjs",
     "prebuild": "node scripts/png-to-ico.mjs && node scripts/fetch-bundled.mjs",
     "fetch-bundled": "node scripts/fetch-bundled.mjs",
     "build": "electron-builder --win nsis --publish never",
+    "build:fast": "electron-builder --dir",
     "deploy:local": "node scripts/deploy-local.cjs",
     "launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/launch-hub.ps1",
     "postinstall": "node install-electron.js"
@@ -53,6 +56,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "bundled/vless",
+        "to": "vless",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "artifactName": "ZapretHub-Setup-${version}.${ext}",
@@ -90,9 +100,10 @@
     }
   },
   "devDependencies": {
-    "electron": "^33.4.11",
+    "electron": "33.4.11",
     "electron-builder": "^25.1.8",
     "png-to-ico": "^3.0.1",
-    "rcedit": "^5.0.2"
+    "rcedit": "^5.0.2",
+    "tailwindcss": "^3.4.17"
   }
 }

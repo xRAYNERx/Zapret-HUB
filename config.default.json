@@ -1,5 +1,5 @@
 {
-  "zapretPath": "D:\\PROGRAMMS\\Запрет",
+  "zapretPath": "",
   "lastStrategy": "general.bat",
   "startMinimized": false,
   "closeBehavior": "tray",
@@ -8,5 +8,6 @@
   "autostartTgProxyEnabled": false,
   "activeCustomList": null,
   "onboardingCompleted": false,
+  "firstProbePromptDismissed": false,
   "lastStrategyProbe": null
 }

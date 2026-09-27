@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard, Notification } = require('electron');
 const { spawn, exec } = require('child_process');
 const { promisify } = require('util');
 
@@ -9,6 +9,8 @@ const os = require('os');
 const path = require('path');
 const { ZapretService } = require('./services/zapretService');
 const { TgProxyService } = require('./services/tgProxyService');
+const { VlessService } = require('./services/vlessService');
+const { fetchUrl, fetchGithubRelease, downloadFile } = require('./helpers/httpFetch');
 const appPkg = require('../package.json');
 
 const HUB_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-HUB/releases/latest';
@@ -47,7 +49,8 @@ app.disableHardwareAcceleration();
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
-  app.quit();
+  logStartup('SingleInstance: another instance is running. Exiting secondary process.');
+  app.exit(0);
 }
 
 let mainWindow = null;
@@ -55,6 +58,7 @@ let fatalErrorWindow = null;
 let tray = null;
 let zapret = null;
 let tgProxy = null;
+let vless = null;
 let closeDialogResolver = null;
 let statusTimer = null;
 let tgProxyTimer = null;
@@ -84,24 +88,20 @@ function markBypassRunning(running) {
 
 const isAutostartLaunch = process.argv.includes('--autostart');
 
-function getAppPath() {
-  return app.getAppPath();
-}
-
 /** Пути из asarUnpack лежат в app.asar.unpacked, не внутри app.asar */
 function resolveAppFile(...segments) {
   if (!app.isPackaged) {
-    return path.join(getAppPath(), ...segments);
+    return path.join(app.getAppPath(), ...segments);
   }
   const unpacked = path.join(process.resourcesPath, 'app.asar.unpacked', ...segments);
   if (fs.existsSync(unpacked)) return unpacked;
-  return path.join(getAppPath(), ...segments);
+  return path.join(app.getAppPath(), ...segments);
 }
 
 function getConfigPath() {
   return app.isPackaged
     ? path.join(app.getPath('userData'), 'config.json')
-    : path.join(getAppPath(), 'config.json');
+    : path.join(app.getAppPath(), 'config.json');
 }
 
 function getIconPath() {
@@ -111,13 +111,19 @@ function getIconPath() {
     const unpackedIcon = resolveAppFile('assets', 'icon.png');
     if (fs.existsSync(unpackedIcon)) return unpackedIcon;
   }
-  return path.join(getAppPath(), 'assets', 'icon.png');
+  return path.join(app.getAppPath(), 'assets', 'icon.png');
 }
 
 function logStartup(message) {
   try {
     const logPath = path.join(app.getPath('userData'), 'startup.log');
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    try {
+      const stat = fs.statSync(logPath);
+      if (stat.size > 1024 * 1024) {
+        fs.writeFileSync(logPath, `[${new Date().toISOString()}] [Log rotated]\n`, 'utf8');
+      }
+    } catch {}
     fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`, 'utf8');
   } catch {
     // ignore logging errors
@@ -166,7 +172,7 @@ function showFatalErrorWindow(title, message, detail) {
       preload: path.join(__dirname, 'error-preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   });
 
@@ -199,28 +205,54 @@ function createWindow() {
   const icon = loadWindowIcon();
 
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 820,
-    minWidth: 900,
-    minHeight: 680,
+    width: 1250,
+    height: 838,
+    minWidth: 1250,
+    minHeight: 838,
+    resizable: false,
     center: true,
     show: false,
     frame: false,
+    backgroundColor: '#1e2534',
+    hasShadow: true,
     maximizable: false,
     autoHideMenuBar: true,
-    backgroundColor: '#0b0f14',
     title: 'Zapret HUB',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     },
     icon
   });
 
   const indexPath = resolveAppFile('src', 'index.html');
   logStartup(`Loading UI: ${indexPath}`);
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:') || url.startsWith('tg:')) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('https:') || url.startsWith('http:') || url.startsWith('tg:')) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': ["default-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:;"]
+      }
+    });
+  });
 
   mainWindow.loadFile(indexPath).catch((err) => {
     logStartup(`loadFile failed: ${err.message}`);
@@ -233,7 +265,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     logStartup('Window ready-to-show');
-    if (isAutostartLaunch || zapret?.config?.startMinimized) {
+    if (zapret?.config?.startMinimized) {
       mainWindow.hide();
     } else {
       showMainWindow();
@@ -249,8 +281,7 @@ function createWindow() {
       mainWindow &&
       !mainWindow.isDestroyed() &&
       !mainWindow.isVisible() &&
-      !zapret?.config?.startMinimized &&
-      !isAutostartLaunch
+      !zapret?.config?.startMinimized
     ) {
       logStartup('Fallback show after timeout');
       showMainWindow();
@@ -323,8 +354,7 @@ function createTray() {
     if (mainWindow) {
       if (mainWindow.isVisible()) mainWindow.hide();
       else {
-        mainWindow.show();
-        mainWindow.focus();
+        showMainWindow();
       }
     }
   });
@@ -332,19 +362,34 @@ function createTray() {
   updateTrayMenu(false, false);
 }
 
-async function updateTrayMenu(zapretRunning, tgRunning) {
+let trayVlessRunning = false;
+let trayVlessNodeName = '';
+
+async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode) {
   if (!tray) return;
 
-  trayZapretRunning = Boolean(zapretRunning);
-  trayTgRunning = Boolean(tgRunning);
+  if (typeof zapretRunning === 'boolean') trayZapretRunning = zapretRunning;
+  if (typeof tgRunning === 'boolean') trayTgRunning = tgRunning;
+  if (typeof vlessRunning === 'boolean') {
+    trayVlessRunning = vlessRunning;
+    trayVlessNodeName = vlessNode || '';
+  } else if (vless) {
+    try {
+      const vs = await vless.getStatus();
+      trayVlessRunning = Boolean(vs?.running);
+      trayVlessNodeName = vs?.activeServer?.name || '';
+    } catch {}
+  }
+
+  const tipParts = [];
+  if (trayZapretRunning) tipParts.push('Обход: вкл');
+  if (trayVlessRunning) tipParts.push(`VPN: ${trayVlessNodeName || 'вкл'}`);
+  if (trayTgRunning) tipParts.push('TG: вкл');
+
   tray.setToolTip(
-    trayZapretRunning && trayTgRunning
-      ? 'Zapret HUB — обход и TG Proxy работают'
-      : trayZapretRunning
-        ? 'Zapret HUB — обход работает'
-        : trayTgRunning
-          ? 'Zapret HUB — TG Proxy работает'
-          : 'Zapret HUB — выключено'
+    tipParts.length > 0
+      ? `Zapret HUB — ${tipParts.join(' | ')}`
+      : 'Zapret HUB — все службы выключены'
   );
 
   const contextMenu = Menu.buildFromTemplate([
@@ -361,6 +406,12 @@ async function updateTrayMenu(zapretRunning, tgRunning) {
             bypassWasRunning = false;
             await zapret.stop();
           } else {
+            if (trayVlessRunning && vless) {
+              await vless.disconnect();
+              trayVlessRunning = false;
+              const vStatus = await vless.getStatus();
+              mainWindow?.webContents.send('vless-status-changed', vStatus);
+            }
             const status = await zapret.start(zapret.config.lastStrategy || 'general.bat');
             if (status.running) {
               sendInAppNotify('Включение обхода');
@@ -369,8 +420,45 @@ async function updateTrayMenu(zapretRunning, tgRunning) {
           const status = await zapret.getStatus();
           bypassWasRunning = status.running;
           mainWindow?.webContents.send('status-changed', status);
-          const tgStatus = tgProxy ? await tgProxy.getStatus() : { running: trayTgRunning };
-          updateTrayMenu(status.running, tgStatus.running);
+          updateTrayMenu(status.running, trayTgRunning, trayVlessRunning, trayVlessNodeName);
+        } catch (err) {
+          mainWindow?.webContents.send('error', err.message);
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: trayVlessRunning ? `● VPN: ${trayVlessNodeName || 'подключён'}` : '○ VPN: выключен',
+      enabled: false
+    },
+    {
+      label: trayVlessRunning ? 'Отключить VPN' : 'Подключить VPN',
+      click: async () => {
+        if (!vless) return;
+        try {
+          if (trayVlessRunning) {
+            const vStatus = await vless.disconnect();
+            trayVlessRunning = false;
+            mainWindow?.webContents.send('vless-status-changed', vStatus);
+            sendInAppNotify('VPN отключён');
+          } else {
+            if (trayZapretRunning && zapret) {
+              lastIntentionalBypassStop = Date.now();
+              bypassWasRunning = false;
+              await zapret.stop();
+              trayZapretRunning = false;
+              const zStatus = await zapret.getStatus();
+              mainWindow?.webContents.send('status-changed', zStatus);
+            }
+            const vStatus = await vless.connect(0);
+            trayVlessRunning = Boolean(vStatus.running);
+            trayVlessNodeName = vStatus.activeServer?.name || '';
+            mainWindow?.webContents.send('vless-status-changed', vStatus);
+            if (vStatus.running) {
+              sendInAppNotify(`VPN подключён: ${trayVlessNodeName || 'узел'}`);
+            }
+          }
+          updateTrayMenu(trayZapretRunning, trayTgRunning, trayVlessRunning, trayVlessNodeName);
         } catch (err) {
           mainWindow?.webContents.send('error', err.message);
         }
@@ -389,14 +477,14 @@ async function updateTrayMenu(zapretRunning, tgRunning) {
           if (trayTgRunning) {
             const status = await tgProxy.stop();
             mainWindow?.webContents.send('tg-proxy-changed', status);
-            updateTrayMenu(trayZapretRunning, status.running);
+            updateTrayMenu(trayZapretRunning, status.running, trayVlessRunning, trayVlessNodeName);
           } else {
             const status = await tgProxy.start();
             mainWindow?.webContents.send('tg-proxy-changed', status);
             if (status.running) {
               sendInAppNotify('TG Proxy включён');
             }
-            updateTrayMenu(trayZapretRunning, status.running);
+            updateTrayMenu(trayZapretRunning, status.running, trayVlessRunning, trayVlessNodeName);
           }
         } catch (err) {
           mainWindow?.webContents.send('error', err.message);
@@ -405,10 +493,9 @@ async function updateTrayMenu(zapretRunning, tgRunning) {
     },
     { type: 'separator' },
     {
-      label: 'Открыть окно',
+      label: 'Открыть окно Zapret HUB',
       click: () => {
-        mainWindow?.show();
-        mainWindow?.focus();
+        showMainWindow();
       }
     },
     {
@@ -455,7 +542,7 @@ function startStatusPolling() {
         bypassWasRunning = status.running;
       }
       mainWindow.webContents.send('status-changed', status);
-      updateTrayMenu(status.running, trayTgRunning);
+      updateTrayMenu(status.running, trayTgRunning, trayVlessRunning, trayVlessNodeName);
     } catch { /* ignore */ }
   }, 3000);
 }
@@ -467,7 +554,7 @@ function startTgProxyPolling() {
     try {
       const status = await tgProxy.getStatus();
       mainWindow.webContents.send('tg-proxy-changed', status);
-      updateTrayMenu(trayZapretRunning, status.running);
+      updateTrayMenu(trayZapretRunning, status.running, trayVlessRunning, trayVlessNodeName);
     } catch { /* ignore */ }
   }, 3000);
 }
@@ -475,9 +562,13 @@ function startTgProxyPolling() {
 async function runSchtasks(args) {
   if (process.platform !== 'win32') return;
   try {
-    await execAsync(`schtasks ${args}`, { windowsHide: true, timeout: 15000 });
+    await new Promise((resolve, reject) => {
+      const child = spawn('schtasks', args, { windowsHide: true });
+      child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`schtasks exit ${code}`)));
+      child.on('error', reject);
+    });
   } catch (err) {
-    logStartup(`schtasks failed (${args}): ${err.message}`);
+    logStartup(`schtasks failed (${Array.isArray(args) ? args.join(' ') : args}): ${err.message}`);
   }
 }
 
@@ -490,16 +581,26 @@ async function syncAutostartTask() {
     app.setLoginItemSettings({ openAtLogin: false, args: [] });
   }
 
+  // Clean up any stale registry run entries from previous versions
+  const staleKeys = ['electron.app.Electron', 'electron.app.Zapret HUB', 'TgWsProxy'];
+  for (const k of staleKeys) {
+    try {
+      await execAsync(`reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "${k}" /f`, { windowsHide: true });
+    } catch {}
+  }
+
   if (!enabled) {
-    await runSchtasks(`/Delete /TN "${AUTOSTART_TASK_NAME}" /F`);
+    await runSchtasks(['/Delete', '/TN', AUTOSTART_TASK_NAME, '/F']);
     return;
   }
 
-  const exePath = process.execPath.replace(/"/g, '\\"');
-  const taskAction = `\\"${exePath}\\" --autostart`;
-  await runSchtasks(
-    `/Create /F /SC ONLOGON /RL HIGHEST /TN "${AUTOSTART_TASK_NAME}" /TR "${taskAction}"`
-  );
+  const exePath = process.execPath;
+  const taskAction = `"${exePath}" --autostart`;
+  await runSchtasks([
+    '/Create', '/F', '/SC', 'ONLOGON', '/RL', 'HIGHEST',
+    '/TN', AUTOSTART_TASK_NAME,
+    '/TR', taskAction
+  ]);
 }
 
 
@@ -540,107 +641,24 @@ async function runAutostartActions() {
   await Promise.all([runAutostartZapret(), runAutostartTgProxy()]);
 }
 
-function fetchGithubRelease(apiUrl) {
-  return new Promise((resolve, reject) => {
-    const request = https.get(
-      apiUrl,
-      { headers: { 'User-Agent': 'ZapretHub', Accept: 'application/vnd.github+json' } },
-      (response) => {
-        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          https
-            .get(response.headers.location, { headers: { 'User-Agent': 'ZapretHub' } }, (redirect) => {
-              let data = '';
-              redirect.on('data', (chunk) => { data += chunk; });
-              redirect.on('end', () => {
-                try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
-              });
-            })
-            .on('error', reject);
-          return;
-        }
-
-        let data = '';
-        response.on('data', (chunk) => { data += chunk; });
-        response.on('end', () => {
-          try {
-            const json = JSON.parse(data);
-            if (response.statusCode >= 400 || (json.message && !json.tag_name)) {
-              reject(new Error(json.message || `HTTP ${response.statusCode}`));
-              return;
-            }
-            if (!json.tag_name) {
-              reject(new Error('Некорректный ответ GitHub'));
-              return;
-            }
-            resolve(json);
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }
-    );
-    request.on('error', reject);
-    request.setTimeout(20000, () => {
-      request.destroy();
-      reject(new Error('Таймаут запроса к GitHub'));
-    });
-  });
-}
-
 function parseHubTagFromUrl(url) {
   const match = String(url || '').match(/\/releases\/tag\/(v?[\d.]+[a-z]*)/i);
   return match?.[1] || null;
 }
 
-function fetchHubReleasePageTag() {
-  return new Promise((resolve, reject) => {
-    const follow = (targetUrl, depth = 0) => {
-      const request = https.get(
-        targetUrl,
-        { headers: { 'User-Agent': 'ZapretHub', Accept: 'text/html, */*' } },
-        (response) => {
-          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && depth < 6) {
-            const location = response.headers.location.startsWith('http')
-              ? response.headers.location
-              : `https://github.com${response.headers.location}`;
-            response.resume();
-            follow(location, depth + 1);
-            return;
-          }
-
-          if (response.statusCode && response.statusCode >= 400) {
-            response.resume();
-            reject(new Error(`HTTP ${response.statusCode}`));
-            return;
-          }
-
-          const tag = parseHubTagFromUrl(targetUrl);
-          if (tag) {
-            response.resume();
-            resolve(tag);
-            return;
-          }
-
-          const chunks = [];
-          response.on('data', (chunk) => chunks.push(chunk));
-          response.on('end', () => {
-            const html = Buffer.concat(chunks).toString('utf8');
-            const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/([^"]+)"/i);
-            const embedded = html.match(/"tag_name"\s*:\s*"(v?[\d.]+[a-z]*)"/i);
-            resolve(canonical?.[1] || embedded?.[1] || null);
-          });
-        }
-      );
-
-      request.on('error', reject);
-      request.setTimeout(20000, () => {
-        request.destroy();
-        reject(new Error('Таймаут запроса к GitHub'));
-      });
-    };
-
-    follow(HUB_RELEASE_PAGE);
-  });
+async function fetchHubReleasePageTag() {
+  try {
+    const res = await fetchUrl(HUB_RELEASE_PAGE, {
+      headers: { 'User-Agent': 'ZapretHub', Accept: 'text/html, */*' },
+      maxRedirects: 6
+    });
+    const html = res.body;
+    const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/([^"]+)"/i);
+    const embedded = html.match(/"tag_name"\s*:\s*"(v?[\d.]+[a-z]*)"/i);
+    return canonical?.[1] || embedded?.[1] || null;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveHubRemoteRelease() {
@@ -707,59 +725,17 @@ function resolveHubInstallerAsset(release) {
 }
 
 function downloadHubFile(url, destPath, onProgress) {
-  return new Promise((resolve, reject) => {
-    let lastReportedPercent = -1;
-
-    const reportProgress = (percent, message) => {
-      if (typeof onProgress !== 'function') return;
+  let lastReportedPercent = -1;
+  return downloadFile(url, destPath, {
+    maxRedirects: 6,
+    onProgress: ({ percent }) => {
       const safePercent = Math.min(100, Math.max(0, percent));
       if (safePercent === lastReportedPercent) return;
       lastReportedPercent = safePercent;
-      onProgress({ percent: safePercent, message: message || `Скачивание Zapret HUB… ${safePercent}%` });
-    };
-
-    const request = (targetUrl) => {
-      https
-        .get(targetUrl, { headers: { 'User-Agent': 'ZapretHub' } }, (response) => {
-          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-            request(response.headers.location);
-            return;
-          }
-
-          if (response.statusCode !== 200) {
-            reject(new Error(`Не удалось скачать (HTTP ${response.statusCode})`));
-            return;
-          }
-
-          const total = Number(response.headers['content-length'] || 0);
-          let downloaded = 0;
-          const file = fs.createWriteStream(destPath);
-
-          reportProgress(0, 'Скачивание установщика Zapret HUB…');
-
-          response.on('data', (chunk) => {
-            downloaded += chunk.length;
-            if (total > 0) {
-              const percent = Math.round((downloaded / total) * 100);
-              if (percent >= lastReportedPercent + 5 || percent === 100) {
-                reportProgress(percent);
-              }
-            }
-          });
-
-          response.pipe(file);
-          file.on('finish', () => file.close(() => {
-            reportProgress(100, 'Установщик скачан');
-            resolve();
-          }));
-          file.on('error', (err) => {
-            fs.unlink(destPath, () => reject(err));
-          });
-        })
-        .on('error', reject);
-    };
-
-    request(url);
+      if (typeof onProgress === 'function') {
+        onProgress({ percent: safePercent, message: `Скачивание Zapret HUB… ${safePercent}%` });
+      }
+    }
   });
 }
 
@@ -862,6 +838,23 @@ async function checkUpdatesOnStartup() {
     zapret.removeLegacyUpdateFlag();
     const all = await checkAllUpdatesBundle();
     if (!hasPendingUpdates(all)) return;
+
+    if (Notification && Notification.isSupported()) {
+      try {
+        const notif = new Notification({
+          title: 'Zapret HUB v2.0 — Доступно обновление',
+          body: 'Найдена новая версия на GitHub. Нажмите, чтобы открыть и скачать.',
+          icon: loadWindowIcon()
+        });
+        notif.on('click', () => {
+          showMainWindow();
+        });
+        notif.show();
+      } catch (notifErr) {
+        logStartup(`Notification failed: ${notifErr.message}`);
+      }
+    }
+
     mainWindow.webContents.send('startup-updates-available', all);
   } catch (err) {
     logStartup(`Startup update check failed: ${err.message}`);
@@ -889,6 +882,13 @@ async function stopAllServices() {
   } catch (err) {
     logStartup(`Quit tg-proxy stop failed: ${err.message}`);
   }
+  try {
+    if (vless) {
+      await vless.disconnect();
+    }
+  } catch (err) {
+    logStartup(`Quit vless stop failed: ${err.message}`);
+  }
 }
 
 function registerIpc() {
@@ -903,6 +903,15 @@ function registerIpc() {
     },
     'window-close-choice': (_, choice) => {
       resolveCloseDialogChoice(choice);
+      return true;
+    },
+    'window-get-position': () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return [0, 0];
+      return mainWindow.getPosition();
+    },
+    'window-set-position': (_, x, y) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return false;
+      mainWindow.setPosition(Math.round(x), Math.round(y));
       return true;
     },
     'get-status': () => zapret.getStatus(),
@@ -949,7 +958,11 @@ function registerIpc() {
         gameFilter: status.gameFilter,
         ipset: status.ipset,
         autoUpdate: status.autoUpdate,
-        zapretPath: status.zapretPath
+        zapretPath: status.zapretPath,
+        startMinimized: Boolean(status.startMinimized),
+        closeBehavior: status.closeBehavior,
+        autostartZapret: Boolean(status.autostartZapretEnabled),
+        autoCheckUpdates: zapret.config.autoCheckUpdates !== false
       };
     },
     'set-game-filter': (_, mode) => zapret.setGameFilter(mode),
@@ -1000,7 +1013,13 @@ function registerIpc() {
       }
     },
     'cancel-strategy-probe': () => zapret.cancelStrategyProbe(),
-    'open-external': (_, url) => shell.openExternal(url),
+    'open-external': (_, url) => {
+      const allowed = ['https:', 'http:', 'tg:'];
+      let parsed;
+      try { parsed = new URL(url); } catch { return false; }
+      if (!allowed.includes(parsed.protocol)) return false;
+      return shell.openExternal(url);
+    },
     'get-config': () => zapret.config,
     'get-tg-proxy-status': () => tgProxy.getStatus(),
     'start-tg-proxy': async () => {
@@ -1018,8 +1037,29 @@ function registerIpc() {
       return tgProxy.applyUpdate(sendProgress);
     },
     'open-tg-proxy-telegram': () => tgProxy.openInTelegram((url) => shell.openExternal(url)),
-    'copy-tg-proxy-link': () => tgProxy.copyProxyLink(),
-    'open-tg-proxy-settings': () => tgProxy.openSettings(),
+    'copy-tg-proxy-link': () => tgProxy.copyProxyLink(clipboard),
+    'open-tg-proxy-settings': () => tgProxy.openSettings(shell),
+    'vless-get-status': () => vless.getStatus(),
+    'vless-update-subscription': (_, url, resetPings = true) => vless.updateSubscription(url, resetPings),
+    'vless-test-server': (_, idx) => vless.testSingleServer(idx),
+    'vless-test-all': async () => {
+      const sendProgress = (progress) => {
+        mainWindow?.webContents.send('vless-test-progress', progress);
+      };
+      return vless.testAllServers(sendProgress);
+    },
+    'vless-connect': async (_, idx) => {
+      const res = await vless.connect(idx);
+      updateTrayMenu(trayZapretRunning, trayTgRunning, Boolean(res.running), res.activeServer?.name);
+      return res;
+    },
+    'vless-disconnect': async () => {
+      const res = await vless.disconnect();
+      updateTrayMenu(trayZapretRunning, trayTgRunning, false, '');
+      return res;
+    },
+    'vless-toggle-system-proxy': (_, enabled) => vless.toggleSystemProxy(enabled),
+    'vless-set-auto-fallback': (_, enabled) => vless.setAutoFallback(enabled),
     'set-close-behavior': (_, mode) => zapret.setCloseBehavior(mode ?? null),
     'set-onboarding-completed': (_, completed) => zapret.setOnboardingCompleted(completed),
     'read-clipboard-text': () => clipboard.readText(),
@@ -1103,25 +1143,40 @@ app.whenReady().then(async () => {
   try {
     logStartup('App ready');
     const userDataPath = app.getPath('userData');
-    zapret = new ZapretService(getAppPath(), {
+    logStartup(`userDataPath: ${userDataPath}`);
+    logStartup('Initializing ZapretService...');
+    zapret = new ZapretService(app.getAppPath(), {
       configPath: getConfigPath(),
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
       userDataPath
     });
+    logStartup('Initializing TgProxyService...');
     tgProxy = new TgProxyService(userDataPath, {
-      appPath: getAppPath(),
+      appPath: app.getAppPath(),
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath
     });
+    logStartup('Initializing VlessService...');
+    vless = new VlessService(userDataPath, {
+      appPath: app.getAppPath(),
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath
+    });
+    logStartup('Migrating autostart...');
     zapret.migrateAutostartConfig()
       .then(() => syncAutostartTask())
       .catch((err) => logStartup(`Autostart migrate failed: ${err.message}`));
+    logStartup('Preparing startup...');
     await zapret.prepareStartup();
+    logStartup('Getting initial status...');
     const initialStatus = await zapret.getStatus();
     bypassWasRunning = initialStatus.running;
+    logStartup('Creating window...');
     createWindow();
+    logStartup('Creating tray...');
     createTray();
+    logStartup('Registering IPC...');
     registerIpc();
     startStatusPolling();
     startTgProxyPolling();
@@ -1131,7 +1186,7 @@ app.whenReady().then(async () => {
         .catch(() => updateTrayMenu(initialStatus.running, false));
     }
   } catch (err) {
-    logStartup(`Startup error: ${err.message}`);
+    logStartup(`Startup error: ${err.message}\n${err.stack}`);
     showFatalErrorWindow('Ошибка запуска', 'Не удалось запустить Zapret HUB.', err.message);
     return;
   }

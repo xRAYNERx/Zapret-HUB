@@ -10,3 +10,8 @@ bundled/
 Thumbs.db
 .DS_Store
 .build/
+*.bak
+test_*.json
+test_*.html
+*_preview.html
+deploy-to-hub.bat
