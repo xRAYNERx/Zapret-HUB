@@ -196,24 +196,27 @@ class ZapretService {
 
   ensurePackagedEngine() {
     const runtimePath = this.getRuntimeEnginePath();
+    const bundled = this.getBundledEnginePath();
+
+    if (bundled) {
+      try {
+        fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
+        this.copyEngineTree(bundled, runtimePath);
+        this.ensureUserLists(runtimePath);
+      } catch (err) {
+        console.error('Не удалось синхронизировать движок Zapret в AppData:', err);
+      }
+    }
+
     if (this.isValidEnginePath(runtimePath)) {
       return runtimePath;
     }
 
-    const bundled = this.getBundledEnginePath();
     if (!bundled) {
       throw new Error('Встроенный движок Zapret не найден. Переустановите приложение.');
     }
 
-    fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
-    this.copyEngineTree(bundled, runtimePath);
-    this.ensureUserLists(runtimePath);
-
-    if (!this.isValidEnginePath(runtimePath)) {
-      throw new Error('Не удалось развернуть движок Zapret в AppData.');
-    }
-
-    return runtimePath;
+    throw new Error('Не удалось развернуть движок Zapret в AppData.');
   }
 
   async prepareStartup() {
@@ -1275,8 +1278,7 @@ class ZapretService {
       changed = true;
     } else {
       if (typeof this.config.autostartZapretEnabled !== 'boolean') {
-        const state = await this.getServiceState('zapret');
-        this.config.autostartZapretEnabled = state !== 'NOT_FOUND';
+        this.config.autostartZapretEnabled = false;
         changed = true;
       }
       if (typeof this.config.autostartTgProxyEnabled !== 'boolean') {
@@ -1460,20 +1462,23 @@ class ZapretService {
     const wdB64 = this.encodePsPath(workDir);
     const argsB64 = this.encodePsPath(args);
 
-    const elevated = this.isElevated();
     const script = [
       `$winws = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${winwsB64}'))`,
       `$wd = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${wdB64}'))`,
-      `$args = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${argsB64}'))`,
+      `$winwsArgs = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${argsB64}'))`,
       "$ErrorActionPreference = 'SilentlyContinue'",
       'netsh interface tcp set global timestamps=enabled',
+      'sc stop WinDivert 2>$null',
+      'sc stop WinDivert14 2>$null',
+      'sc stop zapret 2>$null',
+      'sc delete zapret 2>$null',
       '$psi = New-Object System.Diagnostics.ProcessStartInfo',
       '$psi.FileName = $winws',
       '$psi.WorkingDirectory = $wd',
-      '$psi.Arguments = $args',
+      '$psi.Arguments = $winwsArgs',
       '$psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden',
-      '$psi.UseShellExecute = $true',
-      elevated ? '' : "$psi.Verb = 'runas'",
+      '$psi.UseShellExecute = $false',
+      '$psi.CreateNoWindow = $true',
       '[System.Diagnostics.Process]::Start($psi) | Out-Null',
       'exit 0'
     ].filter(Boolean).join('; ');
@@ -1585,40 +1590,46 @@ class ZapretService {
     try {
       await this.applyPendingUpdates();
       const zapretPath = this.getZapretPath();
-      const batPath = path.join(zapretPath, strategyFile);
 
+      let targetStrategy = strategyFile || this.config.lastStrategy;
+      if (!targetStrategy || typeof targetStrategy !== 'string') {
+        const available = this.getStrategies();
+        targetStrategy = available.length > 0 ? (available[0].file || available[0].name) : 'general (ALT11).bat';
+      }
+      if (!targetStrategy.toLowerCase().endsWith('.bat')) {
+        targetStrategy += '.bat';
+      }
+
+      let batPath = path.join(zapretPath, targetStrategy);
       if (!fs.existsSync(batPath)) {
-        throw new Error(`Стратегия не найдена: ${strategyFile}`);
+        const available = this.getStrategies();
+        const fallback = available.find(s => fs.existsSync(path.join(zapretPath, s.file || s.name)));
+        if (fallback) {
+          targetStrategy = fallback.file || fallback.name;
+          batPath = path.join(zapretPath, targetStrategy);
+        } else {
+          throw new Error(`Стратегия не найдена: ${targetStrategy}`);
+        }
       }
 
       const winwsRunning = await this.isProcessRunning('winws.exe');
       const serviceState = await this.getServiceState('zapret');
 
+      if ((winwsRunning || serviceState === 'RUNNING') && this.config.lastStrategy === targetStrategy) {
+        return this.getStatus();
+      }
+
       if (winwsRunning || serviceState === 'RUNNING') {
-        return this.getStatus();
+        await this.stop();
       }
 
-      this.setLastStrategy(strategyFile);
+      this.setLastStrategy(targetStrategy);
 
-      if (serviceState !== 'NOT_FOUND') {
-        await this.runElevatedScript([
-          "$ErrorActionPreference = 'SilentlyContinue'",
-          'net start zapret 2>&1',
-          'exit 0'
-        ].join('; '));
-        const running = await this.waitForProcessStart('winws.exe', 8000)
-          || (await this.getServiceState('zapret')) === 'RUNNING';
-        if (!running) {
-          throw new Error('Не удалось запустить обход через автозапуск');
-        }
-        return this.getStatus();
-      }
-
-      await this.startHiddenWinws(strategyFile);
+      await this.startHiddenWinws(targetStrategy);
 
       const running = await this.waitForProcessStart('winws.exe', 8000);
       if (!running) {
-        throw new Error(`Стратегия не запустилась: ${strategyFile}`);
+        throw new Error(`Стратегия не запустилась: ${targetStrategy}`);
       }
 
       return this.getStatus();
@@ -1644,7 +1655,7 @@ class ZapretService {
       this.getServiceState('WinDivert14')
     ]);
 
-    const keepService = zapretState !== 'NOT_FOUND' && this.isAutostartZapretEnabled();
+    const keepService = false;
     const serviceActive = (state) => state === 'RUNNING' || state === 'STOP_PENDING';
 
     // Быстрый путь: taskkill без UAC — пользователь сразу видит выключение.
