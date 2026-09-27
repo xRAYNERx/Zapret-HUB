@@ -2,24 +2,19 @@
 
 Zapret HUB — обёртка (GUI) вокруг открытых инструментов обхода DPI. Ниже — что используется и на каких условиях.
 
-## Движок обхода (zapret-discord-youtube)
-
-- **Проект:** [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube)
-- **Назначение:** `winws.exe`, стратегии `.bat`, списки доменов/IP
-- **Лицензия:** см. репозиторий upstream
-- **Примечание:** Zapret HUB не является официальным продуктом Flowseal
-
-## WinDivert
-
+## WinDivert & winws
 - **Проект:** [bol-van/zapret](https://github.com/bol-van/zapret) / WinDivert
-- **Назначение:** перехват и модификация сетевых пакетов (`WinDivert64.sys`, `WinDivert.dll`)
+- **Назначение:** перехват и модификация сетевых пакетов (`winws.exe`, `WinDivert64.sys`, `WinDivert.dll`)
 - **Лицензия:** см. upstream
 
-## Telegram WebSocket Proxy
+## Telegram Proxy (ZapretTgProxy)
+- **Проект:** Встроенный компонент Zapret HUB
+- **Назначение:** локальный шлюз MTProto / WebSocket Fake-TLS для Telegram
 
-- **Проект:** [Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy)
-- **Назначение:** локальный SOCKS5-прокси для Telegram
-- **Лицензия:** см. репозиторий upstream
+## Xray-core (VPN VLESS Reality)
+- **Проект:** [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
+- **Назначение:** ядро VPN-модуля VLESS Reality
+- **Лицензия:** Mozilla Public License 2.0
 
 ## Electron
 

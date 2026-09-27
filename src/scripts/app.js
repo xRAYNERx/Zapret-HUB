@@ -46,7 +46,8 @@ let state = {
   settings: {
     closeBehavior: 'tray', // 'ask' | 'tray' | 'quit'
     startMinimized: false,
-    autostart: false,
+    autostartZapret: false,
+    autostartTg: false,
     autoUpdates: true,
     ipsetMode: 'loaded' // 'loaded' | 'none' | 'any'
   }
@@ -1326,9 +1327,11 @@ async function toggleSetting(key, checked) {
     if (key === 'startMinimized') {
       state.settings.startMinimized = checked;
       await api('setStartMinimized', checked);
-    } else if (key === 'autostart') {
-      state.settings.autostart = checked;
+    } else if (key === 'autostartZapret') {
+      state.settings.autostartZapret = checked;
       await api('setAutostartZapret', checked);
+    } else if (key === 'autostartTg') {
+      state.settings.autostartTg = checked;
       await api('setAutostartTg', checked);
     } else if (key === 'autoUpdates') {
       state.settings.autoUpdates = checked;
@@ -1948,8 +1951,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (t) t.checked = settings.startMinimized;
       }
       if (typeof settings.autostartZapret === 'boolean') {
-        const t = $('#toggle-autostart');
+        const t = $('#toggle-autostart-zapret');
         if (t) t.checked = settings.autostartZapret;
+      }
+      if (typeof settings.autostartTgProxy === 'boolean') {
+        const t = $('#toggle-autostart-tg');
+        if (t) t.checked = settings.autostartTgProxy;
       }
       if (typeof settings.autoCheckUpdates === 'boolean') {
         const t = $('#toggle-auto-updates');

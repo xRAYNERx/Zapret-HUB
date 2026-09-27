@@ -2,15 +2,15 @@
 
 **Графическая панель управления сетевым доступом для Windows.** Объединяет сразу три инструмента обхода ограничений в одном чистом, современном интерфейсе: локальный DPI-обход, встроенный прокси для Telegram и полноценный VPN на базе протокола VLESS Reality.
 
-| Компонент | Технология / Репозиторий | Назначение |
+| Компонент | Технология / База | Назначение |
 |---|---|---|
-| **Движок DPI** | [Flowseal/zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube) | Discord, YouTube и сайты без снижения скорости |
-| **Прокси Telegram** | [Flowseal/tg-ws-proxy](https://github.com/Flowseal/tg-ws-proxy) | Встроенный MTProto Fake-TLS шлюз для звонков и медиа |
+| **Движок DPI** | Собственный стек на базе [bol-van/zapret](https://github.com/bol-van/zapret) | Discord, YouTube и сайты без снижения скорости |
+| **Прокси Telegram** | **ZapretTgProxy** (собственный шлюз) | Встроенный MTProto Fake-TLS шлюз для звонков и медиа |
 | **VPN Reality** | [XTLS/Xray-core](https://github.com/XTLS/Xray-core) | VLESS Reality обход блокировок ТСПУ с авто-выбором ноды |
 
-**Автор оболочки:** [xRAYNERx](https://github.com/xRAYNERx) · **Движки:** Flowseal, Bol-van, Project X
+**Разработка и оболочка:** [xRAYNERx](https://github.com/xRAYNERx) · **Технологии:** bol-van (winws/WinDivert), Project X (Xray)
 
-Zapret HUB является независимой графической оболочкой. Подробнее о сторонних компонентах — [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Zapret HUB является независимой панелью управления. Подробнее о сторонних компонентах — [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 

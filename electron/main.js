@@ -962,9 +962,11 @@ function registerIpc() {
         startMinimized: Boolean(status.startMinimized),
         closeBehavior: status.closeBehavior,
         autostartZapret: Boolean(status.autostartZapretEnabled),
+        autostartTgProxy: Boolean(status.autostartTgProxyEnabled),
         autoCheckUpdates: zapret.config.autoCheckUpdates !== false
       };
     },
+
     'set-game-filter': (_, mode) => zapret.setGameFilter(mode),
     'set-autostart-zapret': async (_, enabled) => {
       const status = await zapret.setAutostartZapret(enabled);

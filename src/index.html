@@ -717,19 +717,31 @@
 
                   <div class="h-[1px] bg-white/5"></div>
 
-                  <!-- Switch 2: Автозагрузка с Windows -->
+                  <!-- Switch 2a: Автозапуск обхода DPI -->
                   <div class="flex items-center justify-between">
                     <div>
-                      <span class="text-xs font-medium text-slate-200 block">Автозагрузка с Windows</span>
-                      <span class="text-[10px] text-slate-400 block leading-tight">Запуск Zapret HUB при входе в систему</span>
+                      <span class="text-xs font-medium text-slate-200 block">Автозапуск обхода DPI</span>
+                      <span class="text-[10px] text-slate-400 block leading-tight">Запускать обход блокировок при входе в систему</span>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                      <input type="checkbox" id="toggle-autostart" checked onchange="toggleSetting('autostart', this.checked)" class="sr-only peer">
+                      <input type="checkbox" id="toggle-autostart-zapret" onchange="toggleSetting('autostartZapret', this.checked)" class="sr-only peer">
                       <div class="w-9 h-5 bg-[#1b2230] border border-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
                     </label>
                   </div>
 
                   <div class="h-[1px] bg-white/5"></div>
+
+                  <!-- Switch 2b: Автозапуск Telegram прокси -->
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <span class="text-xs font-medium text-slate-200 block">Автозапуск Telegram прокси</span>
+                      <span class="text-[10px] text-slate-400 block leading-tight">Запускать Telegram прокси при входе в систему</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                      <input type="checkbox" id="toggle-autostart-tg" onchange="toggleSetting('autostartTg', this.checked)" class="sr-only peer">
+                      <div class="w-9 h-5 bg-[#1b2230] border border-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
 
                   <!-- Switch 3: Авто-проверка обновлений -->
                   <div class="flex items-center justify-between">

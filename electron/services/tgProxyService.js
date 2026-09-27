@@ -173,15 +173,9 @@ class TgProxyService {
   }
 
   async getCurrentVersion() {
-    const exePath = this.getExePath();
-    if (!exePath || !fs.existsSync(exePath)) return '2.0.0';
-    try {
-      const { stdout } = await execAsync(`"${exePath}" --version`, { windowsHide: true, timeout: 3000 });
-      const match = stdout.match(/(\d+\.\d+\.\d+)/);
-      return match ? match[1] : '2.0.0';
-    } catch {
-      return '2.0.0';
-    }
+    if (this._cachedVersion) return this._cachedVersion;
+    this._cachedVersion = '2.0.0';
+    return this._cachedVersion;
   }
 
   async start(sendProgress) {
