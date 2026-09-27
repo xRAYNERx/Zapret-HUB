@@ -728,12 +728,19 @@ function downloadHubFile(url, destPath, onProgress) {
   let lastReportedPercent = -1;
   return downloadFile(url, destPath, {
     maxRedirects: 6,
-    onProgress: ({ percent }) => {
+    onProgress: ({ percent, downloaded, total }) => {
       const safePercent = Math.min(100, Math.max(0, percent));
       if (safePercent === lastReportedPercent) return;
       lastReportedPercent = safePercent;
       if (typeof onProgress === 'function') {
-        onProgress({ percent: safePercent, message: `Скачивание Zapret HUB… ${safePercent}%` });
+        const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(1);
+        const mbTotal = total > 0 ? (total / (1024 * 1024)).toFixed(1) : '?';
+        onProgress({
+          percent: safePercent,
+          downloaded,
+          total,
+          message: `Скачивание Zapret HUB… ${safePercent}% (${mbDownloaded} из ${mbTotal} МБ)`
+        });
       }
     }
   });
@@ -760,29 +767,27 @@ async function stopServicesBeforeHubInstall() {
 }
 
 async function launchHubInstaller(installerPath, onProgress) {
-  const installDir = getHubInstallDir();
-  const args = ['/S', `/D=${installDir}`];
-
   if (typeof onProgress === 'function') {
-    onProgress({ percent: 100, message: 'Установка Zapret HUB…' });
+    onProgress({ percent: 100, message: 'Запуск установщика…' });
   }
 
   await stopServicesBeforeHubInstall();
-  logStartup(`Hub update: ${installerPath} ${args.join(' ')}`);
+  logStartup(`Hub update: launching ${installerPath}`);
 
-  await new Promise((resolve, reject) => {
-    const child = spawn(installerPath, args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    });
-    child.on('error', reject);
-    child.unref();
-    resolve();
-  });
+  try {
+    await shell.openPath(installerPath);
+  } catch (err) {
+    logStartup(`Shell openPath failed: ${err.message}, fallback to spawn`);
+    try {
+      const child = spawn(installerPath, [], { detached: true, stdio: 'ignore' });
+      child.unref();
+    } catch (e) {
+      logStartup(`Spawn fallback failed: ${e.message}`);
+    }
+  }
 
   app.isQuitting = true;
-  setTimeout(() => app.quit(), 800);
+  setTimeout(() => app.quit(), 1000);
 }
 
 async function applyHubUpdate(onProgress) {

@@ -969,6 +969,80 @@
         </div>
       </div>
 
+      <!-- ─── HUB UPDATE MODAL ─── -->
+      <div id="hub-update-modal-backdrop" onclick="if (event.target === this && !window._hubUpdateDownloading) closeHubUpdateModal()" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-opacity app-no-drag">
+        <div class="slate-card rounded-3xl p-6 max-w-[460px] w-full shadow-[0_25px_60px_-10px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.18)] border border-white/15 space-y-4 relative">
+          
+          <!-- Top Header: Icon + Title + Close Button -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 text-emerald-400 shadow-sm">
+                <svg class="w-5 h-5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-[15px] font-bold text-white tracking-tight leading-snug">Обновление Zapret HUB</h3>
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 mt-0.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Доступна новая версия
+                </span>
+              </div>
+            </div>
+            <button id="btn-close-update-modal" onclick="closeHubUpdateModal()" class="w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0" title="Закрыть">
+              <svg class="w-4 h-4 stroke-current stroke-2 pointer-events-none" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- Version Transition Info Card -->
+          <div class="inner-panel rounded-2xl p-3.5 border border-white/10 space-y-2 bg-[#171e2c]">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400">Текущая версия:</span>
+              <span id="update-modal-current-ver" class="font-mono font-bold text-slate-300">v2.0.0</span>
+            </div>
+            <div class="h-[1px] bg-white/5 w-full"></div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400">Новая версия:</span>
+              <span id="update-modal-remote-ver" class="font-mono font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/25">v2.0.1</span>
+            </div>
+          </div>
+
+          <!-- Description message -->
+          <p id="update-modal-desc" class="text-xs text-slate-300 leading-relaxed">
+            Вышла новая версия Zapret HUB с важными исправлениями и обновлениями. Хотите скачать и установить обновление сейчас? Приложение автоматически загрузит установщик и перезапустится.
+          </p>
+
+          <!-- Downloading / Progress State (Hidden initially) -->
+          <div id="update-progress-section" class="hidden space-y-2.5 pt-1">
+            <div class="flex items-center justify-between text-xs font-mono">
+              <span id="update-progress-label" class="text-slate-300 font-sans">Скачивание обновления…</span>
+              <span id="update-progress-pct" class="font-bold text-emerald-400">0%</span>
+            </div>
+            <div class="w-full h-2.5 rounded-full bg-[#131924] border border-white/10 overflow-hidden p-0.5">
+              <div id="update-progress-bar" class="h-full rounded-full bg-gradient-to-r from-teal-500 via-emerald-400 to-emerald-500 transition-all duration-200" style="width: 0%"></div>
+            </div>
+            <p id="update-progress-sub" class="text-[11px] text-slate-400 text-center">
+              Пожалуйста, подождите. После загрузки приложение автоматически перезапустится для установки.
+            </p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div id="update-modal-actions" class="pt-2 border-t border-white/10 flex items-center justify-between gap-2.5">
+            <button type="button" onclick="openChangelogModal(); closeHubUpdateModal();" class="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1.5 transition-colors cursor-pointer py-1">
+              <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span>Что нового?</span>
+            </button>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="closeHubUpdateModal()" class="h-9 px-4 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-[#2b3548] hover:bg-[#354157] border border-white/10 cursor-pointer transition-all active:scale-95">
+                Позже
+              </button>
+              <button id="btn-start-hub-update" type="button" onclick="executeHubUpdate()" class="h-9 px-5 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)] flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
+                <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Обновить сейчас</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       <!-- ─── CHANGELOG / UPDATES MODAL ─── -->
       <div id="changelog-modal-backdrop" onclick="if (event.target === this) closeChangelogModal()" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-opacity app-no-drag">
         <div class="slate-card rounded-3xl p-6 max-w-lg w-full max-h-[85vh] flex flex-col shadow-[0_25px_60px_-10px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.18)] border border-white/15 relative app-no-drag">
@@ -1058,9 +1132,15 @@
               <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               <span>Все релизы на GitHub</span>
             </a>
-            <button onclick="closeChangelogModal()" class="h-9 px-5 rounded-xl text-xs font-semibold text-slate-200 hover:text-white bg-[#2b3548] hover:bg-[#354157] border border-white/10 cursor-pointer transition-all active:scale-95">
-              Закрыть
-            </button>
+            <div class="flex items-center gap-2">
+              <button id="btn-changelog-install-update" onclick="startUpdateFromChangelog()" class="hidden h-9 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] flex items-center gap-1.5 cursor-pointer transition-all active:scale-95">
+                <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span id="btn-changelog-install-text">Обновить</span>
+              </button>
+              <button onclick="closeChangelogModal()" class="h-9 px-5 rounded-xl text-xs font-semibold text-slate-200 hover:text-white bg-[#2b3548] hover:bg-[#354157] border border-white/10 cursor-pointer transition-all active:scale-95">
+                Закрыть
+              </button>
+            </div>
           </div>
 
         </div>

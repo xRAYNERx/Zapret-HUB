@@ -280,9 +280,101 @@ async function loadChangelogFromGithub() {
   }
 }
 
+let _pendingHubUpdate = null;
+window._hubUpdateDownloading = false;
+
+function updateChangelogInstallButton() {
+  const btn = $('#btn-changelog-install-update');
+  const text = $('#btn-changelog-install-text');
+  if (!btn) return;
+  if (_pendingHubUpdate && _pendingHubUpdate.updateAvailable) {
+    btn.classList.remove('hidden');
+    if (text) text.innerText = `Обновить до v${(_pendingHubUpdate.remote || '2.0.1').replace(/^v/i, '')}`;
+  } else {
+    btn.classList.add('hidden');
+  }
+}
+
+function startUpdateFromChangelog() {
+  closeChangelogModal();
+  if (_pendingHubUpdate) {
+    showHubUpdateModal(_pendingHubUpdate);
+  } else {
+    checkAllUpdatesSim();
+  }
+}
+
+function showHubUpdateModal(updateInfo) {
+  _pendingHubUpdate = updateInfo;
+  const modal = $('#hub-update-modal-backdrop');
+  if (!modal) return;
+
+  const currentVerEl = $('#update-modal-current-ver');
+  const remoteVerEl = $('#update-modal-remote-ver');
+  const descEl = $('#update-modal-desc');
+  const actionsEl = $('#update-modal-actions');
+  const progressEl = $('#update-progress-section');
+  const closeBtn = $('#btn-close-update-modal');
+
+  const local = (updateInfo?.local || state.version || '2.0.0').replace(/^v/i, '');
+  const remote = (updateInfo?.remote || '2.0.1').replace(/^v/i, '');
+
+  if (currentVerEl) currentVerEl.innerText = `v${local}`;
+  if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
+  if (descEl) {
+    descEl.innerText = `Вышла новая версия Zapret HUB v${remote} с важными исправлениями и обновлениями. Хотите скачать и установить обновление сейчас? Приложение автоматически загрузит установщик и перезапустится.`;
+  }
+
+  if (actionsEl) actionsEl.classList.remove('hidden');
+  if (progressEl) progressEl.classList.add('hidden');
+  if (closeBtn) closeBtn.classList.remove('hidden');
+  window._hubUpdateDownloading = false;
+
+  modal.classList.remove('hidden');
+}
+
+function closeHubUpdateModal() {
+  if (window._hubUpdateDownloading) return;
+  const modal = $('#hub-update-modal-backdrop');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function executeHubUpdate() {
+  if (window._hubUpdateDownloading) return;
+  window._hubUpdateDownloading = true;
+
+  const actionsEl = $('#update-modal-actions');
+  const progressEl = $('#update-progress-section');
+  const closeBtn = $('#btn-close-update-modal');
+  const bar = $('#update-progress-bar');
+  const pctText = $('#update-progress-pct');
+  const label = $('#update-progress-label');
+
+  if (actionsEl) actionsEl.classList.add('hidden');
+  if (progressEl) progressEl.classList.remove('hidden');
+  if (closeBtn) closeBtn.classList.add('hidden');
+
+  if (bar) bar.style.width = '0%';
+  if (pctText) pctText.innerText = '0%';
+  if (label) label.innerText = 'Подключение к GitHub…';
+
+  try {
+    toast('Загрузка обновления Zapret HUB...', 'info');
+    await api('applyHubUpdate');
+  } catch (err) {
+    console.error('Update failed:', err);
+    window._hubUpdateDownloading = false;
+    toast(`Ошибка обновления: ${err.message}`, 'error');
+    if (label) label.innerText = `Ошибка: ${err.message}`;
+    if (actionsEl) actionsEl.classList.remove('hidden');
+    if (closeBtn) closeBtn.classList.remove('hidden');
+  }
+}
+
 function openChangelogModal() {
   const modal = $('#changelog-modal-backdrop');
   if (modal) modal.classList.remove('hidden');
+  updateChangelogInstallButton();
   loadChangelogFromGithub().catch(() => {});
 }
 
@@ -293,6 +385,10 @@ function closeChangelogModal() {
 
 window.openChangelogModal = openChangelogModal;
 window.closeChangelogModal = closeChangelogModal;
+window.showHubUpdateModal = showHubUpdateModal;
+window.closeHubUpdateModal = closeHubUpdateModal;
+window.executeHubUpdate = executeHubUpdate;
+window.startUpdateFromChangelog = startUpdateFromChangelog;
 
 
 // ─── Strategy Selector Dropdown ───
@@ -1494,12 +1590,16 @@ async function checkAllUpdatesSim() {
 
   try {
     const all = await api('checkAllUpdates');
-    const hasAny = [all.hub, all.zapret, all.tg].some(i => i?.updateAvailable);
-    if (hasAny) {
-      toast('Доступна новая версия на GitHub!', 'success');
+    if (all?.hub?.updateAvailable) {
+      _pendingHubUpdate = all.hub;
+      updateChangelogInstallButton();
+      showHubUpdateModal(all.hub);
+    } else if (all?.zapret?.updateAvailable) {
+      toast('Доступно обновление базы правил Zapret!', 'info');
       openChangelogModal();
     } else {
-      toast('У вас установлены актуальные версии компонентов', 'success');
+      const currentVer = (all?.hub?.local || state.version || '2.0.1').replace(/^v/i, '');
+      toast(`У вас установлена последняя версия Zapret HUB (v${currentVer})`, 'success');
     }
   } catch (e) {
     toast(e.message, 'error');
@@ -2135,8 +2235,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.zapretAPI?.onShowCloseDialog?.(() => {
     $('#closeChoiceModal')?.classList.remove('hidden');
   });
-  window.zapretAPI?.onStartupUpdatesAvailable?.(() => {
-    openChangelogModal();
+  window.zapretAPI?.onStartupUpdatesAvailable?.((all) => {
+    if (all?.hub?.updateAvailable) {
+      _pendingHubUpdate = all.hub;
+      updateChangelogInstallButton();
+      showHubUpdateModal(all.hub);
+    } else if (all?.zapret?.updateAvailable) {
+      openChangelogModal();
+    }
+  });
+  window.zapretAPI?.onHubUpdateProgress?.((data) => {
+    if (!data) return;
+    const bar = $('#update-progress-bar');
+    const pctText = $('#update-progress-pct');
+    const label = $('#update-progress-label');
+    const pct = Math.min(100, Math.max(0, data.percent || 0));
+
+    if (bar) bar.style.width = `${pct}%`;
+    if (pctText) pctText.innerText = `${pct}%`;
+    if (label && data.message) label.innerText = data.message;
   });
   window.zapretAPI?.onStrategyProbeProgress?.((data) => {
     if (!data) return;
