@@ -139,9 +139,33 @@ function downloadFile(url, destPath, { onProgress, maxRedirects = 6 } = {}) {
   });
 }
 
+/**
+ * Fetch GitHub releases list via GitHub API
+ */
+async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-HUB', { timeoutMs = 12000 } = {}) {
+  const url = `https://api.github.com/repos/${repo}/releases?per_page=10`;
+  const res = await fetchUrl(url, {
+    headers: {
+      'User-Agent': 'ZapretHub',
+      Accept: 'application/vnd.github+json'
+    },
+    timeoutMs
+  });
+
+  try {
+    const list = JSON.parse(res.body);
+    if (Array.isArray(list)) return list;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 module.exports = {
   fetchUrl,
   fetchGithubRelease,
+  fetchGithubReleases,
   downloadFile
 };
+
 

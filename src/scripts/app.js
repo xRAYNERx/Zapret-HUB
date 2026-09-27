@@ -166,9 +166,124 @@ function confirmConflictSwitch() {
 }
 
 // ─── Changelog Modal ───
+let _changelogLoadedFromGithub = false;
+
+function formatRussianDate(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function parseMarkdownToHtml(md) {
+  if (!md) return '';
+  const lines = md.split('\n');
+  const result = [];
+  let inList = false;
+
+  for (let rawLine of lines) {
+    let line = rawLine.trim();
+    if (!line) {
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      continue;
+    }
+
+    if (line.startsWith('### ') || line.startsWith('## ')) {
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      const title = line.replace(/^#+\s*/, '');
+      result.push(`<div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-2 pb-0.5">${title}</div>`);
+      continue;
+    }
+
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      if (!inList) {
+        result.push('<ul class="text-xs text-slate-300 space-y-1.5 leading-relaxed">');
+        inList = true;
+      }
+      let content = line.substring(2);
+      content = content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+      let icon = '<span class="text-emerald-400 font-bold flex-shrink-0 mt-0.5">+</span>';
+      if (content.toLowerCase().includes('исправлен') || content.toLowerCase().includes('устранен')) {
+        icon = '<span class="text-slate-400 font-bold flex-shrink-0 mt-0.5">•</span>';
+      } else if (content.toLowerCase().includes('улучшен') || content.toLowerCase().includes('интерфейс')) {
+        icon = '<span class="text-sky-400 font-bold flex-shrink-0 mt-0.5">★</span>';
+      }
+      result.push(`<li class="flex items-start gap-2">${icon}<span>${content}</span></li>`);
+      continue;
+    }
+
+    if (line.startsWith('---') || line.toLowerCase().includes('установка:')) {
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      break;
+    }
+  }
+
+  if (inList) result.push('</ul>');
+  return result.join('\n');
+}
+
+async function loadChangelogFromGithub() {
+  if (_changelogLoadedFromGithub) return;
+  try {
+    const releases = await window.zapretAPI?.getGithubReleases();
+    if (!Array.isArray(releases) || releases.length === 0) return;
+
+    const container = $('#changelog-container');
+    if (!container) return;
+
+    const currentAppVersion = (state.version || '2.0.0').replace(/^v/i, '');
+
+    const blocks = releases.map((rel, idx) => {
+      const tag = (rel.tag_name || '').replace(/^v/i, '');
+      const isCurrent = tag === currentAppVersion || (idx === 0 && !tag.includes('1.'));
+      const dateStr = formatRussianDate(rel.published_at || rel.created_at);
+      const bodyHtml = parseMarkdownToHtml(rel.body);
+
+      const badge = isCurrent
+        ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Текущая версия</span>'
+        : '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400 border border-white/10">Релиз</span>';
+
+      const opacityClass = isCurrent ? 'border-white/10' : 'border-white/8 opacity-85 hover:opacity-100 transition-opacity';
+
+      return `
+        <div class="inner-panel rounded-2xl p-4 border ${opacityClass} space-y-2.5 bg-[#171e2c]">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-white font-mono">${rel.tag_name || 'v2.0'}</span>
+              ${badge}
+            </div>
+            <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
+          </div>
+          <div class="space-y-1.5">
+            ${bodyHtml}
+          </div>
+        </div>
+      `;
+    });
+
+    if (blocks.length > 0) {
+      container.innerHTML = blocks.join('\n');
+      _changelogLoadedFromGithub = true;
+    }
+  } catch (err) {
+    console.warn('[Changelog] Failed to load releases from GitHub:', err);
+  }
+}
+
 function openChangelogModal() {
   const modal = $('#changelog-modal-backdrop');
   if (modal) modal.classList.remove('hidden');
+  loadChangelogFromGithub().catch(() => {});
 }
 
 function closeChangelogModal() {
@@ -178,6 +293,7 @@ function closeChangelogModal() {
 
 window.openChangelogModal = openChangelogModal;
 window.closeChangelogModal = closeChangelogModal;
+
 
 // ─── Strategy Selector Dropdown ───
 function renderStrategyDropdown() {

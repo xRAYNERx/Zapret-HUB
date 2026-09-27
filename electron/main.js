@@ -10,7 +10,7 @@ const path = require('path');
 const { ZapretService } = require('./services/zapretService');
 const { TgProxyService } = require('./services/tgProxyService');
 const { VlessService } = require('./services/vlessService');
-const { fetchUrl, fetchGithubRelease, downloadFile } = require('./helpers/httpFetch');
+const { fetchUrl, fetchGithubRelease, fetchGithubReleases, downloadFile } = require('./helpers/httpFetch');
 const appPkg = require('../package.json');
 
 const HUB_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-HUB/releases/latest';
@@ -987,6 +987,13 @@ function registerIpc() {
     'run-diagnostics': () => zapret.runDiagnostics(),
     'check-updates': (_, options) => zapret.checkForUpdates(options || {}),
     'check-all-updates': (_, options) => checkAllUpdatesBundle(options || {}),
+    'get-github-releases': async () => {
+      try {
+        return await fetchGithubReleases();
+      } catch (e) {
+        return [];
+      }
+    },
     'apply-hub-update': async () => {
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('hub-update-progress', progress);

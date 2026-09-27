@@ -33,6 +33,7 @@ const api = {
   runDiagnostics: () => ipcRenderer.invoke('run-diagnostics'),
   checkUpdates: (options) => ipcRenderer.invoke('check-updates', options),
   checkAllUpdates: (options) => ipcRenderer.invoke('check-all-updates', options),
+  getGithubReleases: () => ipcRenderer.invoke('get-github-releases'),
   applyUpdate: (remoteVersion) => ipcRenderer.invoke('apply-update', remoteVersion),
   applyHubUpdate: () => ipcRenderer.invoke('apply-hub-update'),
   runStrategyProbe: (options) => ipcRenderer.invoke('run-strategy-probe', options),
