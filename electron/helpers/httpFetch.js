@@ -139,26 +139,77 @@ function downloadFile(url, destPath, { onProgress, maxRedirects = 6 } = {}) {
   });
 }
 
+function decodeHtmlEntities(str) {
+  return (str || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function parseReleasesAtom(xml) {
+  const entries = (xml || '').split('<entry>');
+  const releases = [];
+  for (let i = 1; i < entries.length; i++) {
+    const chunk = entries[i].split('</entry>')[0];
+    const tagMatch = chunk.match(/\/releases\/tag\/([^"/?#\s<]+)/i);
+    const tag = tagMatch ? tagMatch[1] : '';
+    const titleMatch = chunk.match(/<title>([\s\S]*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    const dateMatch = chunk.match(/<updated>([\s\S]*?)<\/updated>/i);
+    const date = dateMatch ? dateMatch[1].trim() : '';
+    const contentMatch = chunk.match(/<content[^>]*>([\s\S]*?)<\/content>/i);
+    const rawContent = contentMatch ? decodeHtmlEntities(contentMatch[1]) : '';
+
+    if (tag) {
+      releases.push({
+        tag_name: tag,
+        name: title,
+        published_at: date,
+        body_html: rawContent,
+        body: rawContent
+      });
+    }
+  }
+  return releases;
+}
+
 /**
- * Fetch GitHub releases list via GitHub API
+ * Fetch GitHub releases list via GitHub API with Atom feed fallback
  */
 async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-HUB', { timeoutMs = 12000 } = {}) {
-  const url = `https://api.github.com/repos/${repo}/releases?per_page=10`;
-  const res = await fetchUrl(url, {
-    headers: {
-      'User-Agent': 'ZapretHub',
-      Accept: 'application/vnd.github+json'
-    },
-    timeoutMs
-  });
-
+  // 1. Try official GitHub API
   try {
+    const url = `https://api.github.com/repos/${repo}/releases?per_page=10`;
+    const res = await fetchUrl(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 ZapretHub',
+        Accept: 'application/vnd.github+json'
+      },
+      timeoutMs
+    });
     const list = JSON.parse(res.body);
-    if (Array.isArray(list)) return list;
-    return [];
-  } catch {
-    return [];
+    if (Array.isArray(list) && list.length > 0) return list;
+  } catch (apiErr) {
+    // API failed or rate-limited, fallback to Atom feed below
   }
+
+  // 2. Fallback to public GitHub releases.atom (no rate limits, always available)
+  try {
+    const atomUrl = `https://github.com/${repo}/releases.atom`;
+    const res = await fetchUrl(atomUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 ZapretHub',
+        Accept: 'application/atom+xml, application/xml, text/xml, */*'
+      },
+      timeoutMs
+    });
+    const list = parseReleasesAtom(res.body);
+    if (list.length > 0) return list;
+  } catch (atomErr) {}
+
+  return [];
 }
 
 module.exports = {

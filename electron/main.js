@@ -44,6 +44,9 @@ function ensureUserDataPath() {
 ensureUserDataPath();
 
 app.setName('Zapret HUB');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.rayner.zapret-hub');
+}
 
 app.disableHardwareAcceleration();
 
@@ -362,28 +365,52 @@ function createTray() {
   updateTrayMenu(false, false);
 }
 
+function cleanServerName(name = '') {
+  let cleaned = String(name || '');
+  cleaned = cleaned.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '');
+  cleaned = cleaned.replace(/\p{Extended_Pictographic}/gu, '');
+  cleaned = cleaned.trim();
+  cleaned = cleaned.replace(/^[A-Za-z]{2}\s*[-–—:\s]+\s*/u, '');
+  cleaned = cleaned.replace(/^[A-Za-z]{2}\s+/u, '');
+  cleaned = cleaned.trim();
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  }
+  return cleaned || name;
+}
+
 let trayVlessRunning = false;
 let trayVlessNodeName = '';
+let trayVlessPing = null;
 
-async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode) {
+async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode, vlessPing) {
   if (!tray) return;
 
   if (typeof zapretRunning === 'boolean') trayZapretRunning = zapretRunning;
   if (typeof tgRunning === 'boolean') trayTgRunning = tgRunning;
   if (typeof vlessRunning === 'boolean') {
     trayVlessRunning = vlessRunning;
-    trayVlessNodeName = vlessNode || '';
+    trayVlessNodeName = cleanServerName(vlessNode || '');
+    if (vlessPing !== undefined) {
+      trayVlessPing = vlessPing;
+    } else if (!trayVlessRunning) {
+      trayVlessPing = null;
+    }
   } else if (vless) {
     try {
       const vs = await vless.getStatus();
       trayVlessRunning = Boolean(vs?.running);
-      trayVlessNodeName = vs?.activeServer?.name || '';
+      trayVlessNodeName = cleanServerName(vs?.activeServer?.name || '');
+      trayVlessPing = vs?.activeServer?.ping || null;
     } catch {}
   }
 
   const tipParts = [];
   if (trayZapretRunning) tipParts.push('Обход: вкл');
-  if (trayVlessRunning) tipParts.push(`VPN: ${trayVlessNodeName || 'вкл'}`);
+  if (trayVlessRunning) {
+    const pingStr = trayVlessPing ? ` (${trayVlessPing} мс)` : '';
+    tipParts.push(`VPN: ${trayVlessNodeName || 'вкл'}${pingStr}`);
+  }
   if (trayTgRunning) tipParts.push('TG: вкл');
 
   tray.setToolTip(
@@ -391,6 +418,10 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode)
       ? `Zapret HUB — ${tipParts.join(' | ')}`
       : 'Zapret HUB — все службы выключены'
   );
+
+  const vpnMenuLabel = trayVlessRunning
+    ? `● VPN: ${trayVlessNodeName || 'подключён'}${trayVlessPing ? ` (${trayVlessPing} мс)` : ''}`
+    : '○ VPN: выключен';
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -409,6 +440,7 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode)
             if (trayVlessRunning && vless) {
               await vless.disconnect();
               trayVlessRunning = false;
+              trayVlessPing = null;
               const vStatus = await vless.getStatus();
               mainWindow?.webContents.send('vless-status-changed', vStatus);
             }
@@ -420,7 +452,7 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode)
           const status = await zapret.getStatus();
           bypassWasRunning = status.running;
           mainWindow?.webContents.send('status-changed', status);
-          updateTrayMenu(status.running, trayTgRunning, trayVlessRunning, trayVlessNodeName);
+          updateTrayMenu(status.running, trayTgRunning, trayVlessRunning, trayVlessNodeName, trayVlessPing);
         } catch (err) {
           mainWindow?.webContents.send('error', err.message);
         }
@@ -428,7 +460,7 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode)
     },
     { type: 'separator' },
     {
-      label: trayVlessRunning ? `● VPN: ${trayVlessNodeName || 'подключён'}` : '○ VPN: выключен',
+      label: vpnMenuLabel,
       enabled: false
     },
     {
@@ -439,6 +471,7 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode)
           if (trayVlessRunning) {
             const vStatus = await vless.disconnect();
             trayVlessRunning = false;
+            trayVlessPing = null;
             mainWindow?.webContents.send('vless-status-changed', vStatus);
             sendInAppNotify('VPN отключён');
           } else {
@@ -453,12 +486,13 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode)
             const vStatus = await vless.connect(0);
             trayVlessRunning = Boolean(vStatus.running);
             trayVlessNodeName = vStatus.activeServer?.name || '';
+            trayVlessPing = vStatus.activeServer?.ping || null;
             mainWindow?.webContents.send('vless-status-changed', vStatus);
             if (vStatus.running) {
               sendInAppNotify(`VPN подключён: ${trayVlessNodeName || 'узел'}`);
             }
           }
-          updateTrayMenu(trayZapretRunning, trayTgRunning, trayVlessRunning, trayVlessNodeName);
+          updateTrayMenu(trayZapretRunning, trayTgRunning, trayVlessRunning, trayVlessNodeName, trayVlessPing);
         } catch (err) {
           mainWindow?.webContents.send('error', err.message);
         }
@@ -581,26 +615,59 @@ async function syncAutostartTask() {
     app.setLoginItemSettings({ openAtLogin: false, args: [] });
   }
 
-  // Clean up any stale registry run entries from previous versions
-  const staleKeys = ['electron.app.Electron', 'electron.app.Zapret HUB', 'TgWsProxy'];
-  for (const k of staleKeys) {
-    try {
-      await execAsync(`reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "${k}" /f`, { windowsHide: true });
-    } catch {}
-  }
+  const exePath = process.execPath;
+  const taskAction = `"${exePath}" --autostart`;
+  const regKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+  const regValName = 'Zapret HUB';
 
   if (!enabled) {
-    await runSchtasks(['/Delete', '/TN', AUTOSTART_TASK_NAME, '/F']);
+    try {
+      if (zapret.isElevated()) {
+        await runSchtasks(['/Delete', '/TN', AUTOSTART_TASK_NAME, '/F']);
+      } else {
+        await zapret.runElevated('schtasks', ['/Delete', '/TN', AUTOSTART_TASK_NAME, '/F']).catch(() => {});
+      }
+    } catch {}
+    try {
+      await execAsync(`reg delete "${regKey}" /v "${regValName}" /f`, { windowsHide: true });
+    } catch {}
     return;
   }
 
-  const exePath = process.execPath;
-  const taskAction = `"${exePath}" --autostart`;
-  await runSchtasks([
-    '/Create', '/F', '/SC', 'ONLOGON', '/RL', 'HIGHEST',
-    '/TN', AUTOSTART_TASK_NAME,
-    '/TR', taskAction
-  ]);
+  // 1. Try creating Task Scheduler task with highest privileges (via runElevated)
+  let taskSuccess = false;
+  try {
+    if (zapret.isElevated()) {
+      await runSchtasks([
+        '/Create', '/F', '/SC', 'ONLOGON', '/RL', 'HIGHEST',
+        '/TN', AUTOSTART_TASK_NAME,
+        '/TR', taskAction
+      ]);
+      taskSuccess = true;
+    } else {
+      await zapret.runElevated('schtasks', [
+        '/Create', '/F', '/SC', 'ONLOGON', '/RL', 'HIGHEST',
+        '/TN', AUTOSTART_TASK_NAME,
+        '/TR', taskAction
+      ]);
+      taskSuccess = true;
+    }
+    logStartup(`Autostart task created in Task Scheduler: ${taskAction}`);
+  } catch (err) {
+    logStartup(`Elevated schtasks creation failed, falling back to HKCU Run: ${err.message}`);
+  }
+
+  // 2. Add HKCU Run registry entry as an instant, non-privileged, 100% reliable fallback
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn('reg.exe', ['add', regKey, '/v', regValName, '/t', 'REG_SZ', '/d', taskAction, '/f'], { windowsHide: true });
+      child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`reg exit ${code}`)));
+      child.on('error', reject);
+    });
+    logStartup(`Autostart registry entry added to HKCU Run: ${taskAction}`);
+  } catch (regErr) {
+    logStartup(`Autostart registry add failed: ${regErr.message}`);
+  }
 }
 
 
@@ -1066,12 +1133,12 @@ function registerIpc() {
     },
     'vless-connect': async (_, idx) => {
       const res = await vless.connect(idx);
-      updateTrayMenu(trayZapretRunning, trayTgRunning, Boolean(res.running), res.activeServer?.name);
+      updateTrayMenu(trayZapretRunning, trayTgRunning, Boolean(res.running), res.activeServer?.name, res.activeServer?.ping || null);
       return res;
     },
     'vless-disconnect': async () => {
       const res = await vless.disconnect();
-      updateTrayMenu(trayZapretRunning, trayTgRunning, false, '');
+      updateTrayMenu(trayZapretRunning, trayTgRunning, false, '', null);
       return res;
     },
     'vless-toggle-system-proxy': (_, enabled) => vless.toggleSystemProxy(enabled),
@@ -1179,6 +1246,14 @@ app.whenReady().then(async () => {
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath
     });
+    vless.onPingUpdate = ({ index, ping, serverName, blocked, disconnected }) => {
+      if (disconnected) {
+        updateTrayMenu(trayZapretRunning, trayTgRunning, false, '', null);
+      } else {
+        updateTrayMenu(trayZapretRunning, trayTgRunning, !blocked, serverName, ping);
+      }
+      mainWindow?.webContents.send('vless-ping-update', { index, ping, serverName, blocked, disconnected });
+    };
     logStartup('Migrating autostart...');
     zapret.migrateAutostartConfig()
       .then(() => syncAutostartTask())

@@ -183,10 +183,13 @@ class VlessService {
     this.resourcesPath = options.resourcesPath || '';
     this.installDir = path.join(userDataPath, 'vless');
     this.exePath = path.join(this.installDir, 'xray.exe');
+    this.tunExePath = path.join(this.installDir, 'sing-box.exe');
     this.configPath = path.join(this.installDir, 'vless_settings.json');
     this.activeRunConfigPath = path.join(this.installDir, 'active_run.json');
+    this.activeTunConfigPath = path.join(this.installDir, 'active_tun.json');
 
     this._child = null;
+    this._tunChild = null;
     this._isConnected = false;
     this._watchdogTimer = null;
     this._watchdogRunning = false;
@@ -213,11 +216,10 @@ class VlessService {
 
   _seedFromBundled() {
     try {
-      if (fs.existsSync(this.exePath)) return;
       const bundled = this.getBundledDir();
       if (!bundled) return;
       fs.mkdirSync(this.installDir, { recursive: true });
-      for (const f of ['xray.exe', 'geoip.dat', 'geosite.dat']) {
+      for (const f of ['xray.exe', 'sing-box.exe', 'wintun.dll', 'geoip.dat', 'geosite.dat']) {
         const src = path.join(bundled, f);
         const dst = path.join(this.installDir, f);
         if (fs.existsSync(src) && !fs.existsSync(dst)) {
@@ -1251,6 +1253,9 @@ class VlessService {
     srv.status = 'ok';
     this._isConnected = true;
 
+    // Start TUN (Transparent system-wide adapter) if sing-box & wintun are present
+    await this.startTun();
+
     if (this.settings.systemProxy) {
       await this.setSystemProxy(true, HTTP_PORT, SOCKS_PORT);
     }
@@ -1261,9 +1266,114 @@ class VlessService {
     return this.getStatus();
   }
 
+  async startTun() {
+    try {
+      if (!fs.existsSync(this.tunExePath)) return;
+      const tunConfig = {
+        dns: {
+          servers: [
+            {
+              address: '8.8.8.8',
+              detour: 'direct',
+              tag: 'dns-proxy'
+            }
+          ]
+        },
+        inbounds: [
+          {
+            type: 'tun',
+            tag: 'tun-in',
+            interface_name: 'zapret-tun',
+            address: ['172.18.0.1/30'],
+            mtu: 1500,
+            auto_route: true,
+            strict_route: true,
+            stack: 'mixed'
+          }
+        ],
+        outbounds: [
+          {
+            type: 'socks',
+            tag: 'proxy',
+            server: '127.0.0.1',
+            server_port: SOCKS_PORT,
+            udp_fragment: true,
+            domain_resolver: {
+              server: 'dns-proxy',
+              strategy: 'prefer_ipv4'
+            }
+          },
+          {
+            type: 'direct',
+            tag: 'direct',
+            domain_resolver: {
+              server: 'dns-proxy',
+              strategy: 'prefer_ipv4'
+            }
+          }
+        ],
+        route: {
+          auto_detect_interface: true,
+          final: 'proxy',
+          rules: [
+            {
+              process_name: ['xray.exe', 'sing-box.exe', 'winws.exe'],
+              outbound: 'direct'
+            },
+            {
+              action: 'sniff'
+            },
+            {
+              protocol: 'dns',
+              action: 'hijack-dns'
+            }
+          ]
+        },
+        log: {
+          level: 'warn',
+          timestamp: true
+        }
+      };
+
+      fs.writeFileSync(this.activeTunConfigPath, JSON.stringify(tunConfig, null, 2), 'utf8');
+
+      // Stop any previous instance of sing-box
+      try {
+        await execAsync('taskkill /F /IM sing-box.exe /T', { windowsHide: true, timeout: 3000 });
+      } catch {}
+
+      const tunChild = spawn(this.tunExePath, ['run', '-c', this.activeTunConfigPath], {
+        detached: true,
+        windowsHide: true,
+        stdio: 'ignore'
+      });
+      tunChild.unref();
+      this._tunChild = tunChild;
+      console.log('[VlessService] TUN adapter started (zapret-tun via sing-box)');
+    } catch (e) {
+      console.warn('[VlessService] Could not start TUN adapter (system proxy fallback active):', e);
+    }
+  }
+
+  async stopTun() {
+    if (this._tunChild) {
+      try { process.kill(this._tunChild.pid, 'SIGKILL'); } catch {}
+      this._tunChild = null;
+    }
+    try {
+      await execAsync('taskkill /F /IM sing-box.exe /T', { windowsHide: true, timeout: 5000 });
+    } catch {}
+    this._tunChild = null;
+  }
+
   async disconnect(restoreProxy = true) {
     this._isConnected = false;
     this.stopWatchdog();
+    if (typeof this.onPingUpdate === 'function') {
+      this.onPingUpdate({ index: -1, ping: null, serverName: '', disconnected: true });
+    }
+    await this.stopTun();
+
     if (this._child) {
       try {
         process.kill(this._child.pid, 'SIGKILL');
@@ -1284,54 +1394,110 @@ class VlessService {
 
   startWatchdog() {
     this.stopWatchdog();
+    this._watchdogFailures = 0;
     this._watchdogTimer = setInterval(async () => {
-      if (!this.settings.autoFallback) return;
       if (this._watchdogRunning) return;
       this._watchdogRunning = true;
       try {
         const isRunning = await this.isProcessRunning();
         if (!isRunning) return;
 
-        const probes = [
-          `curl.exe -x socks5h://127.0.0.1:${SOCKS_PORT} http://cp.cloudflare.com/generate_204 -s -o NUL -w "%{http_code}" --max-time 5`,
-          `curl.exe -x socks5h://127.0.0.1:${SOCKS_PORT} http://www.google.com/generate_204 -s -o NUL -w "%{http_code}" --max-time 5`
-        ];
-        let alive = false;
-        for (const probe of probes) {
+        const currentIndex = this.settings.selectedServerIndex;
+        const srv = (this.settings.servers && typeof currentIndex === 'number')
+          ? this.settings.servers[currentIndex]
+          : null;
+
+        // Ultra-lightweight ping probe via socks5h
+        let probeOk = false;
+        let measuredPing = null;
+        try {
+          const { stdout } = await execAsync(
+            `curl.exe -x socks5h://127.0.0.1:${SOCKS_PORT} http://cp.cloudflare.com/generate_204 -s -o NUL -w "%{http_code}:%{time_total}" --max-time 3`,
+            { windowsHide: true, timeout: 3500 }
+          );
+          const parts = (stdout || '').trim().split(':');
+          if (parts[0] === '204' || parts[0] === '200') {
+            probeOk = true;
+            const timeSec = parseFloat(parts[1]);
+            if (!isNaN(timeSec) && timeSec > 0) {
+              measuredPing = Math.max(1, Math.round(timeSec * 1000));
+            }
+          }
+        } catch {}
+
+        if (!probeOk) {
           try {
-            const { stdout } = await execAsync(probe, { windowsHide: true, timeout: 6000 });
-            if (['200', '204'].includes(stdout.trim())) {
-              alive = true;
-              break;
+            const { stdout } = await execAsync(
+              `curl.exe -x socks5h://127.0.0.1:${SOCKS_PORT} http://www.google.com/generate_204 -s -o NUL -w "%{http_code}:%{time_total}" --max-time 3`,
+              { windowsHide: true, timeout: 3500 }
+            );
+            const parts = (stdout || '').trim().split(':');
+            if (parts[0] === '204' || parts[0] === '200') {
+              probeOk = true;
+              const timeSec = parseFloat(parts[1]);
+              if (!isNaN(timeSec) && timeSec > 0) {
+                measuredPing = Math.max(1, Math.round(timeSec * 1000));
+              }
             }
           } catch {}
         }
-        if (alive) return; // VPN работает
 
-        console.log('[VlessService] Current node blocked, auto-fallbacking...');
-        const currentIndex = this.settings.selectedServerIndex;
-        if (this.settings.servers[currentIndex]) {
-          this.settings.servers[currentIndex].status = 'blocked';
+        if (probeOk) {
+          this._watchdogFailures = 0;
+          const pingMs = measuredPing || 45;
+          if (srv) {
+            srv.ping = pingMs;
+            srv.latency = pingMs;
+            srv.status = 'ok';
+          }
+          if (typeof this.onPingUpdate === 'function') {
+            this.onPingUpdate({
+              index: currentIndex,
+              ping: pingMs,
+              serverName: srv ? srv.name : 'VLESS Node'
+            });
+          }
+          return;
         }
 
-        const otherWorking = this.settings.servers
-          .map((s, idx) => ({ ...s, originalIndex: idx }))
-          .filter(s => (s.status === 'ok' || s.status === 'working') && s.originalIndex !== currentIndex)
-          .sort((a, b) => ((a.ping || a.latency || 9999) - (b.ping || b.latency || 9999)));
+        // Probe failed
+        this._watchdogFailures = (this._watchdogFailures || 0) + 1;
+        if (this._watchdogFailures >= 2) {
+          if (srv) {
+            srv.status = 'blocked';
+          }
+          if (typeof this.onPingUpdate === 'function') {
+            this.onPingUpdate({
+              index: currentIndex,
+              ping: null,
+              serverName: srv ? srv.name : 'VLESS Node',
+              blocked: true
+            });
+          }
 
-        if (otherWorking.length > 0) {
-          const nextServer = otherWorking[0];
-          try {
-            await this.connect(nextServer.originalIndex);
-          } catch {}
+          if (this.settings.autoFallback) {
+            console.log('[VlessService] Current node blocked, auto-fallbacking...');
+            const otherWorking = (this.settings.servers || [])
+              .map((s, idx) => ({ ...s, originalIndex: idx }))
+              .filter(s => (s.status === 'ok' || s.status === 'working') && s.originalIndex !== currentIndex)
+              .sort((a, b) => ((a.ping || a.latency || 9999) - (b.ping || b.latency || 9999)));
+
+            if (otherWorking.length > 0) {
+              const nextServer = otherWorking[0];
+              try {
+                await this.connect(nextServer.originalIndex);
+              } catch {}
+            }
+          }
         }
       } finally {
         this._watchdogRunning = false;
       }
-    }, 20000);
+    }, 5000);
   }
 
   stopWatchdog() {
+    this._watchdogFailures = 0;
     if (this._watchdogTimer) {
       clearInterval(this._watchdogTimer);
       this._watchdogTimer = null;

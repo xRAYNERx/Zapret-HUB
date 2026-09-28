@@ -7,7 +7,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // Unified State
 let state = {
-  appVersion: '2.0.2',
+  appVersion: '2.0.3',
   activeTab: 'home',
   zapret: {
     running: false,
@@ -177,15 +177,105 @@ function formatRussianDate(isoString) {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function parseMarkdownToHtml(md) {
-  if (!md) return '';
-  const lines = md.split('\n');
+function decodeHtmlEntities(str) {
+  return (str || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function parseReleasesAtomXml(xml) {
+  const entries = (xml || '').split('<entry>');
+  const releases = [];
+  for (let i = 1; i < entries.length; i++) {
+    const chunk = entries[i].split('</entry>')[0];
+    const tagMatch = chunk.match(/\/releases\/tag\/([^"/?#\s<]+)/i);
+    const tag = tagMatch ? tagMatch[1] : '';
+    const titleMatch = chunk.match(/<title>([\s\S]*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    const dateMatch = chunk.match(/<updated>([\s\S]*?)<\/updated>/i);
+    const date = dateMatch ? dateMatch[1].trim() : '';
+    const contentMatch = chunk.match(/<content[^>]*>([\s\S]*?)<\/content>/i);
+    const rawContent = contentMatch ? decodeHtmlEntities(contentMatch[1]) : '';
+
+    if (tag) {
+      releases.push({
+        tag_name: tag,
+        name: title,
+        published_at: date,
+        body_html: rawContent,
+        body: rawContent
+      });
+    }
+  }
+  return releases;
+}
+
+function formatReleaseBody(content = '') {
+  if (!content) return '';
+
+  let html = content;
+
+  // If HTML is present (from Atom feed or GitHub API HTML)
+  if (/<(ol|ul|li|p|h[1-6]|div)/i.test(html)) {
+    // Strip installation instructions and horizontal lines
+    html = html.replace(/<h[1-6][^>]*>[\s\S]*?(?:установка|installation)[\s\S]*$/i, '');
+    html = html.replace(/<hr[^>]*>[\s\S]*$/i, '');
+
+    // Section headers (h1-h3)
+    html = html.replace(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi, 
+      '<div class="text-xs font-bold text-emerald-400 uppercase tracking-wider pt-2 pb-0.5">$1</div>');
+    html = html.replace(/<h[4-6][^>]*>([\s\S]*?)<\/h[4-6]>/gi, 
+      '<div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-1.5 pb-0.5">$1</div>');
+
+    // Numbered lists wrapper
+    html = html.replace(/<ol[^>]*>/gi, '<div class="space-y-3">');
+    html = html.replace(/<\/ol>/gi, '</div>');
+
+    // Numbered feature groups
+    html = html.replace(/<li>\s*<p><strong>([\s\S]*?)<\/strong><\/p>/gi, 
+      '<div class="space-y-1.5"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span><span>$1</span></div>');
+
+    // Nested list wrappers
+    html = html.replace(/<ul[^>]*>/gi, '<ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">');
+    html = html.replace(/<\/ul>\s*<\/li>/gi, '</ul></div>');
+
+    // Top-level unnested <li> elements
+    html = html.replace(/<li>([\s\S]*?)<\/li>/gi, 
+      '<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span><span>$1</span></li>');
+
+    // Code styling (clean, no border)
+    html = html.replace(/<pre[^>]*><code>([\s\S]*?)<\/code><\/pre>/gi, 
+      '<pre class="bg-black/50 text-emerald-300 p-2.5 rounded-lg text-xs font-mono my-2 overflow-x-auto">$1</pre>');
+    html = html.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, 
+      '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>');
+
+    // Bold text accents
+    html = html.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '<strong class="font-bold text-white">$1</strong>');
+    html = html.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '<b class="font-bold text-white">$1</b>');
+
+    // Paragraphs
+    html = html.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '<p class="text-xs text-slate-300 leading-relaxed my-1">$1</p>');
+    html = html.replace(/<p[^>]*>\s*<\/p>/gi, '');
+
+    return html;
+  }
+
+  // Fallback: Markdown format
+  const lines = content.split('\n');
   const result = [];
+  let inBlock = false;
   let inList = false;
 
   for (let rawLine of lines) {
     let line = rawLine.trim();
     if (!line) {
+      if (inBlock) {
+        result.push('</ul></div>');
+        inBlock = false;
+      }
       if (inList) {
         result.push('</ul>');
         inList = false;
@@ -193,42 +283,85 @@ function parseMarkdownToHtml(md) {
       continue;
     }
 
-    if (line.startsWith('### ') || line.startsWith('## ')) {
-      if (inList) {
-        result.push('</ul>');
-        inList = false;
+    // Stop at install or hr sections
+    if (line.startsWith('---') || line.toLowerCase().includes('установка:') || line.toLowerCase().includes('полный список изменений:')) {
+      if (inBlock) {
+        result.push('</ul></div>');
+        inBlock = false;
       }
-      const title = line.replace(/^#+\s*/, '');
-      result.push(`<div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-2 pb-0.5">${title}</div>`);
-      continue;
-    }
-
-    if (line.startsWith('- ') || line.startsWith('* ')) {
-      if (!inList) {
-        result.push('<ul class="text-xs text-slate-300 space-y-1.5 leading-relaxed">');
-        inList = true;
-      }
-      let content = line.substring(2);
-      content = content.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-      let icon = '<span class="text-emerald-400 font-bold flex-shrink-0 mt-0.5">+</span>';
-      if (content.toLowerCase().includes('исправлен') || content.toLowerCase().includes('устранен')) {
-        icon = '<span class="text-slate-400 font-bold flex-shrink-0 mt-0.5">•</span>';
-      } else if (content.toLowerCase().includes('улучшен') || content.toLowerCase().includes('интерфейс')) {
-        icon = '<span class="text-sky-400 font-bold flex-shrink-0 mt-0.5">★</span>';
-      }
-      result.push(`<li class="flex items-start gap-2">${icon}<span>${content}</span></li>`);
-      continue;
-    }
-
-    if (line.startsWith('---') || line.toLowerCase().includes('установка:')) {
       if (inList) {
         result.push('</ul>');
         inList = false;
       }
       break;
     }
+
+    // Headers
+    if (line.startsWith('### ') || line.startsWith('## ') || line.startsWith('# ')) {
+      if (inBlock) {
+        result.push('</ul></div>');
+        inBlock = false;
+      }
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      const title = line.replace(/^#+\s*/, '');
+      result.push(`<div class="text-xs font-bold text-emerald-400 uppercase tracking-wider pt-2 pb-0.5">${title}</div>`);
+      continue;
+    }
+
+    // Numbered top-level items: 1. **Title**
+    if (/^\d+\.\s+/.test(line)) {
+      if (inBlock) {
+        result.push('</ul></div>');
+        inBlock = false;
+      }
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      const numMatch = line.match(/^(\d+)\.\s+/);
+      const num = numMatch ? numMatch[1] : '';
+      let text = line.replace(/^\d+\.\s+/, '').replace(/\*\*(.*?)\*\*/g, '$1');
+      result.push(`<div class="space-y-1.5"><div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5"><span class="text-emerald-400 font-mono font-bold">${num}.</span><span>${text}</span></div><ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">`);
+      inBlock = true;
+      continue;
+    }
+
+    // Bullet items: - or *
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      let text = line.replace(/^[-*]\s+/, '').replace(/^[+★•]\s*/, '');
+      text = text.replace(/`([^`]+)`/g, '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>');
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+
+      if (inBlock) {
+        result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span><span>${text}</span></li>`);
+      } else {
+        if (!inList) {
+          result.push('<ul class="space-y-1.5">');
+          inList = true;
+        }
+        result.push(`<li class="flex items-start gap-2 text-xs text-slate-300"><span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span><div class="leading-relaxed flex-1">${text}</div></li>`);
+      }
+      continue;
+    }
+
+    if (inBlock) {
+      result.push('</ul></div>');
+      inBlock = false;
+    }
+    if (inList) {
+      result.push('</ul>');
+      inList = false;
+    }
+
+    let text = line.replace(/`([^`]+)`/g, '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>');
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+    result.push(`<p class="text-xs text-slate-300 leading-relaxed my-1">${text}</p>`);
   }
 
+  if (inBlock) result.push('</ul></div>');
   if (inList) result.push('</ul>');
   return result.join('\n');
 }
@@ -245,7 +378,17 @@ function updateAppVersionUI(ver) {
 async function loadChangelogFromGithub() {
   if (_changelogLoadedFromGithub) return;
   try {
-    const releases = await window.zapretAPI?.getGithubReleases();
+    let releases = await window.zapretAPI?.getGithubReleases();
+    if (!Array.isArray(releases) || releases.length === 0) {
+      // Direct renderer fetch fallback from GitHub Atom feed if IPC returned empty
+      try {
+        const resp = await fetch('https://github.com/xRAYNERx/Zapret-HUB/releases.atom');
+        if (resp.ok) {
+          const xml = await resp.text();
+          releases = parseReleasesAtomXml(xml);
+        }
+      } catch {}
+    }
     if (!Array.isArray(releases) || releases.length === 0) return;
 
     const container = $('#changelog-container');
@@ -257,24 +400,25 @@ async function loadChangelogFromGithub() {
       const tag = (rel.tag_name || '').replace(/^v/i, '');
       const isCurrent = tag === currentAppVersion || (idx === 0 && !tag.includes('1.'));
       const dateStr = formatRussianDate(rel.published_at || rel.created_at);
-      const bodyHtml = parseMarkdownToHtml(rel.body);
+      const rawBody = rel.body_html || rel.body || '';
+      const bodyHtml = formatReleaseBody(rawBody);
 
       const badge = isCurrent
-        ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Текущая версия</span>'
-        : '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400 border border-white/10">Релиз</span>';
+        ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400">Текущая версия</span>'
+        : '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400">Релиз</span>';
 
-      const opacityClass = isCurrent ? 'border-white/10' : 'border-white/8 opacity-85 hover:opacity-100 transition-opacity';
+      const opacityClass = isCurrent ? '' : 'opacity-85 hover:opacity-100 transition-opacity';
 
       return `
-        <div class="inner-panel rounded-2xl p-4 border ${opacityClass} space-y-2.5 bg-[#171e2c]">
-          <div class="flex items-center justify-between">
+        <div class="inner-panel rounded-2xl p-4 ${opacityClass} space-y-3 bg-[#171e2c]">
+          <div class="flex items-center justify-between pb-1.5 border-b border-white/5">
             <div class="flex items-center gap-2">
               <span class="text-xs font-bold text-white font-mono">${rel.tag_name || 'v2.0'}</span>
               ${badge}
             </div>
             <span class="text-[11px] text-slate-400 font-mono">${dateStr}</span>
           </div>
-          <div class="space-y-1.5">
+          <div class="space-y-2.5 text-xs">
             ${bodyHtml}
           </div>
         </div>
@@ -662,7 +806,8 @@ function cleanServerName(name = '') {
   cleaned = cleaned.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '');
   cleaned = cleaned.replace(/\p{Extended_Pictographic}/gu, '');
   cleaned = cleaned.trim();
-  cleaned = cleaned.replace(/^[A-Za-z]{2}\s*[-–—:\s]\s*([А-Яа-яA-Za-z])/u, '$1');
+  cleaned = cleaned.replace(/^[A-Za-z]{2}\s*[-–—:\s]+\s*/u, '');
+  cleaned = cleaned.replace(/^[A-Za-z]{2}\s+/u, '');
   cleaned = cleaned.trim();
   if (cleaned.length > 0) {
     cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
@@ -1405,10 +1550,10 @@ function renderCustomLists() {
   if (badge) {
     if (state.sites.activeListId) {
       badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-      badge.innerText = 'Активен';
+      badge.innerText = 'Подключён';
     } else {
       badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10';
-      badge.innerText = 'Отключён';
+      badge.innerText = 'Не используется';
     }
   }
 }
@@ -1419,7 +1564,7 @@ async function handleCustomListChange(listId) {
     state.sites.activeListId = listId || null;
     if (res && res.lists) state.sites.customLists = res.lists;
     renderCustomLists();
-    toast(listId ? 'Дополнительный список активирован' : 'Дополнительный список отключён', 'info');
+    toast(listId ? 'Дополнительный список подключён' : 'Дополнительный список отключён', 'info');
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -1486,6 +1631,7 @@ async function deleteSite(site) {
 window.deleteSite = deleteSite;
 
 function renderSites() {
+  updateSitesCardUI();
   const container = $('#sites-list-container');
   const countPill = $('#sites-count-pill');
   if (!container) return;
@@ -1716,6 +1862,43 @@ function updateZapretUI(status) {
     }
   }
   updateFooterStatus();
+  updateSitesCardUI();
+}
+
+function pluralizeSites(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 19) return `${count} сайтов`;
+  if (mod10 === 1) return `${count} сайт`;
+  if (mod10 >= 2 && mod10 <= 4) return `${count} сайта`;
+  return `${count} сайтов`;
+}
+
+function updateSitesCardUI() {
+  const countEl = $('#sites-badge-count');
+  const dotEl = $('#sites-status-dot');
+  const badgeEl = $('#sites-status-badge');
+  const statusTextEl = $('#sites-card-status');
+
+  const count = Array.isArray(state.sites.main) ? state.sites.main.length : 0;
+  if (countEl) countEl.innerText = pluralizeSites(count);
+
+  const isRunning = Boolean(state.zapret.running);
+  if (isRunning) {
+    if (dotEl) dotEl.className = 'w-1.5 h-1.5 rounded-full bg-teal-400';
+    if (badgeEl) badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center gap-1 group-hover:bg-teal-500/30 transition-colors';
+    if (statusTextEl) {
+      statusTextEl.className = 'text-xs text-teal-400 block whitespace-nowrap font-medium leading-tight mt-1';
+      statusTextEl.innerText = 'Список активен';
+    }
+  } else {
+    if (dotEl) dotEl.className = 'w-1.5 h-1.5 rounded-full bg-slate-500';
+    if (badgeEl) badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10 flex items-center gap-1 group-hover:bg-white/10 transition-colors';
+    if (statusTextEl) {
+      statusTextEl.className = 'text-xs text-slate-400 block whitespace-nowrap font-medium leading-tight mt-1';
+      statusTextEl.innerText = 'Выключен';
+    }
+  }
 }
 
 function pluralizeNodes(count) {
@@ -2132,8 +2315,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderSites();
   });
 
-  // Set initial app version display
+  // Set initial app version and card display
   updateAppVersionUI(state.appVersion);
+  updateSitesCardUI();
 
   // Initial Data Fetch
   try {
@@ -2171,6 +2355,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.sites.main = sites;
       renderSites();
     }
+
+    // Prefetch changelog from GitHub in background
+    loadChangelogFromGithub().catch(() => {});
 
     // Settings
     if (settings) {
@@ -2281,6 +2468,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (data.strategyName && sumEl) {
       sumEl.innerText = `Тестирование: ${data.strategyName} (YouTube / Discord / Web)`;
+    }
+  });
+  window.zapretAPI?.onVlessPingUpdate?.((data) => {
+    if (!data) return;
+    const { index, ping, blocked, disconnected } = data;
+
+    if (disconnected) {
+      const activePingEl = $('#vpn-active-ping');
+      if (activePingEl) activePingEl.innerText = '—';
+      return;
+    }
+
+    // Update active ping indicator on Home & VPN pages
+    const activePingEl = $('#vpn-active-ping');
+    if (activePingEl) {
+      if (blocked) {
+        activePingEl.innerText = 'Сбой';
+        activePingEl.className = 'font-bold text-rose-400 font-mono text-xs';
+      } else if (typeof ping === 'number' && ping > 0) {
+        activePingEl.innerText = `${ping} мс`;
+        activePingEl.className = 'font-bold text-emerald-400 font-mono text-xs';
+      }
+    }
+
+    // Update state server ping and UI card
+    if (typeof index === 'number' && state.vpn.servers && state.vpn.servers[index]) {
+      state.vpn.servers[index].ping = ping;
+      if (blocked) state.vpn.servers[index].status = 'blocked';
+      else if (ping) state.vpn.servers[index].status = 'ok';
+
+      const card = $(`#node-card-${index}`);
+      if (card) {
+        const pingBadge = card.querySelector('[id^="node-ping-"]') || card.querySelector('.font-mono');
+        if (pingBadge) {
+          if (blocked) {
+            pingBadge.innerText = 'Блок';
+            pingBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20';
+          } else if (ping) {
+            pingBadge.innerText = `${ping} мс`;
+            pingBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+          }
+        }
+      }
+    }
+
+    // Refresh smart ping badge with lowest ping
+    const workingServers = (state.vpn.servers || []).filter(s => s.status === 'ok' && typeof s.ping === 'number' && s.ping > 0);
+    const bestPing = workingServers.length > 0 ? Math.min(...workingServers.map(s => s.ping)) : null;
+    const smartPingBadge = $('#vpn-smart-ping-badge');
+    if (smartPingBadge) {
+      smartPingBadge.innerText = bestPing !== null ? `${bestPing} мс` : '—';
     }
   });
 });

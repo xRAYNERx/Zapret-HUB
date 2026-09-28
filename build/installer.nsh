@@ -18,7 +18,11 @@ Var DoCleanInstall
   Pop $0
   nsExec::Exec 'taskkill /F /IM xray.exe'
   Pop $0
+  nsExec::Exec 'taskkill /F /IM ZapretTgProxy.exe'
+  Pop $0
   nsExec::Exec 'taskkill /F /IM TgWsProxy.exe'
+  Pop $0
+  nsExec::Exec 'taskkill /F /IM sing-box.exe'
   Pop $0
 !macroend
 
@@ -36,7 +40,7 @@ Function CleanInstallPageCreate
   Pop $CleanInstallCheckbox
   ${NSD_Check} $CleanInstallCheckbox
 
-  ${NSD_CreateLabel} 14u 42u 92% 80u "При выборе чистой установки установщик:$\r$\n • Принудительно завершит процессы Zapret HUB, winws, xray и TgWsProxy;$\r$\n • Остановит и удалит устаревшие системные службы (zapret, WinDivert);$\r$\n • Очистит выбранную папку установки от остатков предыдущих версий.$\r$\n$\r$\nВаши настройки (выбранная стратегия, ссылки VPN, списки сайтов) сохранятся в безопасности в папке AppData."
+  ${NSD_CreateLabel} 14u 42u 92% 80u "При выборе чистой установки установщик:$\r$\n • Принудительно завершит процессы Zapret HUB, winws, xray и ZapretTgProxy;$\r$\n • Остановит и удалит устаревшие системные службы (zapret, WinDivert);$\r$\n • Очистит выбранную папку установки от остатков предыдущих версий.$\r$\n$\r$\nВаши настройки (выбранная стратегия, ссылки VPN, списки сайтов) сохранятся в безопасности в папке AppData."
   Pop $0
 
   nsDialogs::Show
@@ -58,7 +62,11 @@ Function DoCleanInstallRoutine
   Pop $0
   nsExec::Exec 'taskkill /F /IM xray.exe'
   Pop $0
+  nsExec::Exec 'taskkill /F /IM ZapretTgProxy.exe'
+  Pop $0
   nsExec::Exec 'taskkill /F /IM TgWsProxy.exe'
+  Pop $0
+  nsExec::Exec 'taskkill /F /IM sing-box.exe'
   Pop $0
 
   DetailPrint "Остановка и удаление системных служб..."

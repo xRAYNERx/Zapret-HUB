@@ -107,6 +107,9 @@ const api = {
   },
   onVlessStatusChanged: (cb) => {
     ipcRenderer.on('vless-status-changed', (_, data) => cb(data));
+  },
+  onVlessPingUpdate: (cb) => {
+    ipcRenderer.on('vless-ping-update', (_, data) => cb(data));
   }
 };
 
