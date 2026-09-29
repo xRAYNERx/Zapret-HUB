@@ -27,6 +27,9 @@ Var DoCleanInstall
 !macroend
 
 Function CleanInstallPageCreate
+  IfSilent 0 +2
+    Abort
+
   nsDialogs::Create 1018
   Pop $0
   ${If} $0 == error
@@ -36,11 +39,11 @@ Function CleanInstallPageCreate
   ${NSD_CreateLabel} 0 0 100% 20u "Выберите параметры установки Zapret HUB:"
   Pop $0
 
-  ${NSD_CreateCheckbox} 0 24u 100% 14u "Выполнить чистую установку (рекомендуется)"
+  ${NSD_CreateCheckbox} 0 24u 100% 14u "Выполнить чистую переустановку (с удалением старых файлов)"
   Pop $CleanInstallCheckbox
-  ${NSD_Check} $CleanInstallCheckbox
+  ${NSD_Uncheck} $CleanInstallCheckbox
 
-  ${NSD_CreateLabel} 14u 42u 92% 80u "При выборе чистой установки установщик:$\r$\n • Принудительно завершит процессы Zapret HUB, winws, xray и ZapretTgProxy;$\r$\n • Остановит и удалит устаревшие системные службы (zapret, WinDivert);$\r$\n • Очистит выбранную папку установки от остатков предыдущих версий.$\r$\n$\r$\nВаши настройки (выбранная стратегия, ссылки VPN, списки сайтов) сохранятся в безопасности в папке AppData."
+  ${NSD_CreateLabel} 14u 42u 92% 80u "По умолчанию обновление накатывается поверх существующей версии с сохранением всех настроек.$\r$\n$\r$\nЕсли отметить этот пункт, перед установкой будут полностью удалены файлы предыдущей версии в папке программы и остановлены старые службы.$\r$\n$\r$\nВаши личные данные (настройки, VPN-ссылки, списки сайтов) всегда сохраняются в безопасности в AppData."
   Pop $0
 
   nsDialogs::Show

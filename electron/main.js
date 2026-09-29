@@ -835,21 +835,27 @@ async function stopServicesBeforeHubInstall() {
 
 async function launchHubInstaller(installerPath, onProgress) {
   if (typeof onProgress === 'function') {
-    onProgress({ percent: 100, message: 'Запуск установщика…' });
+    onProgress({ percent: 100, message: 'Запуск обновления…' });
   }
 
   await stopServicesBeforeHubInstall();
   logStartup(`Hub update: launching ${installerPath}`);
 
+  const installDir = getHubInstallDir();
+  const args = ['/S', '--updated', '--force-run'];
+  if (app.isPackaged && installDir) {
+    args.push(`/D=${installDir}`);
+  }
+
   try {
-    await shell.openPath(installerPath);
+    const child = spawn(installerPath, args, { detached: true, stdio: 'ignore' });
+    child.unref();
   } catch (err) {
-    logStartup(`Shell openPath failed: ${err.message}, fallback to spawn`);
+    logStartup(`Spawn silent update failed: ${err.message}, fallback to openPath`);
     try {
-      const child = spawn(installerPath, [], { detached: true, stdio: 'ignore' });
-      child.unref();
+      await shell.openPath(installerPath);
     } catch (e) {
-      logStartup(`Spawn fallback failed: ${e.message}`);
+      logStartup(`OpenPath fallback failed: ${e.message}`);
     }
   }
 
