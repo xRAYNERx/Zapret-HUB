@@ -367,7 +367,7 @@ function formatReleaseBody(content = '') {
 }
 
 function updateAppVersionUI(ver) {
-  const v = String(ver || state.appVersion || '2.0.2').replace(/^v/i, '');
+  const v = String(ver || state.appVersion || '2.0.3').replace(/^v/i, '');
   state.appVersion = v;
   const settingsBadge = $('#app-settings-version');
   if (settingsBadge) settingsBadge.innerText = `v${v}`;
@@ -375,8 +375,8 @@ function updateAppVersionUI(ver) {
   if (footerBadge) footerBadge.innerText = `v${v}`;
 }
 
-async function loadChangelogFromGithub() {
-  if (_changelogLoadedFromGithub) return;
+async function loadChangelogFromGithub(force = false) {
+  if (_changelogLoadedFromGithub && !force) return;
   try {
     let releases = await window.zapretAPI?.getGithubReleases();
     if (!Array.isArray(releases) || releases.length === 0) {
@@ -394,20 +394,24 @@ async function loadChangelogFromGithub() {
     const container = $('#changelog-container');
     if (!container) return;
 
-    const currentAppVersion = (state.appVersion || state.version || '2.0.2').replace(/^v/i, '');
+    const currentAppVersion = (state.appVersion || state.version || '2.0.3').replace(/^v/i, '');
 
     const blocks = releases.map((rel, idx) => {
       const tag = (rel.tag_name || '').replace(/^v/i, '');
-      const isCurrent = tag === currentAppVersion || (idx === 0 && !tag.includes('1.'));
+      const isCurrent = tag === currentAppVersion;
+      const isNew = idx === 0 && tag !== currentAppVersion;
       const dateStr = formatRussianDate(rel.published_at || rel.created_at);
       const rawBody = rel.body_html || rel.body || '';
       const bodyHtml = formatReleaseBody(rawBody);
 
-      const badge = isCurrent
-        ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400">Текущая версия</span>'
-        : '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400">Релиз</span>';
+      let badge = '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400">Релиз</span>';
+      if (isCurrent) {
+        badge = '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-teal-500/20 text-teal-300">Установлена</span>';
+      } else if (isNew) {
+        badge = '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400">Новая версия</span>';
+      }
 
-      const opacityClass = isCurrent ? '' : 'opacity-85 hover:opacity-100 transition-opacity';
+      const opacityClass = (isCurrent || isNew) ? '' : 'opacity-85 hover:opacity-100 transition-opacity';
 
       return `
         <div class="inner-panel rounded-2xl p-4 ${opacityClass} space-y-3 bg-[#171e2c]">
@@ -470,8 +474,8 @@ function showHubUpdateModal(updateInfo) {
   const progressEl = $('#update-progress-section');
   const closeBtn = $('#btn-close-update-modal');
 
-  const local = (updateInfo?.local || state.appVersion || '2.0.2').replace(/^v/i, '');
-  const remote = (updateInfo?.remote || '2.0.2').replace(/^v/i, '');
+  const local = (updateInfo?.local || state.appVersion || '2.0.3').replace(/^v/i, '');
+  const remote = (updateInfo?.remote || '2.0.3').replace(/^v/i, '');
 
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
@@ -529,7 +533,7 @@ function openChangelogModal() {
   const modal = $('#changelog-modal-backdrop');
   if (modal) modal.classList.remove('hidden');
   updateChangelogInstallButton();
-  loadChangelogFromGithub().catch(() => {});
+  loadChangelogFromGithub(true).catch(() => {});
 }
 
 function closeChangelogModal() {
@@ -1751,7 +1755,7 @@ async function checkAllUpdatesSim() {
       updateChangelogInstallButton();
       showHubUpdateModal(all.hub);
     } else {
-      const currentVer = (all?.hub?.local || state.appVersion || '2.0.2').replace(/^v/i, '');
+      const currentVer = (all?.hub?.local || state.appVersion || '2.0.3').replace(/^v/i, '');
       toast(`У вас установлена последняя версия Zapret HUB (v${currentVer})`, 'success');
     }
   } catch (e) {
