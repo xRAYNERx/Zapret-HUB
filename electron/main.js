@@ -225,7 +225,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      backgroundThrottling: false
     },
     icon
   });
@@ -274,8 +275,8 @@ function createWindow() {
       showMainWindow();
     }
     setTimeout(() => checkUpdatesOnStartup(), 800);
-    if (isAutostartLaunch) {
-      setTimeout(() => runAutostartActions(), 1500);
+    if (isAutostartLaunch || zapret?.isAppAutostartEnabled()) {
+      runAutostartActions().catch((err) => logStartup(`Autostart ready-to-show error: ${err.message}`));
     }
   });
 
@@ -704,8 +705,18 @@ async function runAutostartTgProxy() {
   }
 }
 
+let autostartActionsRan = false;
+
 async function runAutostartActions() {
+  if (autostartActionsRan) return;
+  autostartActionsRan = true;
+  logStartup('Executing autostart actions in background...');
   await Promise.all([runAutostartZapret(), runAutostartTgProxy()]);
+  try {
+    const zStatus = await zapret?.getStatus();
+    const tgStatus = await tgProxy?.getStatus();
+    updateTrayMenu(Boolean(zStatus?.running), Boolean(tgStatus?.running));
+  } catch {}
 }
 
 function parseHubTagFromUrl(url) {
@@ -1281,6 +1292,12 @@ app.whenReady().then(async () => {
       tgProxy.getStatus()
         .then((tgStatus) => updateTrayMenu(initialStatus.running, tgStatus.running))
         .catch(() => updateTrayMenu(initialStatus.running, false));
+    }
+    if (isAutostartLaunch || zapret?.isAppAutostartEnabled()) {
+      logStartup('Scheduling autostart actions in background...');
+      setTimeout(() => {
+        runAutostartActions().catch((err) => logStartup(`Autostart actions error: ${err.message}`));
+      }, 500);
     }
   } catch (err) {
     logStartup(`Startup error: ${err.message}\n${err.stack}`);

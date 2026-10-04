@@ -7,7 +7,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // Unified State
 let state = {
-  appVersion: '2.0.3',
+  appVersion: '2.0.4',
   activeTab: 'home',
   zapret: {
     running: false,
@@ -26,7 +26,8 @@ let state = {
     daysLeft: null,
     systemProxy: true,
     autoFallback: true,
-    testingAll: false
+    testingAll: false,
+    busy: false
   },
   tg: {
     running: false,
@@ -367,7 +368,7 @@ function formatReleaseBody(content = '') {
 }
 
 function updateAppVersionUI(ver) {
-  const v = String(ver || state.appVersion || '2.0.3').replace(/^v/i, '');
+  const v = String(ver || state.appVersion || '2.0.4').replace(/^v/i, '');
   state.appVersion = v;
   const settingsBadge = $('#app-settings-version');
   if (settingsBadge) settingsBadge.innerText = `v${v}`;
@@ -394,7 +395,7 @@ async function loadChangelogFromGithub(force = false) {
     const container = $('#changelog-container');
     if (!container) return;
 
-    const currentAppVersion = (state.appVersion || state.version || '2.0.3').replace(/^v/i, '');
+    const currentAppVersion = (state.appVersion || state.version || '2.0.4').replace(/^v/i, '');
 
     const blocks = releases.map((rel, idx) => {
       const tag = (rel.tag_name || '').replace(/^v/i, '');
@@ -474,8 +475,8 @@ function showHubUpdateModal(updateInfo) {
   const progressEl = $('#update-progress-section');
   const closeBtn = $('#btn-close-update-modal');
 
-  const local = (updateInfo?.local || state.appVersion || '2.0.3').replace(/^v/i, '');
-  const remote = (updateInfo?.remote || '2.0.3').replace(/^v/i, '');
+  const local = (updateInfo?.local || state.appVersion || '2.0.4').replace(/^v/i, '');
+  const remote = (updateInfo?.remote || '2.0.4').replace(/^v/i, '');
 
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
@@ -707,33 +708,35 @@ async function toggleZapret() {
 }
 
 async function doStartZapret() {
+  if (state.zapret.busy) return;
+  state.zapret.busy = true;
+  setPowerBtnLoading('btn-zapret-power', 'zapret-power-icon', 'zapret-power-text', 'ВКЛЮЧЕНИЕ...');
+  toast('Включение обхода...', 'info');
   try {
-    state.zapret.busy = true;
-    setPowerBtnLoading('btn-zapret-power', 'zapret-power-icon', 'zapret-power-text', 'ВКЛЮЧЕНИЕ...');
-    toast('Включение обхода...', 'info');
-    await api('start', state.zapret.activeStrategy);
-  } catch (e) {
-    toast(e.message, 'error');
-  } finally {
+    const status = await api('start', state.zapret.activeStrategy);
     state.zapret.busy = false;
-    clearPowerBtnLoading('btn-zapret-power', 'zapret-power-icon');
-    const status = await api('getStatus');
+    updateZapretUI(status || await api('getStatus'));
+  } catch (e) {
+    state.zapret.busy = false;
+    toast(e.message, 'error');
+    const status = await api('getStatus').catch(() => null);
     updateZapretUI(status);
   }
 }
 
 async function doStopZapret() {
+  if (state.zapret.busy) return;
+  state.zapret.busy = true;
+  setPowerBtnLoading('btn-zapret-power', 'zapret-power-icon', 'zapret-power-text', 'ВЫКЛЮЧЕНИЕ...');
+  toast('Выключение обхода...', 'info');
   try {
-    state.zapret.busy = true;
-    setPowerBtnLoading('btn-zapret-power', 'zapret-power-icon', 'zapret-power-text', 'ВЫКЛЮЧЕНИЕ...');
-    toast('Выключение обхода...', 'info');
-    await api('stop');
-  } catch (e) {
-    toast(e.message, 'error');
-  } finally {
+    const status = await api('stop');
     state.zapret.busy = false;
-    clearPowerBtnLoading('btn-zapret-power', 'zapret-power-icon');
-    const status = await api('getStatus');
+    updateZapretUI(status || await api('getStatus'));
+  } catch (e) {
+    state.zapret.busy = false;
+    toast(e.message, 'error');
+    const status = await api('getStatus').catch(() => null);
     updateZapretUI(status);
   }
 }
@@ -857,17 +860,20 @@ async function toggleVpn() {
 }
 
 async function doStopVpn() {
+  if (state.vpn.busy) return;
+  state.vpn.busy = true;
+  setPowerBtnLoading('btn-vpn-power', 'vpn-power-icon', 'vpn-power-text', 'ОТКЛЮЧЕНИЕ...');
+  toast('Отключение VPN...', 'info');
   try {
-    setPowerBtnLoading('btn-vpn-power', 'vpn-power-icon', 'vpn-power-text', 'ОТКЛЮЧЕНИЕ...');
     const status = await api('vlessDisconnect');
-    updateVpnUI(status);
+    state.vpn.busy = false;
+    updateVpnUI(status || await api('vlessGetStatus'));
     toast('VPN отключён', 'info');
   } catch (e) {
+    state.vpn.busy = false;
     toast(e.message || 'Ошибка отключения', 'error');
-    const status = await api('vlessGetStatus');
+    const status = await api('vlessGetStatus').catch(() => null);
     updateVpnUI(status);
-  } finally {
-    clearPowerBtnLoading('btn-vpn-power', 'vpn-power-icon');
   }
 }
 
@@ -928,6 +934,8 @@ async function connectServer(serverIdx) {
 }
 
 async function doConnectServer(serverIdx) {
+  if (state.vpn.busy) return;
+  state.vpn.busy = true;
   setPowerBtnLoading('btn-vpn-power', 'vpn-power-icon', 'vpn-power-text', 'ПОДКЛЮЧЕНИЕ...');
 
   const srv = state.vpn.servers[serverIdx];
@@ -938,17 +946,17 @@ async function doConnectServer(serverIdx) {
     const status = await api('vlessConnect', serverIdx);
     if (srv?.name) {
       localStorage.setItem('vpn_last_active_server_name', srv.name);
-    } else if (status.activeServer?.name) {
+    } else if (status?.activeServer?.name) {
       localStorage.setItem('vpn_last_active_server_name', status.activeServer.name);
     }
-    updateVpnUI(status);
-    toast(`Подключено: ${cleanServerName(status.activeServer?.name || srvName)}`, 'success');
+    state.vpn.busy = false;
+    updateVpnUI(status || await api('vlessGetStatus'));
+    toast(`Подключено: ${cleanServerName(status?.activeServer?.name || srvName)}`, 'success');
   } catch (e) {
+    state.vpn.busy = false;
     toast(e.message || 'Ошибка подключения к серверу', 'error');
-    const status = await api('vlessGetStatus');
+    const status = await api('vlessGetStatus').catch(() => null);
     updateVpnUI(status);
-  } finally {
-    clearPowerBtnLoading('btn-vpn-power', 'vpn-power-icon');
   }
 }
 
@@ -1176,18 +1184,20 @@ async function toggleTg() {
     if (state.tg.running) {
       setPowerBtnLoading('btn-tg-power', 'tg-power-icon', 'btn-tg-power-text', 'ВЫКЛЮЧЕНИЕ...');
       toast('Выключение TG Proxy...', 'info');
-      await api('stopTgProxy');
+      const status = await api('stopTgProxy');
+      state.tg.busy = false;
+      updateTgProxyUI(status || await api('getTgProxyStatus'));
     } else {
       setPowerBtnLoading('btn-tg-power', 'tg-power-icon', 'btn-tg-power-text', 'ПОДКЛЮЧЕНИЕ...');
       toast('Запуск TG Proxy...', 'info');
-      await api('startTgProxy');
+      const status = await api('startTgProxy');
+      state.tg.busy = false;
+      updateTgProxyUI(status || await api('getTgProxyStatus'));
     }
   } catch (e) {
-    toast(e.message, 'error');
-  } finally {
     state.tg.busy = false;
-    clearPowerBtnLoading('btn-tg-power', 'tg-power-icon');
-    const status = await api('getTgProxyStatus');
+    toast(e.message, 'error');
+    const status = await api('getTgProxyStatus').catch(() => null);
     updateTgProxyUI(status);
   }
 }
@@ -1755,7 +1765,7 @@ async function checkAllUpdatesSim() {
       updateChangelogInstallButton();
       showHubUpdateModal(all.hub);
     } else {
-      const currentVer = (all?.hub?.local || state.appVersion || '2.0.3').replace(/^v/i, '');
+      const currentVer = (all?.hub?.local || state.appVersion || '2.0.4').replace(/^v/i, '');
       toast(`У вас установлена последняя версия Zapret HUB (v${currentVer})`, 'success');
     }
   } catch (e) {
@@ -1821,14 +1831,17 @@ function updateZapretUI(status) {
     if (dot) dot.className = 'w-3 h-3 rounded-full bg-emerald-400 flex-shrink-0';
     if (title) title.innerText = 'Обход включён';
     if (desc) desc.innerText = 'YouTube и Discord работают без замедления и ограничений';
-    if (btn) {
-      btn.className = 'btn-power-on';
-    }
-    if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
-    if (zapretIcon) {
-      zapretIcon.innerHTML = POWER_ICON_HTML;
-      zapretIcon.classList.remove('animate-spin');
-      zapretIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+    if (!state.zapret.busy) {
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'btn-power-on';
+      }
+      if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
+      if (zapretIcon) {
+        zapretIcon.innerHTML = POWER_ICON_HTML;
+        zapretIcon.classList.remove('animate-spin');
+        zapretIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+      }
     }
 
     if (ytBadge) {
@@ -1846,14 +1859,17 @@ function updateZapretUI(status) {
     if (dot) dot.className = 'w-3 h-3 rounded-full bg-slate-500 flex-shrink-0';
     if (title) title.innerText = 'Обход выключен';
     if (desc) desc.innerText = 'Нажмите «Включить», чтобы запустить обход блокировок';
-    if (btn) {
-      btn.className = 'btn-power-off';
-    }
-    if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
-    if (zapretIcon) {
-      zapretIcon.innerHTML = POWER_ICON_HTML;
-      zapretIcon.classList.remove('animate-spin');
-      zapretIcon.className = 'w-5 h-5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0';
+    if (!state.zapret.busy) {
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'btn-power-off';
+      }
+      if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
+      if (zapretIcon) {
+        zapretIcon.innerHTML = POWER_ICON_HTML;
+        zapretIcon.classList.remove('animate-spin');
+        zapretIcon.className = 'w-5 h-5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0';
+      }
     }
 
     if (ytBadge) {
@@ -2022,14 +2038,17 @@ function updateVpnUI(status) {
     if (card) card.classList.add('slate-card-active');
     if (dot) dot.className = 'w-3 h-3 rounded-full bg-emerald-400 flex-shrink-0';
     if (title) title.innerText = 'VPN подключение';
-    if (btn) {
-      btn.className = 'w-full h-[48px] rounded-2xl font-bold text-sm bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] text-white border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
-    }
-    if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
-    if (vpnIcon) {
-      vpnIcon.innerHTML = POWER_ICON_HTML;
-      vpnIcon.classList.remove('animate-spin');
-      vpnIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+    if (!state.vpn.busy) {
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'w-full h-[48px] rounded-2xl font-bold text-sm bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] text-white border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+      }
+      if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
+      if (vpnIcon) {
+        vpnIcon.innerHTML = POWER_ICON_HTML;
+        vpnIcon.classList.remove('animate-spin');
+        vpnIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+      }
     }
     if (connBar) {
       connBar.classList.remove('opacity-50');
@@ -2058,14 +2077,17 @@ function updateVpnUI(status) {
     if (card) card.classList.remove('slate-card-active');
     if (dot) dot.className = 'w-3.5 h-3.5 rounded-full bg-slate-500';
     if (title) title.innerText = 'VPN подключение (выкл)';
-    if (btn) {
-      btn.className = 'w-full h-[48px] rounded-2xl font-bold text-sm bg-[#333d52] hover:bg-[#3d4961] text-white border border-white/10 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
-    }
-    if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
-    if (vpnIcon) {
-      vpnIcon.innerHTML = POWER_ICON_HTML;
-      vpnIcon.classList.remove('animate-spin');
-      vpnIcon.className = 'w-5 h-5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0';
+    if (!state.vpn.busy) {
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'w-full h-[48px] rounded-2xl font-bold text-sm bg-[#333d52] hover:bg-[#3d4961] text-white border border-white/10 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+      }
+      if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
+      if (vpnIcon) {
+        vpnIcon.innerHTML = POWER_ICON_HTML;
+        vpnIcon.classList.remove('animate-spin');
+        vpnIcon.className = 'w-5 h-5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0';
+      }
     }
     if (connBar) {
       connBar.classList.add('opacity-50');
@@ -2090,12 +2112,12 @@ function updateVpnUI(status) {
 
 function buildVpnPingBadge(srv) {
   if (srv.status === 'blocked') {
-    return '<span class="text-[11px] font-mono text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">Блок</span>';
+    return '<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium text-rose-400 bg-rose-500/10 px-2.5 rounded-lg border border-rose-500/20">Блок</span>';
   } else if (typeof srv.ping === 'number' && srv.ping > 0) {
     const pingCol = srv.ping < 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : (srv.ping < 160 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-slate-400 bg-white/[0.04] border-white/5');
-    return `<span class="text-xs font-mono font-medium ${pingCol} px-2 py-0.5 rounded-md border">${srv.ping} мс</span>`;
+    return `<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium ${pingCol} px-2.5 rounded-lg border">${srv.ping} мс</span>`;
   }
-  return '<span class="text-xs font-mono text-slate-400 bg-white/[0.04] px-2 py-0.5 rounded-md border border-white/5">—</span>';
+  return '<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium text-slate-400 bg-white/[0.04] px-2.5 rounded-lg border border-white/5">—</span>';
 }
 
 function updateVpnServerCard(idx, srv) {
@@ -2212,14 +2234,17 @@ function updateTgProxyUI(status) {
       clientDesc.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Готов к работе';
       clientDesc.className = 'text-emerald-400 font-bold flex items-center gap-1.5';
     }
-    if (btn) {
-      btn.className = 'w-full h-[48px] rounded-2xl text-sm font-bold bg-gradient-to-b from-[#1a85b8] to-[#156d98] hover:from-[#229ed9] hover:to-[#1a85b8] text-white border border-sky-500/30 shadow-[0_2px_8px_rgba(34,158,217,0.25)] hover:shadow-[0_4px_14px_rgba(34,158,217,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
-    }
-    if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
-    if (tgIcon) {
-      tgIcon.innerHTML = POWER_ICON_HTML;
-      tgIcon.classList.remove('animate-spin');
-      tgIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+    if (!state.tg.busy) {
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'w-full h-[48px] rounded-2xl text-sm font-bold bg-gradient-to-b from-[#1a85b8] to-[#156d98] hover:from-[#229ed9] hover:to-[#1a85b8] text-white border border-sky-500/30 shadow-[0_2px_8px_rgba(34,158,217,0.25)] hover:shadow-[0_4px_14px_rgba(34,158,217,0.35)] active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+      }
+      if (btnText) btnText.innerText = 'ВЫКЛЮЧИТЬ';
+      if (tgIcon) {
+        tgIcon.innerHTML = POWER_ICON_HTML;
+        tgIcon.classList.remove('animate-spin');
+        tgIcon.className = 'w-5 h-5 stroke-white stroke-2 fill-none flex-shrink-0';
+      }
     }
     const pingEl = $('#tg-ping-val');
     if (pingEl) {
@@ -2236,14 +2261,17 @@ function updateTgProxyUI(status) {
       clientDesc.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Шлюз на паузе';
       clientDesc.className = 'text-slate-400 font-bold flex items-center gap-1.5';
     }
-    if (btn) {
-      btn.className = 'w-full h-[48px] rounded-2xl text-sm font-bold bg-[#333d52] hover:bg-[#3d4961] text-white border border-white/10 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
-    }
-    if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
-    if (tgIcon) {
-      tgIcon.innerHTML = POWER_ICON_HTML;
-      tgIcon.classList.remove('animate-spin');
-      tgIcon.className = 'w-5 h-5 stroke-sky-400 stroke-2 fill-none flex-shrink-0';
+    if (!state.tg.busy) {
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'w-full h-[48px] rounded-2xl text-sm font-bold bg-[#333d52] hover:bg-[#3d4961] text-white border border-white/10 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer transition-all';
+      }
+      if (btnText) btnText.innerText = 'ВКЛЮЧИТЬ';
+      if (tgIcon) {
+        tgIcon.innerHTML = POWER_ICON_HTML;
+        tgIcon.classList.remove('animate-spin');
+        tgIcon.className = 'w-5 h-5 stroke-sky-400 stroke-2 fill-none flex-shrink-0';
+      }
     }
     const pingEl = $('#tg-ping-val');
     if (pingEl) {
@@ -2502,19 +2530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (blocked) state.vpn.servers[index].status = 'blocked';
       else if (ping) state.vpn.servers[index].status = 'ok';
 
-      const card = $(`#node-card-${index}`);
-      if (card) {
-        const pingBadge = card.querySelector('[id^="node-ping-"]') || card.querySelector('.font-mono');
-        if (pingBadge) {
-          if (blocked) {
-            pingBadge.innerText = 'Блок';
-            pingBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20';
-          } else if (ping) {
-            pingBadge.innerText = `${ping} мс`;
-            pingBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-          }
-        }
-      }
+      updateVpnServerCard(index, state.vpn.servers[index]);
     }
 
     // Refresh smart ping badge with lowest ping
