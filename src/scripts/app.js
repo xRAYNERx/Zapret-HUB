@@ -1684,19 +1684,17 @@ function updateBundleAutocomplete(containerId, query) {
       : (isTargetWhitelist && !isWhitelist ? '+ В белый список' : '+ Добавить');
 
     return `
-      <div onclick="addServiceBundle('${b.key}')" class="px-3 py-2 rounded-xl ${isAdded ? 'bg-white/[0.02]' : 'hover:bg-white/[0.07]'} flex items-center justify-between gap-2.5 cursor-pointer transition-all group select-none">
-        <div class="flex items-center gap-2.5 min-w-0 flex-1">
-          <span class="w-2 h-2 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
-          <div class="flex items-baseline gap-2 min-w-0 truncate">
-            <span class="text-xs font-bold ${isAdded ? 'text-teal-200' : 'text-white group-hover:text-teal-300'} transition-colors whitespace-nowrap">${b.name}</span>
-            <span class="text-[11px] font-mono text-slate-400 truncate">${b.mainDomain}</span>
-          </div>
+      <div onclick="addServiceBundle('${b.key}')" class="h-8 px-2.5 rounded-lg ${isAdded ? 'bg-white/[0.02]' : 'hover:bg-white/[0.08]'} flex items-center justify-between gap-2 cursor-pointer transition-all group select-none">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
+          <span class="text-xs font-bold ${isAdded ? 'text-teal-200' : 'text-white group-hover:text-teal-300'} transition-colors whitespace-nowrap">${b.name}</span>
+          <span class="text-[11px] font-mono text-slate-400 truncate">${b.mainDomain}</span>
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${isAdded ? 'bg-teal-500/10 text-teal-400/80 border-teal-500/20' : 'bg-teal-500/20 text-teal-300 border-teal-500/30'} border whitespace-nowrap">
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${isAdded ? 'bg-teal-500/10 text-teal-400/80 border-teal-500/20' : 'bg-teal-500/15 text-teal-300 border-teal-500/25'} border whitespace-nowrap">
             ${badgeText}
           </span>
-          <span class="text-[11px] font-semibold ${isAdded ? 'text-teal-400/80' : 'text-teal-400 group-hover:text-emerald-300'} transition-colors whitespace-nowrap">
+          <span class="text-[10px] font-semibold ${isAdded ? 'text-teal-400/80' : 'text-teal-400 group-hover:text-emerald-300'} transition-colors whitespace-nowrap">
             ${statusLabel}
           </span>
         </div>
@@ -2086,24 +2084,33 @@ async function loadCustomLists() {
 function renderCustomLists() {
   const select = $('#custom-list-select');
   const badge = $('#custom-list-active-badge');
+  const desc = $('#custom-list-desc');
   if (!select) return;
 
   const html = [];
+  html.push(`<option value="" ${!state.sites.activeListId ? 'selected' : ''}>Не выбран (только основной список)</option>`);
   (state.sites.customLists || []).forEach(l => {
     const isSel = l.id === state.sites.activeListId ? 'selected' : '';
     const countStr = typeof l.count === 'number' ? ` (${l.count})` : '';
     html.push(`<option value="${l.id}" ${isSel}>${l.name || l.id}.txt${countStr}</option>`);
   });
-  html.push(`<option value="" ${!state.sites.activeListId ? 'selected' : ''}>Не использовать</option>`);
   select.innerHTML = html.join('');
 
   if (badge) {
     if (state.sites.activeListId) {
-      badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-      badge.innerText = 'Подключён';
+      badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25';
+      badge.innerText = '✓ Подключён';
+      badge.classList.remove('hidden');
     } else {
-      badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10';
-      badge.innerText = 'Не используется';
+      badge.classList.add('hidden');
+    }
+  }
+
+  if (desc) {
+    if (state.sites.activeListId) {
+      desc.innerHTML = '<span class="text-emerald-400 font-medium">Список активен:</span> его домены суммируются с основным обходом.';
+    } else {
+      desc.innerText = 'Работает параллельно с основным списком обхода.';
     }
   }
 }

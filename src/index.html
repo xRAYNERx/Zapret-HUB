@@ -580,14 +580,14 @@
                 <div class="sm:col-span-6 relative flex items-center">
                   <svg class="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                   <input id="sites-search-input" oninput="handleSitesSearchInput(this.value)" type="search" placeholder="Поиск по доменам или сервисам..." class="w-full h-8 pl-8 pr-3 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-teal-400/50 transition-all" spellcheck="false" autocomplete="off" />
-                  <div id="sites-search-autocomplete" class="hidden absolute top-full left-0 w-full sm:w-[420px] max-w-[calc(100vw-80px)] mt-1.5 bg-[#141923] border border-white/15 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.65)] p-1.5 z-50 max-h-60 overflow-y-auto overflow-x-hidden custom-scrollbar backdrop-blur-xl"></div>
+                  <div id="sites-search-autocomplete" class="hidden absolute top-full left-0 right-0 w-full mt-2 bg-[#121620] border border-white/15 rounded-xl shadow-2xl p-1 z-50 max-h-56 overflow-y-auto overflow-x-hidden custom-scrollbar"></div>
                 </div>
 
                 <!-- Add domain input + button with Bundle Autocomplete -->
                 <form id="sites-add-form" onsubmit="handleSitesAdd(event)" class="sm:col-span-6 flex items-center gap-1.5 relative">
                   <div class="relative flex-1 min-w-0">
                     <input id="sites-new-input" oninput="handleSitesAddInput(this.value)" type="text" placeholder="Добавить домен..." class="w-full h-8 px-3 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-emerald-400/50 transition-all font-mono" spellcheck="false" autocomplete="off" />
-                    <div id="sites-add-autocomplete" class="hidden absolute top-full right-0 w-full sm:w-[400px] max-w-[calc(100vw-80px)] mt-1.5 bg-[#141923] border border-white/15 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.65)] p-1.5 z-50 max-h-60 overflow-y-auto overflow-x-hidden custom-scrollbar backdrop-blur-xl"></div>
+                    <div id="sites-add-autocomplete" class="hidden absolute top-full left-0 right-0 w-full mt-2 bg-[#121620] border border-white/15 rounded-xl shadow-2xl p-1 z-50 max-h-56 overflow-y-auto overflow-x-hidden custom-scrollbar"></div>
                   </div>
                   <button type="submit" class="h-8 px-3 rounded-xl text-xs font-bold text-gray-950 bg-gradient-to-r from-emerald-500 to-teal-400 hover:brightness-110 active:scale-95 flex items-center justify-center gap-1 cursor-pointer flex-shrink-0 transition-all shadow-sm">
                     <svg class="w-3 h-3 stroke-current stroke-[3] fill-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -626,33 +626,27 @@
                   <div class="w-5 h-5 text-emerald-400 flex items-center justify-center flex-shrink-0">
                     <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
                   </div>
-                  <div>
-                    <h4 class="text-xs font-bold text-white leading-tight">Дополнительный список</h4>
-                    <span class="text-[10px] text-slate-400 block leading-tight">lists/custom/</span>
-                  </div>
+                  <h4 class="text-xs font-bold text-white leading-tight">Дополнительный список</h4>
                 </div>
-                <span id="custom-list-active-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10">Не используется</span>
+                <span id="custom-list-active-badge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">✓ Подключён</span>
               </div>
 
               <!-- Selector + Actions Container -->
               <div class="inner-panel rounded-2xl p-3 space-y-2">
                 <div class="flex items-center gap-2">
                   <select id="custom-list-select" onchange="handleCustomListChange(this.value)" class="flex-1 min-w-0 h-8 px-2.5 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 outline-none focus:border-emerald-400/50 cursor-pointer truncate">
-                    <option value="user-extra-list">user-extra-list.txt (6)</option>
-                    <option value="gaming-voice">gaming-voice.txt (4)</option>
-                    <option value="work-services">work-services.txt (8)</option>
-                    <option value="">Не использовать</option>
+                    <option value="">Не выбран (только основной список)</option>
                   </select>
                   <button onclick="handleCreateCustomList()" class="h-8 px-2.5 rounded-xl text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 flex items-center gap-1 cursor-pointer transition-all active:scale-95 flex-shrink-0" title="Создать новый список">
                     <svg class="w-3 h-3 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Создать</span>
                   </button>
-                  <button onclick="handleDeleteCustomList()" class="h-8 w-8 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 flex items-center justify-center cursor-pointer transition-all active:scale-95 flex-shrink-0" title="Удалить выбранный список">
+                  <button onclick="handleDeleteCustomList()" class="h-8 w-8 rounded-xl text-xs font-semibold text-slate-400 hover:text-rose-400 bg-white/[0.04] hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/30 flex items-center justify-center cursor-pointer transition-all active:scale-95 flex-shrink-0" title="Удалить выбранный список">
                     <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
-                <p class="text-[10px] text-slate-400 leading-snug">
-                  Подключается как <code class="text-slate-300 font-mono">list-general-user.txt</code>.
+                <p id="custom-list-desc" class="text-[10px] text-slate-400 leading-snug">
+                  Работает параллельно с основным списком обхода.
                 </p>
               </div>
             </div>
