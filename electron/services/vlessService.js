@@ -202,6 +202,25 @@ class VlessService {
     if (this.settings.subscriptionUrl && /^https?:\/\//i.test(this.settings.subscriptionUrl)) {
       this.refreshSubscriptionInfo().catch(() => {});
     }
+
+    // Always clear leftover system proxy if VPN process is not running (e.g. after PC reboot)
+    this.cleanupStaleProxy().catch(() => {});
+  }
+
+  async cleanupStaleProxy() {
+    try {
+      const isRunning = await this.isProcessRunning();
+      if (isRunning) return;
+      const { stdout } = await execAsync(
+        'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer',
+        { windowsHide: true }
+      ).catch(() => ({ stdout: '' }));
+      if (stdout && (stdout.includes(`127.0.0.1:${HTTP_PORT}`) || stdout.includes(`127.0.0.1:${SOCKS_PORT}`))) {
+        await this.setSystemProxy(false);
+      }
+    } catch (e) {
+      console.error('[VlessService] Failed to cleanup stale proxy:', e);
+    }
   }
 
   getBundledDir() {

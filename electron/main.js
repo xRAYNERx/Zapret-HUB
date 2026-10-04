@@ -793,13 +793,20 @@ async function checkHubForUpdates() {
   }
 }
 
-function resolveHubInstallerAsset(release) {
+function resolveHubAssets(release) {
   const assets = release?.assets || [];
+  const patch = assets.find((a) => /^ZapretHub-Patch-/i.test(a.name) && /\.zip$/i.test(a.name));
   const setup = assets.find((a) => /^ZapretHub-Setup-/i.test(a.name) && /\.exe$/i.test(a.name));
   const portable = assets.find((a) => /^ZapretHub-Portable-/i.test(a.name) && /\.exe$/i.test(a.name));
-  const asset = setup || portable;
-  if (!asset?.browser_download_url) return null;
-  return { url: asset.browser_download_url, name: asset.name };
+  return {
+    patch: patch?.browser_download_url ? { url: patch.browser_download_url, name: patch.name } : null,
+    installer: (setup || portable)?.browser_download_url ? { url: (setup || portable).browser_download_url, name: (setup || portable).name } : null
+  };
+}
+
+function resolveHubInstallerAsset(release) {
+  const { installer } = resolveHubAssets(release);
+  return installer;
 }
 
 function downloadHubFile(url, destPath, onProgress) {
@@ -844,6 +851,61 @@ async function stopServicesBeforeHubInstall() {
   }
 }
 
+async function applyHubPatch(patchZipPath, onProgress) {
+  if (typeof onProgress === 'function') {
+    onProgress({ percent: 90, message: 'Распаковка быстрого обновления…' });
+  }
+
+  const updatesDir = path.dirname(patchZipPath);
+  const extractedDir = path.join(updatesDir, 'patch_extracted');
+  fs.rmSync(extractedDir, { recursive: true, force: true });
+  fs.mkdirSync(extractedDir, { recursive: true });
+
+  await execAsync(`tar.exe -xf "${patchZipPath}" -C "${extractedDir}"`, { windowsHide: true });
+
+  if (typeof onProgress === 'function') {
+    onProgress({ percent: 100, message: 'Применение обновления и перезапуск…' });
+  }
+
+  await stopServicesBeforeHubInstall();
+  logStartup(`Applying fast patch from ${extractedDir} to ${process.resourcesPath}`);
+
+  const batPath = path.join(updatesDir, 'apply_patch.bat');
+  const batScript = `@echo off
+setlocal
+set "TARGET_DIR=%~1"
+set "SOURCE_DIR=%~2"
+set "APP_EXE=%~3"
+
+timeout /t 1 /nobreak >nul
+taskkill /F /IM "Zapret HUB.exe" >nul 2>&1
+timeout /t 1 /nobreak >nul
+
+xcopy /E /Y /I "%SOURCE_DIR%\\*" "%TARGET_DIR%\\" >nul 2>&1
+
+if exist "%APP_EXE%" (
+  start "" "%APP_EXE%"
+)
+exit
+`;
+  fs.writeFileSync(batPath, batScript, 'utf8');
+
+  try {
+    const child = spawn('cmd.exe', ['/c', batPath, process.resourcesPath, extractedDir, process.execPath], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    child.unref();
+  } catch (err) {
+    logStartup(`Spawn patch script failed: ${err.message}`);
+    throw err;
+  }
+
+  app.isQuitting = true;
+  setTimeout(() => app.quit(), 500);
+}
+
 async function launchHubInstaller(installerPath, onProgress) {
   if (typeof onProgress === 'function') {
     onProgress({ percent: 100, message: 'Запуск обновления…' });
@@ -876,16 +938,49 @@ async function launchHubInstaller(installerPath, onProgress) {
 
 async function applyHubUpdate(onProgress) {
   const release = await resolveHubRemoteRelease();
-  const asset = resolveHubInstallerAsset(release);
-  if (!asset) {
-    throw new Error('Установщик Zapret HUB не найден в релизе на GitHub');
-  }
+  const { patch, installer } = resolveHubAssets(release);
 
   const updatesDir = path.join(app.getPath('userData'), 'updates', 'hub');
   fs.mkdirSync(updatesDir, { recursive: true });
-  const destPath = path.join(updatesDir, asset.name);
 
-  await downloadHubFile(asset.url, destPath, onProgress);
+  // 1. Fast lightweight patch update (0.2 MB instead of 119 MB)
+  if (app.isPackaged && patch && process.resourcesPath) {
+    try {
+      const isWritable = (() => {
+        try {
+          const testFile = path.join(process.resourcesPath, '.test_patch_write');
+          fs.writeFileSync(testFile, '1');
+          fs.unlinkSync(testFile);
+          return true;
+        } catch {
+          return false;
+        }
+      })();
+
+      if (isWritable) {
+        logStartup(`Fast patch update selected: ${patch.name}`);
+        const patchPath = path.join(updatesDir, patch.name);
+        await downloadHubFile(patch.url, patchPath, onProgress);
+        await applyHubPatch(patchPath, onProgress);
+        return {
+          local: appPkg.version,
+          remote: (release.tag_name || '').replace(/^v/, ''),
+          patchPath,
+          quitting: true
+        };
+      }
+    } catch (patchErr) {
+      logStartup(`Fast patch failed, falling back to full installer: ${patchErr.message}`);
+    }
+  }
+
+  // 2. Full installer fallback
+  if (!installer) {
+    throw new Error('Файлы обновления Zapret HUB не найдены в релизе на GitHub');
+  }
+
+  const destPath = path.join(updatesDir, installer.name);
+  await downloadHubFile(installer.url, destPath, onProgress);
 
   if (typeof onProgress === 'function') {
     onProgress({ percent: 100, message: 'Запуск установки…' });
@@ -976,6 +1071,7 @@ async function stopAllServices() {
   try {
     if (vless) {
       await vless.disconnect();
+      await vless.setSystemProxy(false);
     }
   } catch (err) {
     logStartup(`Quit vless stop failed: ${err.message}`);
@@ -1263,6 +1359,7 @@ app.whenReady().then(async () => {
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath
     });
+    vless.cleanupStaleProxy().catch(() => {});
     vless.onPingUpdate = ({ index, ping, serverName, blocked, disconnected }) => {
       if (disconnected) {
         updateTrayMenu(trayZapretRunning, trayTgRunning, false, '', null);
