@@ -1084,12 +1084,109 @@
 
           <!-- Scrollable Releases List -->
           <div id="changelog-container" class="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-3.5 pr-1 min-h-0">
-            <!-- Release Block: v2.0.3 -->
+            <!-- Release Block: v2.0.5 -->
             <div class="inner-panel rounded-2xl p-4 space-y-3 bg-[#171e2c]">
               <div class="flex items-center justify-between pb-1.5 border-b border-white/5">
                 <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-white font-mono">v2.0.5</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-teal-500/20 text-teal-300">Текущая версия</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-mono">04 октября 2026</span>
+              </div>
+              <div class="space-y-3 text-xs">
+                <div class="space-y-1.5">
+                  <div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5">
+                    <span class="text-emerald-400 font-mono font-bold">1.</span>
+                    <span>Устранение блокировки интернета после перезагрузки/сбоя (Hotfix):</span>
+                  </div>
+                  <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
+                    <li class="flex items-start gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span>Исправлена критическая проблема, когда при перезагрузке ПК или сбое с активным VPN в реестре Windows оставался включённым системный прокси (<code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">127.0.0.1:10809</code>), из-за чего пропадал интернет без VPN.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span>Приложение при каждом старте и выключении автоматически проверяет настройки прокси Windows и безопасно сбрасывает любые зависшие локальные перенаправления.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="space-y-1.5">
+                  <div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5">
+                    <span class="text-emerald-400 font-mono font-bold">2.</span>
+                    <span>Мгновенные легковесные обновления (~1.2 МБ вместо 120 МБ):</span>
+                  </div>
+                  <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
+                    <li class="flex items-start gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span>Реализована поддержка дифференциальных патчей поверх существующей установки. Теперь вместо 120 МБ полного установщика скачивается только компактный архив с изменениями за доли секунды.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span>Обновление бесшовно применяется в фоне за 1 секунду с автоматическим перезапуском приложения.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Release Block: v2.0.4 -->
+            <div class="inner-panel rounded-2xl p-4 space-y-3 opacity-85 hover:opacity-100 transition-opacity bg-[#171e2c]">
+              <div class="flex items-center justify-between pb-1.5 border-b border-white/5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-white font-mono">v2.0.4</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400">Релиз</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-mono">04 октября 2026</span>
+              </div>
+              <div class="space-y-3 text-xs">
+                <div class="space-y-1.5">
+                  <div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5">
+                    <span class="text-emerald-400 font-mono font-bold">1.</span>
+                    <span>Автозапуск служб в свёрнутом режиме:</span>
+                  </div>
+                  <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
+                    <li class="flex items-start gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span>Исправлена проблема, когда при автозапуске программы в трее службы обхода и TG Proxy не стартовали автоматически до ручного открытия окна.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="space-y-1.5">
+                  <div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5">
+                    <span class="text-emerald-400 font-mono font-bold">2.</span>
+                    <span>Полная совместимость со Steam и TikTok:</span>
+                  </div>
+                  <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
+                    <li class="flex items-start gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span>Добавлены в список прямых исключений все основные домены Steam/Valve и TikTok/ByteDance.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="space-y-1.5">
+                  <div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5">
+                    <span class="text-emerald-400 font-mono font-bold">3.</span>
+                    <span>Плавная анимация кнопок и единый размер плашек пинга:</span>
+                  </div>
+                  <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
+                    <li class="flex items-start gap-2">
+                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span>Устранено мерцание переключателей и выровнен размер плашек пинга серверов.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Release Block: v2.0.3 -->
+            <div class="inner-panel rounded-2xl p-4 space-y-3 opacity-85 hover:opacity-100 transition-opacity bg-[#171e2c]">
+              <div class="flex items-center justify-between pb-1.5 border-b border-white/5">
+                <div class="flex items-center gap-2">
                   <span class="text-xs font-bold text-white font-mono">v2.0.3</span>
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400">Текущая версия</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400">Релиз</span>
                 </div>
                 <span class="text-[11px] text-slate-400 font-mono">28 сентября 2026</span>
               </div>

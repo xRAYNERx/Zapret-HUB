@@ -379,8 +379,15 @@ function updateAppVersionUI(ver) {
 async function loadChangelogFromGithub(force = false) {
   if (_changelogLoadedFromGithub && !force) return;
   try {
-    let releases = await window.zapretAPI?.getGithubReleases();
-    if (!Array.isArray(releases) || releases.length === 0) {
+    let res = null;
+    try {
+      res = await api('getGithubReleases');
+    } catch {
+      res = await window.zapretAPI?.getGithubReleases?.().catch(() => null);
+    }
+    let releases = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+
+    if (releases.length === 0) {
       // Direct renderer fetch fallback from GitHub Atom feed if IPC returned empty
       try {
         const resp = await fetch('https://github.com/xRAYNERx/Zapret-HUB/releases.atom');

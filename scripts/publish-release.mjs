@@ -5,13 +5,17 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 
 function getGitToken() {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
   try {
-    const out = execSync('echo protocol=https^&echo host=github.com | git credential fill', { encoding: 'utf8', windowsHide: true });
-    const match = out.match(/password=(.+)/);
+    const res = spawnSync('git', ['credential', 'fill'], {
+      input: 'protocol=https\nhost=github.com\n\n',
+      encoding: 'utf8',
+      windowsHide: true
+    });
+    const match = (res.stdout || '').match(/password=(.+)/);
     return match ? match[1].trim() : '';
   } catch {
     return '';
