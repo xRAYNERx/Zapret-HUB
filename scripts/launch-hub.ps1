@@ -2,9 +2,15 @@
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$ExePrime = Join-Path $Root 'dist\win-unpacked\Zapret Prime.exe'
-$ExeHub = Join-Path $Root 'dist\win-unpacked\Zapret HUB.exe'
-$Exe = if (Test-Path $ExePrime) { $ExePrime } elseif (Test-Path $ExeHub) { $ExeHub } else { $ExePrime }
+function Get-ZapretExe {
+    $p = Join-Path $Root 'dist\win-unpacked\Zapret Prime.exe'
+    $h = Join-Path $Root 'dist\win-unpacked\Zapret HUB.exe'
+    if (Test-Path $p) { return $p }
+    if (Test-Path $h) { return $h }
+    return $p
+}
+
+$Exe = Get-ZapretExe
 $Asar = Join-Path $Root 'dist\win-unpacked\resources\app.asar'
 
 function Get-MaxWriteTime {
@@ -64,6 +70,7 @@ if ($needsBuild) {
             Read-Host 'Press Enter to exit'
             exit $LASTEXITCODE
         }
+        $Exe = Get-ZapretExe
         if (Test-Path $Exe) {
             (Get-Item $Exe).LastWriteTime = (Get-Date).AddSeconds(5)
         }
@@ -74,6 +81,8 @@ if ($needsBuild) {
         Pop-Location
     }
 }
+
+$Exe = Get-ZapretExe
 
 if (-not (Test-Path $Exe)) {
     Write-Host ''
