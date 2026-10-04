@@ -1668,22 +1668,36 @@ function updateBundleAutocomplete(containerId, query) {
     return;
   }
 
+  const isWhitelist = state.sites.listMode === 'whitelist';
+  const targetList = isWhitelist ? state.sites.whitelist : state.sites.main;
+  const targetSet = new Set(targetList || []);
+
   container.innerHTML = matches.slice(0, 6).map(b => {
+    const isTargetWhitelist = (b.mode === 'whitelist');
+    const checkSet = isTargetWhitelist ? new Set(state.sites.whitelist || []) : targetSet;
+    const isBuiltinBypass = (!isTargetWhitelist && (b.key === 'youtube' || b.key === 'discord'));
+    const isAdded = isBuiltinBypass || b.domains.every(d => checkSet.has(d));
     const cdnCount = b.domains.length - 1;
-    const badgeText = cdnCount > 0 ? `+${cdnCount} CDN-домена` : '1 домен';
+    const badgeText = cdnCount > 0 ? `+${cdnCount} CDN` : '1 домен';
+    const statusLabel = isAdded
+      ? (isBuiltinBypass && b.key === 'youtube' ? '✓ Встроен' : '✓ В списке')
+      : (isTargetWhitelist && !isWhitelist ? '+ В белый список' : '+ Добавить');
+
     return `
-      <div onclick="addServiceBundle('${b.key}')" class="px-2.5 py-1.5 rounded-lg hover:bg-white/10 flex items-center justify-between cursor-pointer transition-all group select-none">
-        <div class="flex items-center gap-2 min-w-0">
-          <span class="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0"></span>
-          <span class="text-xs font-bold text-white group-hover:text-teal-300 transition-colors whitespace-nowrap">${b.name}</span>
-          <span class="text-[11px] font-mono text-slate-400 truncate">${b.mainDomain}</span>
+      <div onclick="addServiceBundle('${b.key}')" class="px-3 py-2 rounded-xl ${isAdded ? 'bg-white/[0.02]' : 'hover:bg-white/[0.07]'} flex items-center justify-between gap-2.5 cursor-pointer transition-all group select-none">
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <span class="w-2 h-2 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
+          <div class="flex items-baseline gap-2 min-w-0 truncate">
+            <span class="text-xs font-bold ${isAdded ? 'text-teal-200' : 'text-white group-hover:text-teal-300'} transition-colors whitespace-nowrap">${b.name}</span>
+            <span class="text-[11px] font-mono text-slate-400 truncate">${b.mainDomain}</span>
+          </div>
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 whitespace-nowrap">
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="px-2 py-0.5 rounded-md text-[10px] font-bold ${isAdded ? 'bg-teal-500/10 text-teal-400/80 border-teal-500/20' : 'bg-teal-500/20 text-teal-300 border-teal-500/30'} border whitespace-nowrap">
             ${badgeText}
           </span>
-          <span class="text-[10px] font-semibold text-teal-400 group-hover:text-white transition-colors whitespace-nowrap">
-            + Добавить
+          <span class="text-[11px] font-semibold ${isAdded ? 'text-teal-400/80' : 'text-teal-400 group-hover:text-emerald-300'} transition-colors whitespace-nowrap">
+            ${statusLabel}
           </span>
         </div>
       </div>
@@ -1711,20 +1725,31 @@ async function addServiceBundle(bundleKey) {
   const bundle = SERVICE_BUNDLES[bundleKey];
   if (!bundle) return;
 
-  const isWhitelist = state.sites.listMode === 'whitelist';
-  const targetList = isWhitelist ? state.sites.whitelist : state.sites.main;
-  const existingSet = new Set(targetList);
+  const currentMode = state.sites.listMode;
+  // Если сервис явно предназначен для белого списка (РФ) — направляем в whitelist, иначе в текущий список
+  const targetMode = bundle.mode || currentMode;
+  const isTargetWhitelist = targetMode === 'whitelist';
+
+  if (!isTargetWhitelist && bundleKey === 'youtube') {
+    toast('YouTube уже встроен в движок обхода Zapret Prime по умолчанию (через list-google.txt)', 'info');
+    hideBundleAutocompletes();
+    return;
+  }
+
+  const targetList = isTargetWhitelist ? state.sites.whitelist : state.sites.main;
+  const existingSet = new Set(targetList || []);
 
   const toAdd = bundle.domains.filter(d => !existingSet.has(d));
   if (toAdd.length === 0) {
-    toast(`Все домены для ${bundle.name} уже есть в списке`, 'info');
+    const listName = isTargetWhitelist ? 'в Белом списке' : 'в списке обхода';
+    toast(`Все домены для ${bundle.name} уже есть ${listName}`, 'info');
     hideBundleAutocompletes();
     return;
   }
 
   const next = [...toAdd, ...targetList];
   try {
-    if (isWhitelist) {
+    if (isTargetWhitelist) {
       await api('saveExcludeSites', next);
       state.sites.whitelist = next;
     } else {
@@ -1741,7 +1766,8 @@ async function addServiceBundle(bundleKey) {
     state.sites.searchQuery = '';
     renderSites();
 
-    toast(`Добавлены все необходимые для стабильной работы домены для ${bundle.name} (${toAdd.length} шт.)`, 'success');
+    const listLabel = isTargetWhitelist ? 'в Белый список' : 'в список обхода';
+    toast(`Добавлены ${listLabel} все необходимые для стабильной работы домены для ${bundle.name} (${toAdd.length} шт.)`, 'success');
   } catch (err) {
     toast(err.message || 'Ошибка добавления', 'error');
   }
@@ -1871,9 +1897,14 @@ function renderQuickAddServices() {
     grid.innerHTML = bypassKeys.map(k => {
       const b = SERVICE_BUNDLES[k];
       if (!b) return '';
-      const isAdded = b.domains.every(d => targetSet.has(d));
+      // YouTube и Discord встроены в ядро Zapret Prime по умолчанию (list-google.txt и list-general.txt)
+      const isBuiltinBypass = (k === 'youtube' || k === 'discord');
+      const isAdded = isBuiltinBypass || b.domains.every(d => targetSet.has(d));
+      const tooltip = isAdded
+        ? `${b.name} (${k === 'youtube' ? 'встроенный обход Zapret Prime' : 'уже в списке'})`
+        : `Добавить ${b.name} (${b.domains.length} доменов)`;
       const actionIcon = isAdded
-        ? `<span class="w-5 h-5 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center transition-all flex-shrink-0" title="Уже в списке">
+        ? `<span class="w-5 h-5 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center transition-all flex-shrink-0" title="${tooltip}">
              <svg class="w-3 h-3 stroke-current stroke-[2.5] fill-none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
            </span>`
         : `<span class="w-5 h-5 rounded-lg bg-white/[0.04] group-hover:bg-teal-500/20 border border-white/5 group-hover:border-teal-500/30 text-slate-400 group-hover:text-teal-300 flex items-center justify-center transition-all flex-shrink-0">
@@ -1881,7 +1912,7 @@ function renderQuickAddServices() {
            </span>`;
 
       return `
-        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-teal-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${isAdded ? `${b.name} (уже в списке)` : `Добавить ${b.name} (${b.domains.length} доменов)`}">
+        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-teal-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${tooltip}">
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
             <span class="text-xs font-semibold ${isAdded ? 'text-slate-300' : 'text-slate-200 group-hover:text-white'} transition-colors truncate">${b.name}</span>
