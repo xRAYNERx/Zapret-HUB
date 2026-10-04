@@ -1,6 +1,6 @@
-# Руководство по правильной интеграции проверки пинга серверов (VLESS / VPN) в Android-версию Zapret HUB
+# Руководство по правильной интеграции проверки пинга серверов (VLESS / VPN) в Android-версию Zapret Prime
 
-> Данный документ составлен на основе стабильной архитектуры десктопной версии **Zapret HUB v2.0.3** (Electron + Xray/Sing-box).  
+> Данный документ составлен на основе стабильной архитектуры десктопной версии **Zapret Prime v2.0.3** (Electron + Xray/Sing-box).  
 > Передайте этот файл AI-разработчику или в чат разработки Android-приложения для точного исправления логики замера задержки и доступности серверов.
 
 ---
@@ -23,7 +23,7 @@
 
 ---
 
-## 2. Как это работает в Desktop Zapret HUB (Эталонная логика)
+## 2. Как это работает в Desktop Zapret Prime (Эталонная логика)
 
 В десктопном приложении (`vlessService.js`) замер разделен на два четких сценария:
 
@@ -70,7 +70,7 @@
 ### 4.1. Клиент замера задержки (`LatencyTester.kt`)
 
 ```kotlin
-package com.zaprethub.android.network
+package com.zapretprime.android.network
 
 import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
@@ -148,7 +148,7 @@ object LatencyTester {
     private fun executeProbe(client: OkHttpClient, url: String): PingResult {
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "ZapretHub-Android/2.0")
+            .header("User-Agent", "ZapretPrime-Android/2.0")
             .header("Connection", "keep-alive")
             .get()
             .build()
@@ -177,9 +177,9 @@ object LatencyTester {
 Запускается при старте VPN-сервиса и постоянно шлёт актуальный пинг в UI:
 
 ```kotlin
-package com.zaprethub.android.service
+package com.zapretprime.android.service
 
-import com.zaprethub.android.network.LatencyTester
+import com.zapretprime.android.network.LatencyTester
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -230,7 +230,7 @@ class VpnWatchdog(
 
 ### 4.3. Цветовая градация и отображение пинга в UI (Compose / XML)
 
-Чтобы пинг читался наглядно, как в десктопной версии Zapret HUB:
+Чтобы пинг читался наглядно, как в десктопной версии Zapret Prime:
 
 | Диапазон задержки | Цвет | Бейдж |
 |---|---|---|

@@ -16,7 +16,7 @@ function fetchUrl(targetUrl, { headers = {}, timeoutMs = 15000, maxRedirects = 6
 
       const getter = parsed.protocol === 'https:' ? https : http;
       const reqHeaders = {
-        'User-Agent': 'ZapretHub',
+        'User-Agent': 'ZapretPrime',
         ...headers
       };
 
@@ -68,7 +68,7 @@ function fetchUrl(targetUrl, { headers = {}, timeoutMs = 15000, maxRedirects = 6
 async function fetchGithubRelease(apiUrl, { timeoutMs = 15000 } = {}) {
   const res = await fetchUrl(apiUrl, {
     headers: {
-      'User-Agent': 'ZapretHub',
+      'User-Agent': 'ZapretPrime',
       Accept: 'application/vnd.github+json'
     },
     timeoutMs
@@ -104,7 +104,7 @@ function downloadFile(url, destPath, { onProgress, maxRedirects = 6 } = {}) {
         return reject(new Error(`Invalid URL: ${targetUrl}`));
       }
       const getter = parsed.protocol === 'https:' ? https : http;
-      getter.get(targetUrl, { headers: { 'User-Agent': 'ZapretHub' } }, (response) => {
+      getter.get(targetUrl, { headers: { 'User-Agent': 'ZapretPrime' } }, (response) => {
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           if (depth >= maxRedirects) {
             response.resume();
@@ -178,36 +178,43 @@ function parseReleasesAtom(xml) {
 /**
  * Fetch GitHub releases list via GitHub API with Atom feed fallback
  */
-async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-HUB', { timeoutMs = 12000 } = {}) {
-  // 1. Try official GitHub API
-  try {
-    const url = `https://api.github.com/repos/${repo}/releases?per_page=10`;
-    const res = await fetchUrl(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 ZapretHub',
-        Accept: 'application/vnd.github+json'
-      },
-      timeoutMs
-    });
-    const list = JSON.parse(res.body);
-    if (Array.isArray(list) && list.length > 0) return list;
-  } catch (apiErr) {
-    // API failed or rate-limited, fallback to Atom feed below
+async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-Prime', { timeoutMs = 12000 } = {}) {
+  const reposToTry = [repo];
+  if (repo !== 'xRAYNERx/Zapret-HUB') {
+    reposToTry.push('xRAYNERx/Zapret-HUB');
   }
 
-  // 2. Fallback to public GitHub releases.atom (no rate limits, always available)
-  try {
-    const atomUrl = `https://github.com/${repo}/releases.atom`;
-    const res = await fetchUrl(atomUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 ZapretHub',
-        Accept: 'application/atom+xml, application/xml, text/xml, */*'
-      },
-      timeoutMs
-    });
-    const list = parseReleasesAtom(res.body);
-    if (list.length > 0) return list;
-  } catch (atomErr) {}
+  for (const targetRepo of reposToTry) {
+    // 1. Try official GitHub API
+    try {
+      const url = `https://api.github.com/repos/${targetRepo}/releases?per_page=10`;
+      const res = await fetchUrl(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 ZapretPrime',
+          Accept: 'application/vnd.github+json'
+        },
+        timeoutMs
+      });
+      const list = JSON.parse(res.body);
+      if (Array.isArray(list) && list.length > 0) return list;
+    } catch (apiErr) {
+      // API failed or rate-limited, fallback to Atom feed below
+    }
+
+    // 2. Fallback to public GitHub releases.atom (no rate limits, always available)
+    try {
+      const atomUrl = `https://github.com/${targetRepo}/releases.atom`;
+      const res = await fetchUrl(atomUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 ZapretPrime',
+          Accept: 'application/atom+xml, application/xml, text/xml, */*'
+        },
+        timeoutMs
+      });
+      const list = parseReleasesAtom(res.body);
+      if (list.length > 0) return list;
+    } catch (atomErr) {}
+  }
 
   return [];
 }

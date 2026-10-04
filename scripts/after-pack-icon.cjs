@@ -18,10 +18,10 @@ exports.default = async function afterPack(context) {
   execFileSync(rceditBin, [
     exePath,
     '--set-icon', iconPath,
-    '--set-version-string', 'FileDescription', 'Zapret HUB',
-    '--set-version-string', 'ProductName', 'Zapret HUB',
-    '--set-version-string', 'InternalName', 'Zapret HUB',
-    '--set-version-string', 'OriginalFilename', 'Zapret HUB.exe'
+    '--set-version-string', 'FileDescription', 'Zapret Prime',
+    '--set-version-string', 'ProductName', 'Zapret Prime',
+    '--set-version-string', 'InternalName', 'Zapret Prime',
+    '--set-version-string', 'OriginalFilename', 'Zapret Prime.exe'
   ], { stdio: 'inherit' });
   console.log('Applied icon and metadata to', exePath);
 };

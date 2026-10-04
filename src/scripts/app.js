@@ -1,5 +1,5 @@
 // =========================================================================
-// Zapret HUB v2.0 - Elevated Slate Engine Script
+// Zapret Prime v2.0 - Elevated Slate Engine Script
 // =========================================================================
 
 const $ = (sel) => document.querySelector(sel);
@@ -43,7 +43,10 @@ let state = {
     customLists: [],
     activeListId: null,
     customSites: [],
-    customSearchQuery: ''
+    customSearchQuery: '',
+    listMode: 'bypass', // 'bypass' | 'whitelist'
+    whitelist: [],
+    whitelistSearchQuery: ''
   },
   settings: {
     closeBehavior: 'tray', // 'ask' | 'tray' | 'quit'
@@ -217,9 +220,17 @@ function parseReleasesAtomXml(xml) {
 function formatReleaseBody(content = '') {
   if (!content) return '';
 
-  let html = content;
+  let html = content.trim();
 
-  // If HTML is present (from Atom feed or GitHub API HTML)
+  function formatInline(str) {
+    if (!str) return '';
+    return str
+      .replace(/`([^`]+)`/g, '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-white">$1</strong>')
+      .replace(/__([^_]+)__/g, '<strong class="font-bold text-white">$1</strong>');
+  }
+
+  // 1. If HTML format (from Atom feed or GitHub API HTML body)
   if (/<(ol|ul|li|p|h[1-6]|div)/i.test(html)) {
     // Strip installation instructions and horizontal lines
     html = html.replace(/<h[1-6][^>]*>[\s\S]*?(?:установка|installation)[\s\S]*$/i, '');
@@ -231,23 +242,7 @@ function formatReleaseBody(content = '') {
     html = html.replace(/<h[4-6][^>]*>([\s\S]*?)<\/h[4-6]>/gi, 
       '<div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-1.5 pb-0.5">$1</div>');
 
-    // Numbered lists wrapper
-    html = html.replace(/<ol[^>]*>/gi, '<div class="space-y-3">');
-    html = html.replace(/<\/ol>/gi, '</div>');
-
-    // Numbered feature groups
-    html = html.replace(/<li>\s*<p><strong>([\s\S]*?)<\/strong><\/p>/gi, 
-      '<div class="space-y-1.5"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span><span>$1</span></div>');
-
-    // Nested list wrappers
-    html = html.replace(/<ul[^>]*>/gi, '<ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">');
-    html = html.replace(/<\/ul>\s*<\/li>/gi, '</ul></div>');
-
-    // Top-level unnested <li> elements
-    html = html.replace(/<li>([\s\S]*?)<\/li>/gi, 
-      '<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span><span>$1</span></li>');
-
-    // Code styling (clean, no border)
+    // Code styling
     html = html.replace(/<pre[^>]*><code>([\s\S]*?)<\/code><\/pre>/gi, 
       '<pre class="bg-black/50 text-emerald-300 p-2.5 rounded-lg text-xs font-mono my-2 overflow-x-auto">$1</pre>');
     html = html.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, 
@@ -257,54 +252,63 @@ function formatReleaseBody(content = '') {
     html = html.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '<strong class="font-bold text-white">$1</strong>');
     html = html.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '<b class="font-bold text-white">$1</b>');
 
-    // Paragraphs
-    html = html.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '<p class="text-xs text-slate-300 leading-relaxed my-1">$1</p>');
-    html = html.replace(/<p[^>]*>\s*<\/p>/gi, '');
+    // Numbered or bulleted feature groups containing nested lists:
+    // <li><p><strong>Title:</strong></p><ul>...</ul></li>
+    html = html.replace(/<li[^>]*>\s*(?:<p[^>]*>)?\s*(<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*)(?:<\/p>)?\s*<ul[^>]*>/gi,
+      '<div class="space-y-1.5 pt-1.5"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5">$1</div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">');
+
+    // Closing nested list: </ul>\s*</li>
+    html = html.replace(/<\/ul>\s*<\/li>/gi, '</ul></div>');
+
+    // Clean remaining ul / ol wrappers
+    html = html.replace(/<ol[^>]*>/gi, '<div class="space-y-3">');
+    html = html.replace(/<\/ol>/gi, '</div>');
+    html = html.replace(/<ul[^>]*>/gi, '<ul class="space-y-1.5 text-slate-300 text-xs leading-relaxed">');
+    html = html.replace(/<\/ul>/gi, '</ul>');
+
+    // Any remaining <li> items (which are all distinct thoughts / points)
+    html = html.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (match, body) => {
+      const cleanBody = body.replace(/<\/?p[^>]*>/gi, '').trim();
+      if (!cleanBody) return '';
+      return `<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${cleanBody}</span></li>`;
+    });
+
+    // Standalone <p> elements that are not headings
+    html = html.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (match, text) => {
+      const trimmed = text.trim();
+      if (!trimmed) return '';
+      // If the paragraph is purely a bold header like <strong>Title:</strong>, render as header without bullet
+      if (/^<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*$/i.test(trimmed)) {
+        return `<div class="font-bold text-white text-xs leading-snug pt-2 pb-0.5 pl-0.5">${trimmed}</div>`;
+      }
+      return `<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${trimmed}</div></div>`;
+    });
 
     return html;
   }
 
-  // Fallback: Markdown format
-  const lines = content.split('\n');
+  // 2. Fallback: Markdown format (from GitHub API rel.body)
+  const lines = html.split('\n');
   const result = [];
-  let inBlock = false;
   let inList = false;
 
   for (let rawLine of lines) {
     let line = rawLine.trim();
-    if (!line) {
-      if (inBlock) {
-        result.push('</ul></div>');
-        inBlock = false;
-      }
-      if (inList) {
-        result.push('</ul>');
-        inList = false;
-      }
-      continue;
-    }
+    if (!line) continue;
 
     // Stop at install or hr sections
     if (line.startsWith('---') || line.toLowerCase().includes('установка:') || line.toLowerCase().includes('полный список изменений:')) {
-      if (inBlock) {
-        result.push('</ul></div>');
-        inBlock = false;
-      }
       if (inList) {
-        result.push('</ul>');
+        result.push('</ul></div>');
         inList = false;
       }
       break;
     }
 
-    // Headers
-    if (line.startsWith('### ') || line.startsWith('## ') || line.startsWith('# ')) {
-      if (inBlock) {
-        result.push('</ul></div>');
-        inBlock = false;
-      }
+    // Headers (#, ##, ###)
+    if (line.startsWith('#')) {
       if (inList) {
-        result.push('</ul>');
+        result.push('</ul></div>');
         inList = false;
       }
       const title = line.replace(/^#+\s*/, '');
@@ -312,58 +316,59 @@ function formatReleaseBody(content = '') {
       continue;
     }
 
-    // Numbered top-level items: 1. **Title**
+    // Numbered feature groups: 1. **Title:** or 1. Title
     if (/^\d+\.\s+/.test(line)) {
-      if (inBlock) {
-        result.push('</ul></div>');
-        inBlock = false;
-      }
       if (inList) {
-        result.push('</ul>');
+        result.push('</ul></div>');
         inList = false;
       }
       const numMatch = line.match(/^(\d+)\.\s+/);
       const num = numMatch ? numMatch[1] : '';
-      let text = line.replace(/^\d+\.\s+/, '').replace(/\*\*(.*?)\*\*/g, '$1');
-      result.push(`<div class="space-y-1.5"><div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5"><span class="text-emerald-400 font-mono font-bold">${num}.</span><span>${text}</span></div><ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">`);
-      inBlock = true;
+      let text = line.replace(/^\d+\.\s+/, '').replace(/\*\*(.*?)\*\*/g, '$1').replace(/[:\s]+$/, '');
+      result.push(`<div class="space-y-1.5 pt-1.5"><div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5"><span class="text-emerald-400 font-mono font-bold">${num}.</span><span>${text}:</span></div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
+      inList = true;
       continue;
     }
 
-    // Bullet items: - or *
+    // Bold title lines: **Title:** (acts as feature heading)
+    if (/^\*\*[^*]+\*\*[:\s]*$/.test(line)) {
+      if (inList) {
+        result.push('</ul></div>');
+        inList = false;
+      }
+      const title = line.replace(/^\*\*/, '').replace(/\*\*[:\s]*$/, '').replace(/[:\s]+$/, '').trim();
+      result.push(`<div class="space-y-1.5 pt-1.5"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5"><span>${title}:</span></div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
+      inList = true;
+      continue;
+    }
+
+    // Bullet points: - or *
     if (line.startsWith('- ') || line.startsWith('* ')) {
       let text = line.replace(/^[-*]\s+/, '').replace(/^[+★•]\s*/, '');
-      text = text.replace(/`([^`]+)`/g, '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>');
-      text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+      text = formatInline(text);
 
-      if (inBlock) {
-        result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span><span>${text}</span></li>`);
+      if (inList) {
+        result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${text}</span></li>`);
       } else {
-        if (!inList) {
-          result.push('<ul class="space-y-1.5">');
-          inList = true;
-        }
-        result.push(`<li class="flex items-start gap-2 text-xs text-slate-300"><span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span><div class="leading-relaxed flex-1">${text}</div></li>`);
+        result.push(`<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${text}</div></div>`);
       }
       continue;
     }
 
-    if (inBlock) {
-      result.push('</ul></div>');
-      inBlock = false;
-    }
-    if (inList) {
-      result.push('</ul>');
-      inList = false;
-    }
+    // Plain text lines / thoughts (e.g. paragraphs under feature headers without bullet characters)
+    let formattedText = formatInline(line);
 
-    let text = line.replace(/`([^`]+)`/g, '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>');
-    text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
-    result.push(`<p class="text-xs text-slate-300 leading-relaxed my-1">${text}</p>`);
+    if (inList) {
+      result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${formattedText}</span></li>`);
+    } else {
+      result.push(`<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${formattedText}</div></div>`);
+    }
   }
 
-  if (inBlock) result.push('</ul></div>');
-  if (inList) result.push('</ul>');
+  if (inList) {
+    result.push('</ul></div>');
+  }
+
   return result.join('\n');
 }
 
@@ -390,8 +395,11 @@ async function loadChangelogFromGithub(force = false) {
     if (releases.length === 0) {
       // Direct renderer fetch fallback from GitHub Atom feed if IPC returned empty
       try {
-        const resp = await fetch('https://github.com/xRAYNERx/Zapret-HUB/releases.atom');
-        if (resp.ok) {
+        let resp = await fetch('https://github.com/xRAYNERx/Zapret-Prime/releases.atom').catch(() => null);
+        if (!resp || !resp.ok) {
+          resp = await fetch('https://github.com/xRAYNERx/Zapret-HUB/releases.atom').catch(() => null);
+        }
+        if (resp && resp.ok) {
           const xml = await resp.text();
           releases = parseReleasesAtomXml(xml);
         }
@@ -488,7 +496,7 @@ function showHubUpdateModal(updateInfo) {
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
   if (descEl) {
-    descEl.innerText = `Вышла новая версия Zapret HUB v${remote} с важными исправлениями и обновлениями. Хотите скачать и установить обновление сейчас? Приложение автоматически загрузит установщик и перезапустится.`;
+    descEl.innerText = `Вышла новая версия Zapret Prime v${remote} с важными исправлениями и обновлениями. Хотите скачать и установить обновление сейчас? Приложение автоматически загрузит установщик и перезапустится.`;
   }
 
   if (actionsEl) actionsEl.classList.remove('hidden');
@@ -525,7 +533,7 @@ async function executeHubUpdate() {
   if (label) label.innerText = 'Подключение к GitHub…';
 
   try {
-    toast('Загрузка обновления Zapret HUB...', 'info');
+    toast('Загрузка обновления Zapret Prime...', 'info');
     await api('applyHubUpdate');
   } catch (err) {
     console.error('Update failed:', err);
@@ -1421,53 +1429,529 @@ function sanitizeDomain(raw) {
   return '';
 }
 
+// ─── Verified Service Bundles (База сервисов со связанными CDN и зеркалами) ───
+// Все домены строго выверены по эталонным спискам Zapret (list-exclude.txt, list-general.txt) и V2Fly geosite
+const SERVICE_BUNDLES = {
+  // ─── РФ Сервисы (для Белого списка и прямого подключения) ───
+  ozon: {
+    name: 'Ozon',
+    keywords: ['ozon', 'озон', 'ozon.ru'],
+    mainDomain: 'ozon.ru',
+    domains: ['ozon.ru', 'ozonusercontent.com', 'ozon-st.ru', 'ozon.by', 'ozon.kz'],
+    mode: 'whitelist'
+  },
+  wildberries: {
+    name: 'Wildberries',
+    keywords: ['wb', 'wildberries', 'вайлдберриз', 'вайлдбериз', 'вб'],
+    mainDomain: 'wildberries.ru',
+    domains: ['wildberries.ru', 'wbbasket.ru', 'wb-basket.ru', 'wb.ru', 'geobasket.ru'],
+    mode: 'whitelist'
+  },
+  gosuslugi: {
+    name: 'Госуслуги',
+    keywords: ['gosuslugi', 'госуслуги', 'есиа', 'esia'],
+    mainDomain: 'gosuslugi.ru',
+    domains: ['gosuslugi.ru', 'gu-st.ru', 'esia.gosuslugi.ru'],
+    mode: 'whitelist'
+  },
+  vk: {
+    name: 'ВКонтакте',
+    keywords: ['vk', 'vkontakte', 'вк', 'вконтакте', 'vk video', 'vk музыка'],
+    mainDomain: 'vk.com',
+    domains: ['vk.com', 'vk.ru', 'vk.me', 'userapi.com', 'vkvideo.ru'],
+    mode: 'whitelist'
+  },
+  sber: {
+    name: 'Сбербанк',
+    keywords: ['sber', 'sberbank', 'сбер', 'сбербанк'],
+    mainDomain: 'sberbank.ru',
+    domains: ['sberbank.ru', 'sber.ru', 'sberbank.com', 'sbrf.ru'],
+    mode: 'whitelist'
+  },
+  tbank: {
+    name: 'Т-Банк',
+    keywords: ['tbank', 'tinkoff', 'тбанк', 'тинькофф', 'т-банк'],
+    mainDomain: 'tbank.ru',
+    domains: ['tbank.ru', 'tinkoff.ru', 'cdn-tinkoff.ru', 'tbank-online.com'],
+    mode: 'whitelist'
+  },
+  alfabank: {
+    name: 'Альфа-Банк',
+    keywords: ['alfa', 'alfabank', 'альфа', 'альфа-банк', 'альфабанк'],
+    mainDomain: 'alfabank.ru',
+    domains: ['alfabank.ru', 'alfa.me', 'alfabank.st'],
+    mode: 'whitelist'
+  },
+  vtb: {
+    name: 'ВТБ',
+    keywords: ['vtb', 'втб'],
+    mainDomain: 'vtb.ru',
+    domains: ['vtb.ru', 'vtb.com'],
+    mode: 'whitelist'
+  },
+  kinopoisk: {
+    name: 'Кинопоиск',
+    keywords: ['kinopoisk', 'кинопоиск'],
+    mainDomain: 'kinopoisk.ru',
+    domains: ['kinopoisk.ru', 'yastatic.net', 'yastat.net'],
+    mode: 'whitelist'
+  },
+  yandex: {
+    name: 'Яндекс',
+    keywords: ['yandex', 'яндекс', 'ya.ru'],
+    mainDomain: 'yandex.ru',
+    domains: ['yandex.ru', 'ya.ru', 'yastatic.net', 'yandex.net'],
+    mode: 'whitelist'
+  },
+  avito: {
+    name: 'Авито',
+    keywords: ['avito', 'авито'],
+    mainDomain: 'avito.ru',
+    domains: ['avito.ru', 'avito.st'],
+    mode: 'whitelist'
+  },
+  steam: {
+    name: 'Steam',
+    keywords: ['steam', 'стим', 'valve'],
+    mainDomain: 'steampowered.com',
+    domains: ['steampowered.com', 'steamcommunity.com', 'steamstatic.com', 'steamcontent.com'],
+    mode: 'whitelist'
+  },
+  lesta: {
+    name: 'Мир Танков',
+    keywords: ['tanki', 'lesta', 'танки', 'леста', 'миртанков', 'world of tanks'],
+    mainDomain: 'tanki.su',
+    domains: ['tanki.su', 'lesta.ru', 'korabli.su', 'tanksblitz.ru'],
+    mode: 'whitelist'
+  },
+
+  // ─── Зарубежные сервисы (для Обхода DPI) ───
+  youtube: {
+    name: 'YouTube',
+    keywords: ['youtube', 'ютуб', 'ютубчик', 'yt'],
+    mainDomain: 'youtube.com',
+    domains: ['youtube.com', 'googlevideo.com', 'ytimg.com', 'youtu.be', 'youtubekids.com', 'ggpht.com'],
+    mode: 'bypass'
+  },
+  discord: {
+    name: 'Discord',
+    keywords: ['discord', 'дискорд', 'диск', 'ds'],
+    mainDomain: 'discord.com',
+    domains: ['discord.com', 'discordapp.com', 'discordapp.net', 'discord.gg', 'discord.media', 'discordcdn.com'],
+    mode: 'bypass'
+  },
+  twitter: {
+    name: 'Twitter / X',
+    keywords: ['twitter', 'твиттер', 'твит', 'x.com', 'x'],
+    mainDomain: 'x.com',
+    domains: ['x.com', 'twitter.com', 'twimg.com', 't.co'],
+    mode: 'bypass'
+  },
+  instagram: {
+    name: 'Instagram',
+    keywords: ['instagram', 'инстаграм', 'инста', 'ig'],
+    mainDomain: 'instagram.com',
+    domains: ['instagram.com', 'cdninstagram.com', 'facebook.com', 'fbcdn.net'],
+    mode: 'bypass'
+  },
+  chatgpt: {
+    name: 'ChatGPT',
+    keywords: ['chatgpt', 'openai', 'чатгпт', 'чат гпт', 'gpt'],
+    mainDomain: 'chatgpt.com',
+    domains: ['chatgpt.com', 'openai.com', 'oaistatic.com', 'oaiusercontent.com'],
+    mode: 'bypass'
+  },
+  spotify: {
+    name: 'Spotify',
+    keywords: ['spotify', 'спотифай', 'спотик'],
+    mainDomain: 'spotify.com',
+    domains: ['spotify.com', 'spotifycdn.com', 'scdn.co'],
+    mode: 'bypass'
+  },
+  notion: {
+    name: 'Notion',
+    keywords: ['notion', 'ноушен', 'нотион'],
+    mainDomain: 'notion.so',
+    domains: ['notion.so', 'notion.site', 'notion.com'],
+    mode: 'bypass'
+  },
+  twitch: {
+    name: 'Twitch',
+    keywords: ['twitch', 'твич'],
+    mainDomain: 'twitch.tv',
+    domains: ['twitch.tv', 'ttvnw.net', 'live-video.net', 'pusher.com'],
+    mode: 'bypass'
+  },
+  rutracker: {
+    name: 'RuTracker',
+    keywords: ['rutracker', 'рутрекер', 'трекер'],
+    mainDomain: 'rutracker.org',
+    domains: ['rutracker.org', 'rutracker.net', 'rutracker.cc'],
+    mode: 'bypass'
+  },
+  canva: {
+    name: 'Canva',
+    keywords: ['canva', 'канва'],
+    mainDomain: 'canva.com',
+    domains: ['canva.com', 'canva-st.com'],
+    mode: 'bypass'
+  },
+  telegram: {
+    name: 'Telegram Web',
+    keywords: ['telegram', 'телеграм', 'телега', 'tg'],
+    mainDomain: 'telegram.org',
+    domains: ['telegram.org', 't.me', 'web.telegram.org'],
+    mode: 'bypass'
+  },
+  epicgames: {
+    name: 'Epic Games',
+    keywords: ['epicgames', 'epic', 'эпикгеймс', 'эпик'],
+    mainDomain: 'epicgames.com',
+    domains: ['epicgames.com', 'epicgames.dev', 'unrealengine.com'],
+    mode: 'bypass'
+  },
+  tiktok: {
+    name: 'TikTok',
+    keywords: ['tiktok', 'тикток', 'тик ток'],
+    mainDomain: 'tiktok.com',
+    domains: ['tiktok.com', 'tiktokv.com', 'tiktokcdn.com', 'byteoversea.com'],
+    mode: 'bypass'
+  }
+};
+
+function findMatchingBundles(rawQuery) {
+  if (!rawQuery) return [];
+  const q = rawQuery.trim().toLowerCase();
+  if (!q) return [];
+  const matches = [];
+  const isWhitelist = state.sites.listMode === 'whitelist';
+
+  for (const [key, b] of Object.entries(SERVICE_BUNDLES)) {
+    const nameMatch = b.name.toLowerCase().includes(q);
+    const keyMatch = key.toLowerCase().includes(q);
+    const kwMatch = b.keywords.some(k => k.toLowerCase().includes(q));
+    const mainMatch = b.mainDomain.toLowerCase().includes(q);
+    const domMatch = b.domains.some(d => d.toLowerCase().includes(q));
+
+    if (nameMatch || keyMatch || kwMatch || mainMatch || domMatch) {
+      matches.push({ key, ...b });
+    }
+  }
+
+  // Сортировка: приоритет тем, чей режим совпадает с текущим списком
+  matches.sort((a, b) => {
+    const aCurrent = (a.mode === 'whitelist') === isWhitelist;
+    const bCurrent = (b.mode === 'whitelist') === isWhitelist;
+    if (aCurrent && !bCurrent) return -1;
+    if (!aCurrent && bCurrent) return 1;
+    return 0;
+  });
+
+  return matches;
+}
+
+function updateBundleAutocomplete(containerId, query) {
+  const container = $(`#${containerId}`);
+  if (!container) return;
+
+  const q = (query || '').trim();
+  if (q.length < 2) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+
+  const matches = findMatchingBundles(q);
+  if (matches.length === 0) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = matches.slice(0, 6).map(b => {
+    const cdnCount = b.domains.length - 1;
+    const badgeText = cdnCount > 0 ? `+${cdnCount} CDN-домена` : '1 домен';
+    return `
+      <div onclick="addServiceBundle('${b.key}')" class="px-2.5 py-1.5 rounded-lg hover:bg-white/10 flex items-center justify-between cursor-pointer transition-all group select-none">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0"></span>
+          <span class="text-xs font-bold text-white group-hover:text-teal-300 transition-colors whitespace-nowrap">${b.name}</span>
+          <span class="text-[11px] font-mono text-slate-400 truncate">${b.mainDomain}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 whitespace-nowrap">
+            ${badgeText}
+          </span>
+          <span class="text-[10px] font-semibold text-teal-400 group-hover:text-white transition-colors whitespace-nowrap">
+            + Добавить
+          </span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.classList.remove('hidden');
+}
+
+function hideBundleAutocompletes() {
+  const searchEl = $('#sites-search-autocomplete');
+  const addEl = $('#sites-add-autocomplete');
+  if (searchEl) {
+    searchEl.classList.add('hidden');
+    searchEl.innerHTML = '';
+  }
+  if (addEl) {
+    addEl.classList.add('hidden');
+    addEl.innerHTML = '';
+  }
+}
+window.hideBundleAutocompletes = hideBundleAutocompletes;
+
+async function addServiceBundle(bundleKey) {
+  const bundle = SERVICE_BUNDLES[bundleKey];
+  if (!bundle) return;
+
+  const isWhitelist = state.sites.listMode === 'whitelist';
+  const targetList = isWhitelist ? state.sites.whitelist : state.sites.main;
+  const existingSet = new Set(targetList);
+
+  const toAdd = bundle.domains.filter(d => !existingSet.has(d));
+  if (toAdd.length === 0) {
+    toast(`Все домены для ${bundle.name} уже есть в списке`, 'info');
+    hideBundleAutocompletes();
+    return;
+  }
+
+  const next = [...toAdd, ...targetList];
+  try {
+    if (isWhitelist) {
+      await api('saveExcludeSites', next);
+      state.sites.whitelist = next;
+    } else {
+      await api('saveSites', next);
+      state.sites.main = next;
+    }
+    renderSites();
+    hideBundleAutocompletes();
+
+    const searchInput = $('#sites-search-input');
+    const newInput = $('#sites-new-input');
+    if (searchInput) searchInput.value = '';
+    if (newInput) newInput.value = '';
+    state.sites.searchQuery = '';
+    renderSites();
+
+    toast(`Добавлены все необходимые для стабильной работы домены для ${bundle.name} (${toAdd.length} шт.)`, 'success');
+  } catch (err) {
+    toast(err.message || 'Ошибка добавления', 'error');
+  }
+}
+window.addServiceBundle = addServiceBundle;
+
+function handleSitesSearchInput(val) {
+  state.sites.searchQuery = (val || '').trim();
+  renderSites();
+  updateBundleAutocomplete('sites-search-autocomplete', val);
+}
+window.handleSitesSearchInput = handleSitesSearchInput;
+
+function handleSitesAddInput(val) {
+  updateBundleAutocomplete('sites-add-autocomplete', val);
+}
+window.handleSitesAddInput = handleSitesAddInput;
+
+function setSitesListMode(mode) {
+  state.sites.listMode = mode;
+  hideBundleAutocompletes();
+  const btnBypass = $('#btn-sites-mode-bypass');
+  const btnWhitelist = $('#btn-sites-mode-whitelist');
+  const dotBypass = $('#sites-dot-bypass');
+  const dotWhitelist = $('#sites-dot-whitelist');
+  const pillBypass = $('#sites-count-pill-bypass');
+  const pillWhitelist = $('#sites-count-pill-whitelist');
+  const subDesc = $('#sites-sub-description');
+  const summary = $('#sites-status-summary');
+  const input = $('#sites-new-input');
+  const tipContent = $('#sites-tip-content');
+
+  if (mode === 'bypass') {
+    if (btnBypass) {
+      btnBypass.className = 'h-8 px-3 rounded-xl text-xs font-bold text-white bg-white/10 border border-white/15 shadow-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+    }
+    if (dotBypass) {
+      dotBypass.className = 'w-2 h-2 rounded-full bg-teal-400';
+    }
+    if (pillBypass) {
+      pillBypass.className = 'px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30';
+    }
+    if (btnWhitelist) {
+      btnWhitelist.className = 'h-8 px-3 rounded-xl text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+    }
+    if (dotWhitelist) {
+      dotWhitelist.className = 'w-2 h-2 rounded-full bg-slate-500';
+    }
+    if (pillWhitelist) {
+      pillWhitelist.className = 'px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/5 text-slate-400 border border-white/10';
+    }
+    if (subDesc) subDesc.innerText = 'Файл list-general.txt · Обход DPI';
+    if (summary) summary.innerText = 'Маршрутизация: Kyber / Fake TLS активна';
+    if (input) input.placeholder = 'Добавить домен или сервис (напр. youtube.com)...';
+    if (tipContent) {
+      tipContent.innerHTML = '<span class="font-semibold text-slate-300">Подсказка:</span> Можно вставлять ссылки в любом виде (с <code class="text-teal-400">https://</code>, путями или префиксами) — программа сама очистит их до домена. Поддомены перехватываются автоматически.';
+    }
+  } else {
+    if (btnWhitelist) {
+      btnWhitelist.className = 'h-8 px-3 rounded-xl text-xs font-bold text-white bg-white/10 border border-white/15 shadow-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+    }
+    if (dotWhitelist) {
+      dotWhitelist.className = 'w-2 h-2 rounded-full bg-teal-400';
+    }
+    if (pillWhitelist) {
+      pillWhitelist.className = 'px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30';
+    }
+    if (btnBypass) {
+      btnBypass.className = 'h-8 px-3 rounded-xl text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+    }
+    if (dotBypass) {
+      dotBypass.className = 'w-2 h-2 rounded-full bg-slate-500';
+    }
+    if (pillBypass) {
+      pillBypass.className = 'px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/5 text-slate-400 border border-white/10';
+    }
+    if (subDesc) subDesc.innerText = 'Файл list-exclude-user.txt · Прямое подключение (Direct)';
+    if (summary) summary.innerText = 'Белый список: прямой трафик мимо VPN и Zapret';
+    if (input) input.placeholder = 'Добавить домен или сервис (напр. ozon.ru)...';
+    if (tipContent) {
+      tipContent.innerHTML = '<span class="font-semibold text-slate-300">Белый список:</span> Сюда добавляются сайты, которые должны работать напрямую через вашего провайдера — вне обхода Zapret и без ВПНа. Поддомены перехватываются автоматически.';
+    }
+  }
+
+  renderSites();
+  renderQuickAddServices();
+}
+window.setSitesListMode = setSitesListMode;
+
+function renderQuickAddServices() {
+  const grid = $('#sites-quick-add-grid');
+  const title = $('#sites-quick-add-title');
+  if (!grid) return;
+
+  const isWhitelist = state.sites.listMode === 'whitelist';
+  const targetList = isWhitelist ? state.sites.whitelist : state.sites.main;
+  const targetSet = new Set(targetList || []);
+
+  if (isWhitelist) {
+    if (title) title.innerText = 'Быстро в Белый список (Сервисы РФ)';
+    const rfKeys = ['ozon', 'wildberries', 'gosuslugi', 'vk', 'sber', 'tbank', 'kinopoisk', 'steam'];
+    grid.innerHTML = rfKeys.map(k => {
+      const b = SERVICE_BUNDLES[k];
+      if (!b) return '';
+      const isAdded = b.domains.every(d => targetSet.has(d));
+      const actionIcon = isAdded
+        ? `<span class="w-5 h-5 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center transition-all flex-shrink-0" title="Уже в списке">
+             <svg class="w-3 h-3 stroke-current stroke-[2.5] fill-none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+           </span>`
+        : `<span class="w-5 h-5 rounded-lg bg-white/[0.04] group-hover:bg-teal-500/20 border border-white/5 group-hover:border-teal-500/30 text-slate-400 group-hover:text-teal-300 flex items-center justify-center transition-all flex-shrink-0">
+             <svg class="w-3 h-3 stroke-current stroke-2 fill-none pointer-events-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+           </span>`;
+
+      return `
+        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-teal-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${isAdded ? `${b.name} (уже в списке)` : `Добавить ${b.name} (${b.domains.length} доменов)`}">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
+            <span class="text-xs font-semibold ${isAdded ? 'text-slate-300' : 'text-slate-200 group-hover:text-white'} transition-colors truncate">${b.name}</span>
+          </div>
+          ${actionIcon}
+        </button>
+      `;
+    }).join('');
+  } else {
+    if (title) title.innerText = 'Быстрое добавление (Обход DPI)';
+    const bypassKeys = ['youtube', 'discord', 'twitter', 'chatgpt', 'spotify', 'notion', 'instagram', 'rutracker'];
+    grid.innerHTML = bypassKeys.map(k => {
+      const b = SERVICE_BUNDLES[k];
+      if (!b) return '';
+      const isAdded = b.domains.every(d => targetSet.has(d));
+      const actionIcon = isAdded
+        ? `<span class="w-5 h-5 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center transition-all flex-shrink-0" title="Уже в списке">
+             <svg class="w-3 h-3 stroke-current stroke-[2.5] fill-none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+           </span>`
+        : `<span class="w-5 h-5 rounded-lg bg-white/[0.04] group-hover:bg-teal-500/20 border border-white/5 group-hover:border-teal-500/30 text-slate-400 group-hover:text-teal-300 flex items-center justify-center transition-all flex-shrink-0">
+             <svg class="w-3 h-3 stroke-current stroke-2 fill-none pointer-events-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+           </span>`;
+
+      return `
+        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-teal-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${isAdded ? `${b.name} (уже в списке)` : `Добавить ${b.name} (${b.domains.length} доменов)`}">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
+            <span class="text-xs font-semibold ${isAdded ? 'text-slate-300' : 'text-slate-200 group-hover:text-white'} transition-colors truncate">${b.name}</span>
+          </div>
+          ${actionIcon}
+        </button>
+      `;
+    }).join('');
+  }
+}
+window.renderQuickAddServices = renderQuickAddServices;
+
 async function handleSitesAdd(e) {
   if (e) e.preventDefault();
   const input = $('#sites-new-input');
   if (!input) return;
-  const val = sanitizeDomain(input.value);
+  const raw = (input.value || '').trim();
+  if (!raw) {
+    toast('Введите домен или название сервиса (например, ozon или notion.so)', 'error');
+    return;
+  }
+
+  // Проверяем: вдруг пользователь ввёл название сервиса (например, "ozon" или "дискорд" или "youtube")
+  const matches = findMatchingBundles(raw);
+  const exactMatch = matches.find(b =>
+    b.key.toLowerCase() === raw.toLowerCase() ||
+    b.name.toLowerCase() === raw.toLowerCase() ||
+    b.mainDomain.toLowerCase() === raw.toLowerCase() ||
+    b.keywords.some(k => k.toLowerCase() === raw.toLowerCase())
+  );
+
+  if (exactMatch) {
+    await addServiceBundle(exactMatch.key);
+    return;
+  }
+
+  const val = sanitizeDomain(raw);
   if (!val) {
     toast('Введите корректный домен (например, notion.so)', 'error');
     return;
   }
 
-  if (state.sites.main.includes(val)) {
-    toast('Домен уже есть в списке', 'error');
+  const isWhitelist = state.sites.listMode === 'whitelist';
+  const targetList = isWhitelist ? state.sites.whitelist : state.sites.main;
+
+  if (targetList.includes(val)) {
+    toast(`Домен уже есть в ${isWhitelist ? 'белом списке' : 'списке обхода'}`, 'error');
     input.value = '';
+    hideBundleAutocompletes();
     return;
   }
 
-  const next = [val, ...state.sites.main];
+  const next = [val, ...targetList];
   try {
-    await api('saveSites', next);
-    state.sites.main = next;
+    if (isWhitelist) {
+      await api('saveExcludeSites', next);
+      state.sites.whitelist = next;
+    } else {
+      await api('saveSites', next);
+      state.sites.main = next;
+    }
     input.value = '';
+    hideBundleAutocompletes();
     renderSites();
-    toast(`Домен ${val} добавлен в список`, 'success');
+    toast(`Домен ${val} добавлен в ${isWhitelist ? 'белый список' : 'список обхода'}`, 'success');
   } catch (err) {
     toast(err.message, 'error');
   }
 }
 window.handleSitesAdd = handleSitesAdd;
-
-async function quickAddDomain(rawDomain) {
-  const domain = sanitizeDomain(rawDomain);
-  if (!domain) return;
-  if (state.sites.main.includes(domain)) {
-    toast(`Домен ${domain} уже в списке`, 'info');
-    return;
-  }
-  const next = [domain, ...state.sites.main];
-  try {
-    await api('saveSites', next);
-    state.sites.main = next;
-    renderSites();
-    toast(`Домен ${domain} добавлен`, 'success');
-  } catch (err) {
-    toast(err.message, 'error');
-  }
-}
-window.quickAddDomain = quickAddDomain;
 
 async function handleSitesPaste() {
   try {
@@ -1488,7 +1972,9 @@ async function handleSitesPaste() {
       toast('В буфере обмена не найдено доменов', 'error');
       return;
     }
-    const existing = new Set(state.sites.main);
+    const isWhitelist = state.sites.listMode === 'whitelist';
+    const targetList = isWhitelist ? state.sites.whitelist : state.sites.main;
+    const existing = new Set(targetList);
     const added = [];
     for (const c of candidates) {
       if (!existing.has(c)) {
@@ -1500,9 +1986,14 @@ async function handleSitesPaste() {
       toast('Все домены из буфера уже есть в списке', 'info');
       return;
     }
-    const next = [...added, ...state.sites.main];
-    await api('saveSites', next);
-    state.sites.main = next;
+    const next = [...added, ...targetList];
+    if (isWhitelist) {
+      await api('saveExcludeSites', next);
+      state.sites.whitelist = next;
+    } else {
+      await api('saveSites', next);
+      state.sites.main = next;
+    }
     renderSites();
     toast(`Добавлено новых доменов: ${added.length}`, 'success');
   } catch (err) {
@@ -1513,7 +2004,9 @@ window.handleSitesPaste = handleSitesPaste;
 
 async function handleSitesExport() {
   try {
-    const res = await api('exportSitesDialog', { defaultName: 'list-general.txt' });
+    const isWhitelist = state.sites.listMode === 'whitelist';
+    const defaultName = isWhitelist ? 'list-exclude-user.txt' : 'list-general.txt';
+    const res = await api('exportSitesDialog', { defaultName, isExclude: isWhitelist });
     if (res && res.saved) {
       toast(`Список сохранён: ${res.count || 0} доменов`, 'success');
     }
@@ -1525,9 +2018,14 @@ window.handleSitesExport = handleSitesExport;
 
 async function handleSitesImport() {
   try {
-    const res = await api('importSitesDialog', { mode: 'merge' });
+    const isWhitelist = state.sites.listMode === 'whitelist';
+    const res = await api('importSitesDialog', { mode: 'merge', isExclude: isWhitelist });
     if (res && res.imported && Array.isArray(res.sites)) {
-      state.sites.main = res.sites;
+      if (isWhitelist) {
+        state.sites.whitelist = res.sites;
+      } else {
+        state.sites.main = res.sites;
+      }
       renderSites();
       toast(`Импортировано. Всего в списке: ${res.sites.length}`, 'success');
     }
@@ -1639,10 +2137,17 @@ function toggleIpsetHelp() {
 window.toggleIpsetHelp = toggleIpsetHelp;
 
 async function deleteSite(site) {
-  const next = state.sites.main.filter(s => s !== site);
+  const isWhitelist = state.sites.listMode === 'whitelist';
+  const targetList = isWhitelist ? state.sites.whitelist : state.sites.main;
+  const next = targetList.filter(s => s !== site);
   try {
-    await api('saveSites', next);
-    state.sites.main = next;
+    if (isWhitelist) {
+      await api('saveExcludeSites', next);
+      state.sites.whitelist = next;
+    } else {
+      await api('saveSites', next);
+      state.sites.main = next;
+    }
     renderSites();
     toast(`Домен ${site} удалён`, 'info');
   } catch (err) {
@@ -1653,26 +2158,36 @@ window.deleteSite = deleteSite;
 
 function renderSites() {
   updateSitesCardUI();
+  renderQuickAddServices();
   const container = $('#sites-list-container');
   const countPill = $('#sites-count-pill');
+  const pillBypass = $('#sites-count-pill-bypass');
+  const pillWhitelist = $('#sites-count-pill-whitelist');
   if (!container) return;
 
+  const isWhitelist = state.sites.listMode === 'whitelist';
+  const currentList = isWhitelist ? state.sites.whitelist : state.sites.main;
   const query = (state.sites.searchQuery || '').toLowerCase();
-  const filtered = state.sites.main.filter(s => s.toLowerCase().includes(query));
+  const filtered = currentList.filter(s => s.toLowerCase().includes(query));
 
-  if (countPill) countPill.innerText = `${state.sites.main.length} доменов`;
+  if (pillBypass) pillBypass.innerText = state.sites.main.length;
+  if (pillWhitelist) pillWhitelist.innerText = state.sites.whitelist.length;
+  if (countPill) countPill.innerText = `${currentList.length} доменов`;
 
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="h-32 flex flex-col items-center justify-center text-slate-500 text-xs">
-        ${query ? 'Ничего не найдено' : 'Список доменов пуст'}
+        ${query ? 'Ничего не найдено' : (isWhitelist ? 'Белый список пока пуст' : 'Список доменов пуст')}
       </div>`;
     return;
   }
 
   container.innerHTML = filtered.map(site => `
     <div class="inner-panel rounded-xl px-3 py-2 flex items-center justify-between gap-2 group hover:border-white/20 transition-all">
-      <span class="text-xs font-mono text-slate-200 truncate select-text">${site}</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0"></span>
+        <span class="text-xs font-mono text-slate-200 truncate select-text">${site}</span>
+      </div>
       <button data-site="${encodeURIComponent(site)}" class="text-slate-500 hover:text-rose-400 p-1 rounded-md transition-colors cursor-pointer" title="Удалить домен">
         <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none pointer-events-none" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
       </button>
@@ -1773,7 +2288,7 @@ async function checkAllUpdatesSim() {
       showHubUpdateModal(all.hub);
     } else {
       const currentVer = (all?.hub?.local || state.appVersion || '2.0.5').replace(/^v/i, '');
-      toast(`У вас установлена последняя версия Zapret HUB (v${currentVer})`, 'success');
+      toast(`У вас установлена последняя версия Zapret Prime (v${currentVer})`, 'success');
     }
   } catch (e) {
     toast(e.message, 'error');
@@ -2121,7 +2636,7 @@ function buildVpnPingBadge(srv) {
   if (srv.status === 'blocked') {
     return '<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium text-rose-400 bg-rose-500/10 px-2.5 rounded-lg border border-rose-500/20">Блок</span>';
   } else if (typeof srv.ping === 'number' && srv.ping > 0) {
-    const pingCol = srv.ping < 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : (srv.ping < 160 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-slate-400 bg-white/[0.04] border-white/5');
+    const pingCol = srv.ping < 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : (srv.ping < 160 ? 'text-teal-400 bg-teal-500/10 border-teal-500/20' : 'text-slate-400 bg-white/[0.04] border-white/5');
     return `<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium ${pingCol} px-2.5 rounded-lg border">${srv.ping} мс</span>`;
   }
   return '<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium text-slate-400 bg-white/[0.04] px-2.5 rounded-lg border border-white/5">—</span>';
@@ -2360,13 +2875,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initial Data Fetch
   try {
-    const [status, strategies, sites, tgStatus, vlessStatus, settings] = await Promise.all([
+    const [status, strategies, sites, tgStatus, vlessStatus, settings, excludeSites] = await Promise.all([
       api('getStatus').catch(() => null),
       api('getStrategies').catch(() => []),
       api('getSites').catch(() => []),
       api('getTgProxyStatus').catch(() => null),
       api('vlessGetStatus').catch(() => null),
-      api('getSettings').catch(() => null)
+      api('getSettings').catch(() => null),
+      api('getExcludeSites').catch(() => [])
     ]);
 
     // Strategies
@@ -2392,8 +2908,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Sites
     if (Array.isArray(sites)) {
       state.sites.main = sites;
-      renderSites();
     }
+    if (Array.isArray(excludeSites)) {
+      state.sites.whitelist = excludeSites;
+    }
+    renderSites();
 
     // Prefetch changelog from GitHub in background
     loadChangelogFromGithub().catch(() => {});
@@ -2546,6 +3065,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const smartPingBadge = $('#vpn-smart-ping-badge');
     if (smartPingBadge) {
       smartPingBadge.innerText = bestPing !== null ? `${bestPing} мс` : '—';
+    }
+  });
+
+  // Close bundle autocompletes on outside click or Escape
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#sites-search-autocomplete') && !e.target.closest('#sites-search-input')) {
+      const el = $('#sites-search-autocomplete');
+      if (el) el.classList.add('hidden');
+    }
+    if (!e.target.closest('#sites-add-autocomplete') && !e.target.closest('#sites-new-input')) {
+      const el = $('#sites-add-autocomplete');
+      if (el) el.classList.add('hidden');
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      hideBundleAutocompletes();
     }
   });
 });

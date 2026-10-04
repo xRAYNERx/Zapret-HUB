@@ -1,6 +1,6 @@
 # Сторонние компоненты
 
-Zapret HUB — обёртка (GUI) вокруг открытых инструментов обхода DPI. Ниже — что используется и на каких условиях.
+Zapret Prime — обёртка (GUI) вокруг открытых инструментов обхода DPI. Ниже — что используется и на каких условиях.
 
 ## WinDivert & winws
 - **Проект:** [bol-van/zapret](https://github.com/bol-van/zapret) / WinDivert
@@ -8,7 +8,7 @@ Zapret HUB — обёртка (GUI) вокруг открытых инструм
 - **Лицензия:** см. upstream
 
 ## Telegram Proxy (ZapretTgProxy)
-- **Проект:** Встроенный компонент Zapret HUB
+- **Проект:** Встроенный компонент Zapret Prime
 - **Назначение:** локальный шлюз MTProto / WebSocket Fake-TLS для Telegram
 
 ## Xray-core (VPN VLESS Reality)

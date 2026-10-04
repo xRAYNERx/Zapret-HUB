@@ -1,8 +1,10 @@
-# Zapret HUB launcher: dist\win-unpacked, rebuild when sources are newer.
+# Zapret Prime launcher: dist\win-unpacked, rebuild when sources are newer.
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$Exe = Join-Path $Root 'dist\win-unpacked\Zapret HUB.exe'
+$ExePrime = Join-Path $Root 'dist\win-unpacked\Zapret Prime.exe'
+$ExeHub = Join-Path $Root 'dist\win-unpacked\Zapret HUB.exe'
+$Exe = if (Test-Path $ExePrime) { $ExePrime } elseif (Test-Path $ExeHub) { $ExeHub } else { $ExePrime }
 $Asar = Join-Path $Root 'dist\win-unpacked\resources\app.asar'
 
 function Get-MaxWriteTime {
@@ -22,9 +24,10 @@ function Get-MaxWriteTime {
     return $max
 }
 
-function Test-ZapretHubRunning {
-    $p = Get-Process -Name 'Zapret HUB' -ErrorAction SilentlyContinue
-    return [bool]$p
+function Test-ZapretRunning {
+    $p1 = Get-Process -Name 'Zapret Prime' -ErrorAction SilentlyContinue
+    $p2 = Get-Process -Name 'Zapret HUB' -ErrorAction SilentlyContinue
+    return [bool]($p1 -or $p2)
 }
 
 $sourcePaths = @(
@@ -40,8 +43,9 @@ $builtTime = if (Test-Path $Asar) { (Get-Item $Asar).LastWriteTime } elseif (Tes
 $sourceTime = Get-MaxWriteTime -Paths $sourcePaths
 $needsBuild = -not (Test-Path $Exe) -or ($sourceTime -gt $builtTime)
 
-if (Test-ZapretHubRunning) {
-    Write-Host 'Closing previous Zapret HUB instance...'
+if (Test-ZapretRunning) {
+    Write-Host 'Closing previous Zapret Prime instance...'
+    Stop-Process -Name 'Zapret Prime' -Force -ErrorAction SilentlyContinue
     Stop-Process -Name 'Zapret HUB' -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 600
 }
@@ -80,6 +84,6 @@ if (-not (Test-Path $Exe)) {
     exit 1
 }
 
-Write-Host 'Launching Zapret HUB...'
+Write-Host 'Launching Zapret Prime...'
 Start-Process -FilePath $Exe -WorkingDirectory (Split-Path -Parent $Exe)
 exit 0

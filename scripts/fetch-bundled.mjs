@@ -22,7 +22,7 @@ function download(url, dest) {
   return new Promise((resolve, reject) => {
     const request = (target) => {
       https
-        .get(target, { headers: { 'User-Agent': 'ZapretHub-fetch-bundled' } }, (res) => {
+        .get(target, { headers: { 'User-Agent': 'ZapretPrime-fetch-bundled' } }, (res) => {
           if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
             request(res.headers.location);
             return;

@@ -571,7 +571,7 @@ class ZapretService {
   async fetchTextUrl(url, timeoutMs = 10000) {
     const res = await fetchUrl(url, {
       headers: {
-        'User-Agent': 'ZapretHub',
+        'User-Agent': 'ZapretPrime',
         'Cache-Control': 'no-cache',
         Accept: 'text/plain, text/html, application/json, */*'
       },
@@ -639,7 +639,7 @@ class ZapretService {
       const request = (targetUrl, depth = 0) => {
         const client = targetUrl.startsWith('https') ? https : http;
         client
-          .get(targetUrl, { headers: { 'User-Agent': 'ZapretHub' } }, (response) => {
+          .get(targetUrl, { headers: { 'User-Agent': 'ZapretPrime' } }, (response) => {
             if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
               if (depth >= 6) {
                 response.resume();
@@ -1040,6 +1040,32 @@ class ZapretService {
   saveGeneralSites(sites) {
     this.writeSitesToFile(this.getGeneralListFile(), sites);
     return this.getGeneralSites();
+  }
+
+  getExcludeListFile() {
+    return path.join(this.getListsPath(), 'list-exclude-user.txt');
+  }
+
+  getExcludeSites() {
+    return this.readSitesFromFile(this.getExcludeListFile());
+  }
+
+  saveExcludeSites(sites) {
+    this.writeSitesToFile(this.getExcludeListFile(), sites);
+    return this.getExcludeSites();
+  }
+
+  exportExcludeSitesText() {
+    const sites = this.getExcludeSites();
+    return sites.length ? `${sites.join('\n')}\n` : '';
+  }
+
+  importExcludeSites(text, mode = 'merge') {
+    const imported = this.parseSitesImportText(text);
+    if (mode === 'replace') {
+      return this.saveExcludeSites(imported);
+    }
+    return this.saveExcludeSites(this.mergeSiteLists(this.getExcludeSites(), imported));
   }
 
   exportGeneralSitesText() {

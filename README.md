@@ -1,9 +1,9 @@
-# Zapret HUB
+# Zapret Prime
 
 <p align="left">
-  <img src="https://img.shields.io/github/v/release/xRAYNERx/Zapret-HUB?color=10b981&label=%D0%92%D0%B5%D1%80%D1%81%D0%B8%D1%8F&style=flat-square" alt="Release">
-  <img src="https://img.shields.io/github/downloads/xRAYNERx/Zapret-HUB/total?color=0ea5e9&label=%D0%92%D1%81%D0%B5%D0%B3%D0%BE%20%D1%81%D0%BA%D0%B0%D1%87%D0%B8%D0%B2%D0%B0%D0%BD%D0%B8%D0%B9&style=flat-square" alt="Total Downloads">
-  <img src="https://img.shields.io/github/stars/xRAYNERx/Zapret-HUB?color=f59e0b&label=%D0%97%D0%B2%D1%91%D0%B7%D0%B4%D1%8B&style=flat-square" alt="Stars">
+  <img src="https://img.shields.io/github/v/release/xRAYNERx/Zapret-Prime?color=10b981&label=%D0%92%D0%B5%D1%80%D1%81%D0%B8%D1%8F&style=flat-square" alt="Release">
+  <img src="https://img.shields.io/github/downloads/xRAYNERx/Zapret-Prime/total?color=0ea5e9&label=%D0%92%D1%81%D0%B5%D0%B3%D0%BE%20%D1%81%D0%BA%D0%B0%D1%87%D0%B8%D0%B2%D0%B0%D0%BD%D0%B8%D0%B9&style=flat-square" alt="Total Downloads">
+  <img src="https://img.shields.io/github/stars/xRAYNERx/Zapret-Prime?color=f59e0b&label=%D0%97%D0%B2%D1%91%D0%B7%D0%B4%D1%8B&style=flat-square" alt="Stars">
   <img src="https://img.shields.io/badge/%D0%9F%D0%BB%D0%B0%D1%82%D1%84%D0%BE%D1%80%D0%BC%D0%B0-Windows%2010%20%7C%2011%20x64-slate?style=flat-square" alt="Platform">
 </p>
 
@@ -18,7 +18,7 @@
 
 **Разработка и оболочка:** [xRAYNERx](https://github.com/xRAYNERx) · **Технологии:** bol-van (winws/WinDivert), Project X (Xray)
 
-Zapret HUB является независимой панелью управления. Подробнее о сторонних компонентах — [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Zapret Prime является независимой панелью управления. Подробнее о сторонних компонентах — [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
@@ -42,10 +42,10 @@ Zapret HUB является независимой панелью управле
 
 Всегда актуальная версия доступна на странице релизов:
 
-👉 **[Перейти к последней версии (GitHub Releases)](https://github.com/xRAYNERx/Zapret-HUB/releases/latest)**
+👉 **[Перейти к последней версии (GitHub Releases)](https://github.com/xRAYNERx/Zapret-Prime/releases/latest)**
 
-* **Установщик (`ZapretHub-Setup-...exe`)** — рекомендуемый вариант. Стандартная установка с ярлыками и поддержкой автозагрузки Windows.
-* **Портативная версия (`ZapretHub-Portable-...exe`)** — запуск без установки из любой папки.
+* **Установщик (`ZapretPrime-Setup-...exe`)** — рекомендуемый вариант. Стандартная установка с ярлыками и поддержкой автозагрузки Windows.
+* **Портативная версия (`ZapretPrime-Portable-...exe`)** — запуск без установки из любой папки.
 
 > [!NOTE]
 > При первом запуске сетевого драйвера Windows запросит права администратора (UAC) — подтвердите один раз для корректной работы системных перехватчиков трафика.

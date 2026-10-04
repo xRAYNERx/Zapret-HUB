@@ -1,13 +1,13 @@
-# Руководство по интеграции локального Telegram Proxy в Android-версию Zapret HUB
+# Руководство по интеграции локального Telegram Proxy в Android-версию Zapret Prime
 
-> Данный документ составлен на основе реализации модуля **Telegram Proxy (`ZapretTgProxy` / `TgWsProxy`)** в десктопной версии Zapret HUB.  
+> Данный документ составлен на основе реализации модуля **Telegram Proxy (`ZapretTgProxy` / `TgWsProxy`)** в десктопной версии Zapret Prime.  
 > Передайте этот файл AI-разработчику или в чат разработки Android-приложения для быстрой и безошибочной реализации фичи на Android.
 
 ---
 
-## 1. Как это работает в десктопной версии Zapret HUB
+## 1. Как это работает в десктопной версии Zapret Prime
 
-В ПК-версии Zapret HUB встроен отдельный легковесный прокси-сервер (`ZapretTgProxy.exe`, форк `TgWsProxy`):
+В ПК-версии Zapret Prime встроен отдельный легковесный прокси-сервер (`ZapretTgProxy.exe`, форк `TgWsProxy`):
 
 1. **Локальный порт и хост:** Сервер слушает локальный сокет `127.0.0.1:1443`.
 2. **Секрет (Fake-TLS):** При первом старте генерируется случайный 16-байтный hex-ключ (32 символа). Для маскировки трафика под TLS к нему добавляется префикс `dd`:  
@@ -30,7 +30,7 @@
 
 ### Капкан №2: Убийство процесса в фоне (Doze Mode / OOM Killer)
 * **Типичная ошибка:** AI запускает процесс через корутину в обычной Activity или ViewModel.
-* **Что происходит:** Как только пользователь переключается из Zapret HUB в приложение Telegram, Android через 10–20 секунд замораживает или убивает процесс прокси. Прокси мгновенно отваливается.
+* **Что происходит:** Как только пользователь переключается из Zapret Prime в приложение Telegram, Android через 10–20 секунд замораживает или убивает процесс прокси. Прокси мгновенно отваливается.
 * **Как правильно:** Запуск бинарника должен производиться строго внутри **Android `ForegroundService`** с постоянным уведомлением в шторке («Telegram Proxy работает») и частичным WakeLock при необходимости.
 
 ### Капкан №3: Архитектура процессора (ARM64 vs x86)
@@ -72,7 +72,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o libtgproxy.so
 ### 4.1. Генерация настроек и ссылки (`TgProxyConfig.kt`)
 
 ```kotlin
-package com.zaprethub.android.tgproxy
+package com.zapretprime.android.tgproxy
 
 import android.content.Context
 import org.json.JSONArray
@@ -142,7 +142,7 @@ object TgProxyConfig {
 ### 4.2. Сервис управления процессом (`TgProxyForegroundService.kt`)
 
 ```kotlin
-package com.zaprethub.android.tgproxy
+package com.zapretprime.android.tgproxy
 
 import android.app.*
 import android.content.Context
@@ -261,7 +261,7 @@ class TgProxyForegroundService : Service() {
 
     private fun buildNotification(text: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Zapret HUB — Telegram Proxy")
+            .setContentTitle("Zapret Prime — Telegram Proxy")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
@@ -296,7 +296,7 @@ class TgProxyForegroundService : Service() {
 ### 4.3. Кнопка «Подключить к Telegram» (`TelegramOpener.kt`)
 
 ```kotlin
-package com.zaprethub.android.tgproxy
+package com.zapretprime.android.tgproxy
 
 import android.content.Context
 import android.content.Intent

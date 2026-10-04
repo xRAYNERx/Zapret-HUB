@@ -187,6 +187,7 @@ class VlessService {
     this.configPath = path.join(this.installDir, 'vless_settings.json');
     this.activeRunConfigPath = path.join(this.installDir, 'active_run.json');
     this.activeTunConfigPath = path.join(this.installDir, 'active_tun.json');
+    this.zapretService = options.zapretService || null;
 
     this._child = null;
     this._tunChild = null;
@@ -332,7 +333,7 @@ class VlessService {
 
     try {
       const { stdout } = await execAsync(
-        `curl.exe -s -I -A "Happ/4.2.1, ZapretHUB/2.0.0" --max-time 8 "${url.replace(/"/g, '`"')}"`,
+        `curl.exe -s -I -A "Happ/4.2.1, ZapretPrime/2.0.0" --max-time 8 "${url.replace(/"/g, '`"')}"`,
         { windowsHide: true, timeout: 9000 }
       );
       if (stdout) {
@@ -386,7 +387,7 @@ class VlessService {
       const getter = parsed.protocol === 'https:' ? https : http;
       getter.get(url, {
         headers: {
-          'User-Agent': 'Happ/4.2.1, ZapretHUB/2.0.0',
+          'User-Agent': 'Happ/4.2.1, ZapretPrime/2.0.0',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache'
         }
@@ -411,7 +412,7 @@ class VlessService {
   async fetchSubscriptionUrl(url) {
     try {
       const { stdout } = await execAsync(
-        `curl.exe -s -L -D - -H "Cache-Control: no-cache, no-store, must-revalidate" -H "Pragma: no-cache" -A "Happ/4.2.1, ZapretHUB/2.0.0" --max-time 15 "${url.replace(/"/g, '`"')}"`,
+        `curl.exe -s -L -D - -H "Cache-Control: no-cache, no-store, must-revalidate" -H "Pragma: no-cache" -A "Happ/4.2.1, ZapretPrime/2.0.0" --max-time 15 "${url.replace(/"/g, '`"')}"`,
         { windowsHide: true, timeout: 16000 }
       );
       if (stdout && stdout.trim().length > 0) {
@@ -1189,6 +1190,19 @@ class VlessService {
     runCfg.routing = runCfg.routing || {};
     runCfg.routing.domainStrategy = 'AsIs';
     runCfg.routing.rules = runCfg.routing.rules || [];
+
+    // Direct routing for Whitelist (list-exclude)
+    try {
+      const excludeSites = this.zapretService ? this.zapretService.getExcludeSites() : [];
+      if (Array.isArray(excludeSites) && excludeSites.length > 0) {
+        runCfg.routing.rules.push({
+          type: 'field',
+          domain: excludeSites,
+          outboundTag: 'direct'
+        });
+      }
+    } catch {}
+
     runCfg.routing.rules.push({
       type: 'field',
       inboundTag: ['socks_in', 'http_in'],

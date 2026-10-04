@@ -13,23 +13,26 @@ const { VlessService } = require('./services/vlessService');
 const { fetchUrl, fetchGithubRelease, fetchGithubReleases, downloadFile } = require('./helpers/httpFetch');
 const appPkg = require('../package.json');
 
+const PRIME_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-Prime/releases/latest';
+const PRIME_RELEASE_PAGE = 'https://github.com/xRAYNERx/Zapret-Prime/releases/latest';
 const HUB_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-HUB/releases/latest';
 const HUB_RELEASE_PAGE = 'https://github.com/xRAYNERx/Zapret-HUB/releases/latest';
 
-
 function ensureUserDataPath() {
   const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-  const hubData = path.join(appData, 'zapret-hub');
+  const primeData = path.join(appData, 'zapret-prime');
   const legacyDirs = [
+    path.join(appData, 'zapret-hub'),
+    path.join(appData, 'Zapret HUB'),
     path.join(appData, 'zapret-new'),
     path.join(appData, 'Zapret NEW'),
   ];
 
-  if (!fs.existsSync(hubData)) {
+  if (!fs.existsSync(primeData)) {
     for (const legacy of legacyDirs) {
       if (!fs.existsSync(legacy)) continue;
       try {
-        fs.cpSync(legacy, hubData, { recursive: true });
+        fs.cpSync(legacy, primeData, { recursive: true });
         break;
       } catch {
         app.setPath('userData', legacy);
@@ -38,14 +41,14 @@ function ensureUserDataPath() {
     }
   }
 
-  app.setPath('userData', hubData);
+  app.setPath('userData', primeData);
 }
 
 ensureUserDataPath();
 
-app.setName('Zapret HUB');
+app.setName('Zapret Prime');
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.rayner.zapret-hub');
+  app.setAppUserModelId('com.rayner.zapret-prime');
 }
 
 app.disableHardwareAcceleration();
@@ -71,7 +74,7 @@ let trayZapretRunning = false;
 let trayTgRunning = false;
 let lastIntentionalBypassStop = 0;
 let bypassDropSuppressedUntil = 0;
-const AUTOSTART_TASK_NAME = 'Zapret HUB';
+const AUTOSTART_TASK_NAME = 'Zapret Prime';
 const BYPASS_RESTART_SUPPRESS_MS = 25000;
 const BYPASS_PROBE_SUPPRESS_MS = 30 * 60 * 1000;
 const BYPASS_UPDATE_SUPPRESS_MS = 2 * 60 * 1000;
@@ -169,7 +172,7 @@ function showFatalErrorWindow(title, message, detail) {
     maximizable: false,
     minimizable: false,
     backgroundColor: '#2a2f38',
-    title: 'Zapret HUB',
+    title: 'Zapret Prime',
     icon,
     webPreferences: {
       preload: path.join(__dirname, 'error-preload.js'),
@@ -220,7 +223,7 @@ function createWindow() {
     hasShadow: true,
     maximizable: false,
     autoHideMenuBar: true,
-    title: 'Zapret HUB',
+    title: 'Zapret Prime',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -262,7 +265,7 @@ function createWindow() {
     logStartup(`loadFile failed: ${err.message}`);
     showFatalErrorWindow(
       'Не удалось открыть интерфейс',
-      'Закройте все копии Zapret HUB в диспетчере задач и запустите снова из папки установки.',
+      'Закройте все копии Zapret Prime в диспетчере задач и запустите снова из папки установки.',
       err.message
     );
   });
@@ -352,7 +355,7 @@ function createTray() {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip('Zapret HUB');
+  tray.setToolTip('Zapret Prime');
 
   tray.on('click', () => {
     if (mainWindow) {
@@ -416,8 +419,8 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode,
 
   tray.setToolTip(
     tipParts.length > 0
-      ? `Zapret HUB — ${tipParts.join(' | ')}`
-      : 'Zapret HUB — все службы выключены'
+      ? `Zapret Prime — ${tipParts.join(' | ')}`
+      : 'Zapret Prime — все службы выключены'
   );
 
   const vpnMenuLabel = trayVlessRunning
@@ -528,7 +531,7 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode,
     },
     { type: 'separator' },
     {
-      label: 'Открыть окно Zapret HUB',
+      label: 'Открыть окно Zapret Prime',
       click: () => {
         showMainWindow();
       }
@@ -619,21 +622,31 @@ async function syncAutostartTask() {
   const exePath = process.execPath;
   const taskAction = `"${exePath}" --autostart`;
   const regKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
-  const regValName = 'Zapret HUB';
+  const regValName = 'Zapret Prime';
+  const legacyRegValName = 'Zapret HUB';
 
   if (!enabled) {
     try {
       if (zapret.isElevated()) {
         await runSchtasks(['/Delete', '/TN', AUTOSTART_TASK_NAME, '/F']);
+        await runSchtasks(['/Delete', '/TN', 'Zapret HUB', '/F']).catch(() => {});
       } else {
         await zapret.runElevated('schtasks', ['/Delete', '/TN', AUTOSTART_TASK_NAME, '/F']).catch(() => {});
+        await zapret.runElevated('schtasks', ['/Delete', '/TN', 'Zapret HUB', '/F']).catch(() => {});
       }
     } catch {}
     try {
       await execAsync(`reg delete "${regKey}" /v "${regValName}" /f`, { windowsHide: true });
+      await execAsync(`reg delete "${regKey}" /v "${legacyRegValName}" /f`, { windowsHide: true });
     } catch {}
     return;
   }
+
+  // Clean legacy autostart entry if exists
+  try {
+    await execAsync(`reg delete "${regKey}" /v "${legacyRegValName}" /f`, { windowsHide: true });
+    await runSchtasks(['/Delete', '/TN', 'Zapret HUB', '/F']).catch(() => {});
+  } catch {}
 
   // 1. Try creating Task Scheduler task with highest privileges (via runElevated)
   let taskSuccess = false;
@@ -725,43 +738,50 @@ function parseHubTagFromUrl(url) {
 }
 
 async function fetchHubReleasePageTag() {
-  try {
-    const res = await fetchUrl(HUB_RELEASE_PAGE, {
-      headers: { 'User-Agent': 'ZapretHub', Accept: 'text/html, */*' },
-      maxRedirects: 6
-    });
-    const html = res.body;
-    const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/([^"]+)"/i);
-    const embedded = html.match(/"tag_name"\s*:\s*"(v?[\d.]+[a-z]*)"/i);
-    return canonical?.[1] || embedded?.[1] || null;
-  } catch {
-    return null;
+  for (const pageUrl of [PRIME_RELEASE_PAGE, HUB_RELEASE_PAGE]) {
+    try {
+      const res = await fetchUrl(pageUrl, {
+        headers: { 'User-Agent': 'ZapretPrime', Accept: 'text/html, */*' },
+        maxRedirects: 6
+      });
+      const html = res.body;
+      const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/([^"]+)"/i);
+      const embedded = html.match(/"tag_name"\s*:\s*"(v?[\d.]+[a-z]*)"/i);
+      const tag = canonical?.[1] || embedded?.[1] || null;
+      if (tag) return tag;
+    } catch {}
   }
+  return null;
 }
 
 async function resolveHubRemoteRelease() {
-  try {
-    return await fetchGithubRelease(HUB_RELEASE_API);
-  } catch (apiError) {
-    const tag = await fetchHubReleasePageTag();
-    if (!tag) throw apiError;
-    const version = String(tag).replace(/^v/i, '');
-    return {
-      tag_name: tag.startsWith('v') ? tag : `v${tag}`,
-      html_url: `https://github.com/xRAYNERx/Zapret-HUB/releases/tag/v${version}`,
-      assets: [
-        {
-          name: `ZapretHub-Setup-${version}.exe`,
-          browser_download_url: `https://github.com/xRAYNERx/Zapret-HUB/releases/download/v${version}/ZapretHub-Setup-${version}.exe`
-        },
-        {
-          name: `ZapretHub-Portable-${version}.exe`,
-          browser_download_url: `https://github.com/xRAYNERx/Zapret-HUB/releases/download/v${version}/ZapretHub-Portable-${version}.exe`
-        }
-      ],
-      _source: 'page-fallback'
-    };
+  // 1. Try Prime API then Hub API
+  for (const apiUrl of [PRIME_RELEASE_API, HUB_RELEASE_API]) {
+    try {
+      const rel = await fetchGithubRelease(apiUrl);
+      if (rel && rel.tag_name) return rel;
+    } catch {}
   }
+
+  // 2. Fallback to scraping release page
+  const tag = await fetchHubReleasePageTag();
+  if (!tag) throw new Error('Не удалось получить информацию о релизах с GitHub');
+  const version = String(tag).replace(/^v/i, '');
+  return {
+    tag_name: tag.startsWith('v') ? tag : `v${tag}`,
+    html_url: `https://github.com/xRAYNERx/Zapret-Prime/releases/tag/v${version}`,
+    assets: [
+      {
+        name: `ZapretPrime-Setup-${version}.exe`,
+        browser_download_url: `https://github.com/xRAYNERx/Zapret-Prime/releases/download/v${version}/ZapretPrime-Setup-${version}.exe`
+      },
+      {
+        name: `ZapretPrime-Portable-${version}.exe`,
+        browser_download_url: `https://github.com/xRAYNERx/Zapret-Prime/releases/download/v${version}/ZapretPrime-Portable-${version}.exe`
+      }
+    ],
+    _source: 'page-fallback'
+  };
 }
 
 async function checkHubForUpdates() {
@@ -774,20 +794,20 @@ async function checkHubForUpdates() {
     );
     return {
       product: 'hub',
-      label: 'Zapret HUB',
+      label: 'Zapret Prime',
       local,
       remote,
       updateAvailable,
-      releaseUrl: release.html_url || HUB_RELEASE_PAGE
+      releaseUrl: release.html_url || PRIME_RELEASE_PAGE
     };
   } catch (e) {
     return {
       product: 'hub',
-      label: 'Zapret HUB',
+      label: 'Zapret Prime',
       local,
       remote: null,
       updateAvailable: false,
-      releaseUrl: HUB_RELEASE_PAGE,
+      releaseUrl: PRIME_RELEASE_PAGE,
       error: e.message
     };
   }
@@ -795,9 +815,9 @@ async function checkHubForUpdates() {
 
 function resolveHubAssets(release) {
   const assets = release?.assets || [];
-  const patch = assets.find((a) => /^ZapretHub-Patch-/i.test(a.name) && /\.zip$/i.test(a.name));
-  const setup = assets.find((a) => /^ZapretHub-Setup-/i.test(a.name) && /\.exe$/i.test(a.name));
-  const portable = assets.find((a) => /^ZapretHub-Portable-/i.test(a.name) && /\.exe$/i.test(a.name));
+  const patch = assets.find((a) => /^Zapret(Prime|Hub)-Patch-/i.test(a.name) && /\.zip$/i.test(a.name));
+  const setup = assets.find((a) => /^Zapret(Prime|Hub)-Setup-/i.test(a.name) && /\.exe$/i.test(a.name));
+  const portable = assets.find((a) => /^Zapret(Prime|Hub)-Portable-/i.test(a.name) && /\.exe$/i.test(a.name));
   return {
     patch: patch?.browser_download_url ? { url: patch.browser_download_url, name: patch.name } : null,
     installer: (setup || portable)?.browser_download_url ? { url: (setup || portable).browser_download_url, name: (setup || portable).name } : null
@@ -824,7 +844,7 @@ function downloadHubFile(url, destPath, onProgress) {
           percent: safePercent,
           downloaded,
           total,
-          message: `Скачивание Zapret HUB… ${safePercent}% (${mbDownloaded} из ${mbTotal} МБ)`
+          message: `Скачивание Zapret Prime… ${safePercent}% (${mbDownloaded} из ${mbTotal} МБ)`
         });
       }
     }
@@ -878,6 +898,7 @@ set "SOURCE_DIR=%~2"
 set "APP_EXE=%~3"
 
 timeout /t 1 /nobreak >nul
+taskkill /F /IM "Zapret Prime.exe" >nul 2>&1
 taskkill /F /IM "Zapret HUB.exe" >nul 2>&1
 timeout /t 1 /nobreak >nul
 
@@ -976,7 +997,7 @@ async function applyHubUpdate(onProgress) {
 
   // 2. Full installer fallback
   if (!installer) {
-    throw new Error('Файлы обновления Zapret HUB не найдены в релизе на GitHub');
+    throw new Error('Файлы обновления Zapret Prime не найдены в релизе на GitHub');
   }
 
   const destPath = path.join(updatesDir, installer.name);
@@ -1027,7 +1048,7 @@ async function checkUpdatesOnStartup() {
       try {
         const remoteTag = all?.hub?.remote ? `v${all.hub.remote}` : 'новая версия';
         const notif = new Notification({
-          title: `Zapret HUB v${appPkg.version} — Доступно обновление`,
+          title: `Zapret Prime v${appPkg.version} — Доступно обновление`,
           body: `Найдена ${remoteTag} на GitHub. Нажмите, чтобы открыть и установить.`,
           icon: loadWindowIcon()
         });
@@ -1133,6 +1154,8 @@ function registerIpc() {
     },
     'get-sites': () => zapret.getGeneralSites(),
     'save-sites': (_, sites) => zapret.saveGeneralSites(sites),
+    'get-exclude-sites': () => zapret.getExcludeSites(),
+    'save-exclude-sites': (_, sites) => zapret.saveExcludeSites(sites),
     'get-custom-lists': () => zapret.getCustomLists(),
     'create-custom-list': (_, name) => zapret.createCustomList(name),
     'get-custom-list-sites': (_, listId) => zapret.getCustomListSites(listId),
@@ -1268,7 +1291,9 @@ function registerIpc() {
       if (canceled || !filePath) return { saved: false };
       const text = options.listId
         ? zapret.exportCustomListSitesText(options.listId)
-        : zapret.exportGeneralSitesText();
+        : (options.type === 'exclude' || options.isExclude
+          ? zapret.exportExcludeSitesText()
+          : zapret.exportGeneralSitesText());
       fs.writeFileSync(filePath, text, 'utf8');
       return { saved: true, filePath, count: text.trim() ? text.trim().split('\n').length : 0 };
     },
@@ -1283,14 +1308,18 @@ function registerIpc() {
       const mode = options.mode === 'replace' ? 'replace' : 'merge';
       const sites = options.listId
         ? zapret.importCustomListSites(options.listId, text, mode)
-        : zapret.importGeneralSites(text, mode);
+        : (options.type === 'exclude' || options.isExclude
+          ? zapret.importExcludeSites(text, mode)
+          : zapret.importGeneralSites(text, mode));
       return { imported: true, filePath: filePaths[0], sites, mode };
     },
     'import-sites-text': (_, payload = {}) => {
       const mode = payload.mode === 'replace' ? 'replace' : 'merge';
       const sites = payload.listId
         ? zapret.importCustomListSites(payload.listId, payload.text, mode)
-        : zapret.importGeneralSites(payload.text, mode);
+        : (payload.type === 'exclude' || payload.isExclude
+          ? zapret.importExcludeSites(payload.text, mode)
+          : zapret.importGeneralSites(payload.text, mode));
       return { sites, mode };
     },
     'fatal-error-quit': () => {
@@ -1332,7 +1361,7 @@ function registerIpc() {
 
 app.on('second-instance', () => {
   showMainWindow();
-  sendInAppNotify('Zapret HUB уже запущен — окно восстановлено');
+  sendInAppNotify('Zapret Prime уже запущен — окно восстановлено');
 });
 
 app.whenReady().then(async () => {
@@ -1357,7 +1386,8 @@ app.whenReady().then(async () => {
     vless = new VlessService(userDataPath, {
       appPath: app.getAppPath(),
       isPackaged: app.isPackaged,
-      resourcesPath: process.resourcesPath
+      resourcesPath: process.resourcesPath,
+      zapretService: zapret
     });
     vless.cleanupStaleProxy().catch(() => {});
     vless.onPingUpdate = ({ index, ping, serverName, blocked, disconnected }) => {
@@ -1398,7 +1428,7 @@ app.whenReady().then(async () => {
     }
   } catch (err) {
     logStartup(`Startup error: ${err.message}\n${err.stack}`);
-    showFatalErrorWindow('Ошибка запуска', 'Не удалось запустить Zapret HUB.', err.message);
+    showFatalErrorWindow('Ошибка запуска', 'Не удалось запустить Zapret Prime.', err.message);
     return;
   }
 

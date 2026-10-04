@@ -246,9 +246,15 @@ class TgProxyService {
     const current = await this.getCurrentVersion();
     try {
       const { fetchGithubRelease } = require('../helpers/httpFetch');
-      const TG_PROXY_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-HUB/releases/latest';
-      const release = await fetchGithubRelease(TG_PROXY_RELEASE_API);
-      const remote = (release.tag_name || '').replace(/^v/i, '');
+      const PRIME_API = 'https://api.github.com/repos/xRAYNERx/Zapret-Prime/releases/latest';
+      const HUB_API = 'https://api.github.com/repos/xRAYNERx/Zapret-HUB/releases/latest';
+      let release = null;
+      try {
+        release = await fetchGithubRelease(PRIME_API);
+      } catch {
+        release = await fetchGithubRelease(HUB_API);
+      }
+      const remote = (release?.tag_name || '').replace(/^v/i, '');
       return {
         updateAvailable: Boolean(remote && current && remote !== current && current !== '0.0.0'),
         currentVersion: current,

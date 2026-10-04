@@ -24,11 +24,11 @@ function getGitToken() {
 
 const TOKEN = getGitToken();
 const OWNER = 'xRAYNERx';
-const REPO = 'Zapret-HUB';
+const REPO = 'Zapret-Prime';
 const TAG = 'v2.0.5';
-const RELEASE_NAME = 'Zapret HUB v2.0.5';
+const RELEASE_NAME = 'Zapret Prime v2.0.5';
 
-const BODY = `### 🚀 Что нового в Zapret HUB v2.0.5
+const BODY = `### 🚀 Что нового в Zapret Prime v2.0.5
 
 - **Устранение блокировки интернета после перезагрузки/сбоя (Hotfix)**:
   - Исправлена критическая проблема, когда в случае перезагрузки ПК или аварийного завершения работы при активном VPN в настройках Windows оставался включённым системный прокси (\`127.0.0.1:10809\`), из-за чего без VPN пропадал доступ ко всем сайтам («нет подключения к интернету»).
@@ -41,14 +41,14 @@ const BODY = `### 🚀 Что нового в Zapret HUB v2.0.5
 
 ---
 ### 📦 Файлы релиза:
-- **\`ZapretHub-Setup-2.0.5.exe\`** (~119 МБ) — полный инсталлятор для первичной или чистой установки.
-- **\`ZapretHub-Patch-2.0.5.zip\`** (~1.2 МБ) — легковесный патч для мгновенного обновления существующей установки (скачивается приложением автоматически).
+- **\`ZapretPrime-Setup-2.0.5.exe\`** (~119 МБ) — полный инсталлятор для первичной или чистой установки.
+- **\`ZapretPrime-Patch-2.0.5.zip\`** (~1.2 МБ) — легковесный патч для мгновенного обновления существующей установки (скачивается приложением автоматически).
 `;
 
 const headers = {
   'Accept': 'application/vnd.github+json',
   'Authorization': `Bearer ${TOKEN}`,
-  'User-Agent': 'ZapretHub-Release-Bot'
+  'User-Agent': 'ZapretPrime-Release-Bot'
 };
 
 async function main() {
@@ -79,15 +79,20 @@ async function main() {
     console.log(`Created release: ID ${release.id}`);
   }
 
+  const setupPrime = path.join(rootDir, 'dist', 'ZapretPrime-Setup-2.0.5.exe');
+  const setupHub = path.join(rootDir, 'dist', 'ZapretHub-Setup-2.0.5.exe');
+  const patchPrime = path.join(rootDir, 'dist', 'ZapretPrime-Patch-2.0.5.zip');
+  const patchHub = path.join(rootDir, 'dist', 'ZapretHub-Patch-2.0.5.zip');
+
   const assetsToUpload = [
     {
-      name: 'ZapretHub-Setup-2.0.5.exe',
-      filePath: path.join(rootDir, 'dist', 'ZapretHub-Setup-2.0.5.exe'),
+      name: 'ZapretPrime-Setup-2.0.5.exe',
+      filePath: fs.existsSync(setupPrime) ? setupPrime : setupHub,
       contentType: 'application/vnd.microsoft.portable-executable'
     },
     {
-      name: 'ZapretHub-Patch-2.0.5.zip',
-      filePath: path.join(rootDir, 'dist', 'ZapretHub-Patch-2.0.5.zip'),
+      name: 'ZapretPrime-Patch-2.0.5.zip',
+      filePath: fs.existsSync(patchPrime) ? patchPrime : patchHub,
       contentType: 'application/zip'
     }
   ];
