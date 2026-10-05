@@ -1096,25 +1096,37 @@ async function copySubUrl(e) {
 }
 window.copySubUrl = copySubUrl;
 
+let subCheckmarkTimer = null;
+let isSubCheckmarkActive = false;
+
 function updateVpnSubActionsVisibility() {
   const input = $('#vpn-sub-input');
   const val = (input?.value || '').trim();
   const savedUrl = (state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim();
 
   const btnApply = $('#btn-apply-sub');
+  const iconRefresh = $('#icon-apply-sub-refresh');
+  const iconSpinner = $('#icon-apply-sub-spinner');
+  const iconCheck = $('#icon-apply-sub-check');
+
   const btnEye = $('#btn-toggle-sub-eye');
   const btnCopy = $('#btn-copy-sub');
-  const btnDel = $('#btn-delete-sub');
   const btnHeaderDel = $('#btn-header-delete-sub');
 
   const hasVal = Boolean(val);
   const isModified = hasVal && val !== savedUrl;
   const hasSaved = Boolean(savedUrl);
 
-  // Apply button (Green checkmark): shown when user entered or pasted an unsaved subscription URL
+  // Apply/Update button: shown when input has unsaved URL, or when checkmark 2s animation is active
   if (btnApply) {
-    if (isModified) {
+    if (isSubCheckmarkActive) {
       btnApply.classList.remove('hidden');
+    } else if (isModified) {
+      btnApply.classList.remove('hidden');
+      if (iconRefresh) iconRefresh.classList.remove('hidden');
+      if (iconSpinner) iconSpinner.classList.add('hidden');
+      if (iconCheck) iconCheck.classList.add('hidden');
+      btnApply.disabled = false;
     } else {
       btnApply.classList.add('hidden');
     }
@@ -1138,14 +1150,7 @@ function updateVpnSubActionsVisibility() {
     }
   }
 
-  // Delete button: shown if there is a saved subscription or text in input
-  if (btnDel) {
-    if (hasSaved || hasVal) {
-      btnDel.classList.remove('hidden');
-    } else {
-      btnDel.classList.add('hidden');
-    }
-  }
+  // Header Delete button: shown if there is a saved subscription or text in input
   if (btnHeaderDel) {
     if (hasSaved || hasVal) {
       btnHeaderDel.classList.remove('hidden');
@@ -1179,6 +1184,12 @@ async function executeDeleteVpnSub() {
   const input = $('#vpn-sub-input');
   const btnConfirm = $('#btn-confirm-delete-sub');
   if (btnConfirm) btnConfirm.disabled = true;
+
+  if (subCheckmarkTimer) {
+    clearTimeout(subCheckmarkTimer);
+    subCheckmarkTimer = null;
+  }
+  isSubCheckmarkActive = false;
 
   try {
     const res = await api('vlessClearSubscription');
@@ -1220,7 +1231,7 @@ async function pasteVpnSub(e) {
       input.value = text.trim();
       input.focus();
       updateVpnSubActionsVisibility();
-      toast('Ссылка вставлена. Нажмите «Обновить» (галочку) для применения', 'info');
+      toast('Ссылка вставлена. Нажмите «Обновить» для применения', 'info');
     } else {
       toast('Буфер обмена пуст', 'error');
     }
@@ -1243,16 +1254,27 @@ async function updateVpnSub() {
   const icon = $('#update-sub-icon');
 
   const btnApply = $('#btn-apply-sub');
-  const iconApply = $('#icon-apply-sub-check');
-  const textApply = $('#text-apply-sub');
+  const iconRefresh = $('#icon-apply-sub-refresh');
+  const iconSpinner = $('#icon-apply-sub-spinner');
+  const iconCheck = $('#icon-apply-sub-check');
+
+  if (subCheckmarkTimer) {
+    clearTimeout(subCheckmarkTimer);
+    subCheckmarkTimer = null;
+  }
+  isSubCheckmarkActive = false;
 
   if (btn) btn.disabled = true;
   if (btnText) btnText.innerText = 'Загрузка...';
   if (icon) icon.classList.add('animate-spin');
 
-  if (btnApply) btnApply.disabled = true;
-  if (textApply) textApply.innerText = 'Загрузка...';
-  if (iconApply) iconApply.classList.add('animate-spin');
+  if (btnApply) {
+    btnApply.classList.remove('hidden');
+    btnApply.disabled = true;
+  }
+  if (iconRefresh) iconRefresh.classList.add('hidden');
+  if (iconCheck) iconCheck.classList.add('hidden');
+  if (iconSpinner) iconSpinner.classList.remove('hidden');
 
   toast('Обновление серверов подписки...', 'info');
   try {
@@ -1266,24 +1288,40 @@ async function updateVpnSub() {
     }
     toast(`Загружено серверов: ${count}. Замеряем пинг...`, 'info');
     if (btnText) btnText.innerText = 'Замер...';
-    if (textApply) textApply.innerText = 'Замер...';
 
     // Immediately test ping across fresh servers
     await api('vlessTestAll');
     const status = await api('vlessGetStatus');
     updateVpnUI(status);
-    updateVpnSubActionsVisibility();
+
     toast(`Подписка обновлена: ${count} узлов, пинг измерен`, 'success');
+
+    // Show checkmark in the input for exactly 2 seconds, then smoothly hide
+    if (iconSpinner) iconSpinner.classList.add('hidden');
+    if (iconCheck) iconCheck.classList.remove('hidden');
+    if (btnApply) {
+      btnApply.classList.remove('hidden');
+      btnApply.disabled = false;
+    }
+    isSubCheckmarkActive = true;
+
+    subCheckmarkTimer = setTimeout(() => {
+      isSubCheckmarkActive = false;
+      if (iconCheck) iconCheck.classList.add('hidden');
+      if (iconRefresh) iconRefresh.classList.remove('hidden');
+      updateVpnSubActionsVisibility();
+    }, 2000);
+
   } catch (e) {
     toast(e.message || 'Ошибка обновления подписки', 'error');
+    if (iconSpinner) iconSpinner.classList.add('hidden');
+    if (iconRefresh) iconRefresh.classList.remove('hidden');
+    if (btnApply) btnApply.disabled = false;
   } finally {
     if (btn) btn.disabled = false;
     if (btnText) btnText.innerText = 'Обновить';
     if (icon) icon.classList.remove('animate-spin');
 
-    if (btnApply) btnApply.disabled = false;
-    if (textApply) textApply.innerText = 'Обновить';
-    if (iconApply) iconApply.classList.remove('animate-spin');
     updateVpnSubActionsVisibility();
   }
 }
