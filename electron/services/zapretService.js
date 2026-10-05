@@ -1050,6 +1050,13 @@ class ZapretService {
     return this.readSitesFromFile(this.getExcludeListFile());
   }
 
+  getAllExcludeSites() {
+    const user = this.getExcludeSites();
+    const builtinFile = path.join(this.getListsPath(), 'list-exclude.txt');
+    const builtin = fs.existsSync(builtinFile) ? this.readSitesFromFile(builtinFile) : [];
+    return Array.from(new Set([...user, ...builtin]));
+  }
+
   saveExcludeSites(sites) {
     this.writeSitesToFile(this.getExcludeListFile(), sites);
     return this.getExcludeSites();

@@ -1155,7 +1155,13 @@ function registerIpc() {
     'get-sites': () => zapret.getGeneralSites(),
     'save-sites': (_, sites) => zapret.saveGeneralSites(sites),
     'get-exclude-sites': () => zapret.getExcludeSites(),
-    'save-exclude-sites': (_, sites) => zapret.saveExcludeSites(sites),
+    'save-exclude-sites': async (_, sites) => {
+      const res = zapret.saveExcludeSites(sites);
+      if (vless) {
+        vless.updateBypassRules().catch(() => {});
+      }
+      return res;
+    },
     'get-custom-lists': () => zapret.getCustomLists(),
     'create-custom-list': (_, name) => zapret.createCustomList(name),
     'get-custom-list-sites': (_, listId) => zapret.getCustomListSites(listId),

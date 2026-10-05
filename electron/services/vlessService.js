@@ -282,7 +282,13 @@ class VlessService {
     try {
       if (enable) {
         const serverVal = `127.0.0.1:${httpPort}`;
-        const bypassVal = 'localhost;127.*;10.*;192.168.*;<local>';
+        const excludeSites = this.zapretService
+          ? (this.zapretService.getAllExcludeSites ? this.zapretService.getAllExcludeSites() : this.zapretService.getExcludeSites())
+          : [];
+        const extraBypass = Array.isArray(excludeSites) && excludeSites.length > 0
+          ? ';' + excludeSites.map(d => `*.${d};${d}`).join(';')
+          : '';
+        const bypassVal = `localhost;127.*;10.*;192.168.*;<local>${extraBypass}`;
         await execAsync(
           `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 1 /f && ` +
           `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer /t REG_SZ /d "${serverVal}" /f && ` +
@@ -314,6 +320,12 @@ class VlessService {
       execAsync(`powershell -NoProfile -EncodedCommand ${encoded}`, { windowsHide: true }).catch(() => {});
     } catch (e) {
       console.error('[VlessService] Failed to toggle system proxy:', e);
+    }
+  }
+
+  async updateBypassRules() {
+    if (this.settings.systemProxy && this._isConnected && (await this.isProcessRunning())) {
+      await this.setSystemProxy(true);
     }
   }
 
@@ -1177,6 +1189,11 @@ class VlessService {
       }
     ];
 
+    runCfg.outbounds = runCfg.outbounds || [];
+    if (!runCfg.outbounds.some(o => o.tag === 'direct')) {
+      runCfg.outbounds.push({ tag: 'direct', protocol: 'freedom' });
+    }
+
     runCfg.dns = {
       servers: [
         'https://1.1.1.1/dns-query',
@@ -1191,11 +1208,13 @@ class VlessService {
     runCfg.routing.domainStrategy = 'AsIs';
     runCfg.routing.rules = runCfg.routing.rules || [];
 
-    // Direct routing for Whitelist (list-exclude)
+    // Direct routing for Whitelist (list-exclude) - prioritize at top of rules
     try {
-      const excludeSites = this.zapretService ? this.zapretService.getExcludeSites() : [];
+      const excludeSites = this.zapretService
+        ? (this.zapretService.getAllExcludeSites ? this.zapretService.getAllExcludeSites() : this.zapretService.getExcludeSites())
+        : [];
       if (Array.isArray(excludeSites) && excludeSites.length > 0) {
-        runCfg.routing.rules.push({
+        runCfg.routing.rules.unshift({
           type: 'field',
           domain: excludeSites,
           outboundTag: 'direct'
@@ -1367,6 +1386,19 @@ class VlessService {
           timestamp: true
         }
       };
+
+      // Direct routing for Whitelist in TUN mode (sing-box)
+      try {
+        const excludeSites = this.zapretService
+          ? (this.zapretService.getAllExcludeSites ? this.zapretService.getAllExcludeSites() : this.zapretService.getExcludeSites())
+          : [];
+        if (Array.isArray(excludeSites) && excludeSites.length > 0) {
+          tunConfig.route.rules.unshift({
+            domain_suffix: excludeSites,
+            outbound: 'direct'
+          });
+        }
+      } catch {}
 
       fs.writeFileSync(this.activeTunConfigPath, JSON.stringify(tunConfig, null, 2), 'utf8');
 
