@@ -2898,10 +2898,10 @@ function renderVpnServers() {
       if (!card) return;
       const isCurrent = state.vpn.running && state.vpn.activeServerIndex === idx;
       if (isCurrent) {
-        card.className = 'inner-panel rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all node-card-active cursor-default';
+        card.className = 'rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all node-card-active cursor-default';
         card.removeAttribute('onclick');
       } else {
-        card.className = 'inner-panel rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all border-white/10 hover:border-white/20 bg-[#141923]/60 hover:bg-[#141923] cursor-pointer active:scale-[0.99]';
+        card.className = 'rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all border-white/10 hover:border-white/20 bg-[#141923]/60 hover:bg-[#141923] cursor-pointer active:scale-[0.99]';
         card.setAttribute('onclick', `connectServer(${idx})`);
       }
       const pingContainer = card.querySelector('[data-vpn-ping]');
@@ -2940,7 +2940,7 @@ function renderVpnServers() {
       : `<button onclick="event.stopPropagation(); connectServer(${idx})" class="h-7 px-3 rounded-lg text-[11px] font-medium text-slate-300 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 cursor-pointer active:scale-95 transition-all">Подключить</button>`;
 
     return `
-      <div id="node-card-${idx}" ${cardClickAttr} class="inner-panel rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all ${cardBg} ${cardCursorClass}">
+      <div id="node-card-${idx}" ${cardClickAttr} class="rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all ${cardBg} ${cardCursorClass}">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-6 h-4 rounded-[3px] overflow-hidden shadow-sm flex-shrink-0 border border-white/15 select-none">
             ${flagSvg}

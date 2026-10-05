@@ -278,46 +278,172 @@ class VlessService {
     }
   }
 
+  _ensureProxyHelper() {
+    try {
+      fs.mkdirSync(this.installDir, { recursive: true });
+      const helperPath = path.join(this.installDir, 'set-proxy.ps1');
+      const bundledHelper = path.join(__dirname, '..', 'helpers', 'set-proxy.ps1');
+      if (fs.existsSync(bundledHelper)) {
+        fs.copyFileSync(bundledHelper, helperPath);
+      } else if (!fs.existsSync(helperPath)) {
+        const psScript = [
+          'param (',
+          '    [string]$Enable = "0",',
+          '    [int]$Port = 10809,',
+          '    [string]$Bypass = "localhost;127.*;10.*;192.168.*;<local>"',
+          ')',
+          '',
+          '$isEnabled = ($Enable -eq "1" -or $Enable -eq "true" -or $Enable -eq "$true")',
+          '',
+          '$code = @"',
+          'using System;',
+          'using System.Runtime.InteropServices;',
+          '',
+          'public class WinInetProxy {',
+          '    [DllImport("wininet.dll", CharSet = CharSet.Auto, SetLastError = true)]',
+          '    public static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);',
+          '',
+          '    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]',
+          '    public struct INTERNET_PER_CONN_OPTION_LIST {',
+          '        public int dwSize;',
+          '        public IntPtr pszConnection;',
+          '        public int dwOptionCount;',
+          '        public int dwOptionError;',
+          '        public IntPtr pOptions;',
+          '    }',
+          '',
+          '    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]',
+          '    public struct INTERNET_PER_CONN_OPTION {',
+          '        public int dwOption;',
+          '        public ValueUnion Value;',
+          '    }',
+          '',
+          '    [StructLayout(LayoutKind.Explicit)]',
+          '    public struct ValueUnion {',
+          '        [FieldOffset(0)]',
+          '        public int dwValue;',
+          '        [FieldOffset(0)]',
+          '        public IntPtr pszValue;',
+          '        [FieldOffset(0)]',
+          '        public System.Runtime.InteropServices.ComTypes.FILETIME ftValue;',
+          '    }',
+          '',
+          '    public const int INTERNET_OPTION_PER_CONNECTION_OPTION = 75;',
+          '    public const int INTERNET_OPTION_SETTINGS_CHANGED = 39;',
+          '    public const int INTERNET_OPTION_REFRESH = 37;',
+          '',
+          '    public const int INTERNET_PER_CONN_FLAGS = 1;',
+          '    public const int INTERNET_PER_CONN_PROXY_SERVER = 2;',
+          '    public const int INTERNET_PER_CONN_PROXY_BYPASS = 3;',
+          '',
+          '    public const int PROXY_TYPE_DIRECT = 0x00000001;',
+          '    public const int PROXY_TYPE_PROXY = 0x00000002;',
+          '',
+          '    public static bool SetProxy(bool enable, string proxyServer, string proxyBypass) {',
+          '        int optionCount = enable ? 3 : 1;',
+          '        int optSize = Marshal.SizeOf(typeof(INTERNET_PER_CONN_OPTION));',
+          '        IntPtr pOptions = Marshal.AllocCoTaskMem(optSize * optionCount);',
+          '',
+          '        try {',
+          '            if (enable) {',
+          '                INTERNET_PER_CONN_OPTION opt1 = new INTERNET_PER_CONN_OPTION();',
+          '                opt1.dwOption = INTERNET_PER_CONN_FLAGS;',
+          '                opt1.Value.dwValue = PROXY_TYPE_DIRECT | PROXY_TYPE_PROXY;',
+          '                Marshal.StructureToPtr(opt1, pOptions, false);',
+          '',
+          '                INTERNET_PER_CONN_OPTION opt2 = new INTERNET_PER_CONN_OPTION();',
+          '                opt2.dwOption = INTERNET_PER_CONN_PROXY_SERVER;',
+          '                opt2.Value.pszValue = Marshal.StringToHGlobalAuto(proxyServer);',
+          '                Marshal.StructureToPtr(opt2, new IntPtr(pOptions.ToInt64() + optSize), false);',
+          '',
+          '                INTERNET_PER_CONN_OPTION opt3 = new INTERNET_PER_CONN_OPTION();',
+          '                opt3.dwOption = INTERNET_PER_CONN_PROXY_BYPASS;',
+          '                opt3.Value.pszValue = Marshal.StringToHGlobalAuto(proxyBypass ?? "<local>");',
+          '                Marshal.StructureToPtr(opt3, new IntPtr(pOptions.ToInt64() + (optSize * 2)), false);',
+          '            } else {',
+          '                INTERNET_PER_CONN_OPTION opt1 = new INTERNET_PER_CONN_OPTION();',
+          '                opt1.dwOption = INTERNET_PER_CONN_FLAGS;',
+          '                opt1.Value.dwValue = PROXY_TYPE_DIRECT;',
+          '                Marshal.StructureToPtr(opt1, pOptions, false);',
+          '            }',
+          '',
+          '            INTERNET_PER_CONN_OPTION_LIST list = new INTERNET_PER_CONN_OPTION_LIST();',
+          '            list.dwSize = Marshal.SizeOf(typeof(INTERNET_PER_CONN_OPTION_LIST));',
+          '            list.pszConnection = IntPtr.Zero;',
+          '            list.dwOptionCount = optionCount;',
+          '            list.dwOptionError = 0;',
+          '            list.pOptions = pOptions;',
+          '',
+          '            int listSize = Marshal.SizeOf(typeof(INTERNET_PER_CONN_OPTION_LIST));',
+          '            IntPtr pList = Marshal.AllocCoTaskMem(listSize);',
+          '            Marshal.StructureToPtr(list, pList, false);',
+          '',
+          '            bool res = InternetSetOption(IntPtr.Zero, INTERNET_OPTION_PER_CONNECTION_OPTION, pList, listSize);',
+          '            Marshal.FreeCoTaskMem(pList);',
+          '',
+          '            InternetSetOption(IntPtr.Zero, INTERNET_OPTION_SETTINGS_CHANGED, IntPtr.Zero, 0);',
+          '            InternetSetOption(IntPtr.Zero, INTERNET_OPTION_REFRESH, IntPtr.Zero, 0);',
+          '',
+          '            return res;',
+          '        } finally {',
+          '            Marshal.FreeCoTaskMem(pOptions);',
+          '        }',
+          '    }',
+          '}',
+          '"@',
+          '',
+          'if (-not ([System.Management.Automation.PSTypeName]\'WinInetProxy\').Type) {',
+          '    Add-Type -TypeDefinition $code',
+          '}',
+          '',
+          '$server = "127.0.0.1:$Port"',
+          '$res = [WinInetProxy]::SetProxy($isEnabled, $server, $Bypass)',
+          '',
+          'if ($isEnabled) {',
+          '    Set-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" -Name ProxyEnable -Value 1 -Type DWord -ErrorAction SilentlyContinue',
+          '    Set-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" -Name ProxyServer -Value $server -Type String -ErrorAction SilentlyContinue',
+          '    Set-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" -Name ProxyOverride -Value $Bypass -Type String -ErrorAction SilentlyContinue',
+          '} else {',
+          '    Set-ItemProperty -Path "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" -Name ProxyEnable -Value 0 -Type DWord -ErrorAction SilentlyContinue',
+          '}',
+          '',
+          'Write-Output $res'
+        ].join('\r\n');
+        fs.writeFileSync(helperPath, psScript, 'utf8');
+      }
+    } catch (e) {
+      console.warn('[VlessService] Failed to ensure proxy helper:', e);
+    }
+  }
+
   async setSystemProxy(enable, httpPort = HTTP_PORT, socksPort = SOCKS_PORT) {
     try {
-      if (enable) {
-        const serverVal = `127.0.0.1:${httpPort}`;
-        const excludeSites = this.zapretService
-          ? (this.zapretService.getAllExcludeSites ? this.zapretService.getAllExcludeSites() : this.zapretService.getExcludeSites())
-          : [];
-        const extraBypass = Array.isArray(excludeSites) && excludeSites.length > 0
-          ? ';' + excludeSites.map(d => `*.${d};${d}`).join(';')
-          : '';
-        const bypassVal = `localhost;127.*;10.*;192.168.*;<local>${extraBypass}`;
+      this._ensureProxyHelper();
+      const psHelper = path.join(this.installDir, 'set-proxy.ps1');
+      const bypassVal = 'localhost;127.*;10.*;192.168.*;<local>';
+      const enableArg = enable ? '1' : '0';
+
+      if (fs.existsSync(psHelper)) {
         await execAsync(
-          `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 1 /f && ` +
-          `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer /t REG_SZ /d "${serverVal}" /f && ` +
-          `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyOverride /t REG_SZ /d "${bypassVal}" /f`,
-          { windowsHide: true }
+          `powershell -NoProfile -ExecutionPolicy Bypass -File "${psHelper}" -Enable ${enableArg} -Port ${httpPort} -Bypass "${bypassVal}"`,
+          { windowsHide: true, timeout: 6000 }
         );
       } else {
-        await execAsync(
-          `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f`,
-          { windowsHide: true }
-        );
+        if (enable) {
+          const serverVal = `127.0.0.1:${httpPort}`;
+          await execAsync(
+            `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 1 /f && ` +
+            `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer /t REG_SZ /d "${serverVal}" /f && ` +
+            `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyOverride /t REG_SZ /d "${bypassVal}" /f`,
+            { windowsHide: true }
+          );
+        } else {
+          await execAsync(
+            `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f`,
+            { windowsHide: true }
+          );
+        }
       }
-
-      // Notify Windows: through EncodedCommand (safe and reliable)
-      const psNotify = [
-        'Add-Type -TypeDefinition @"',
-        'using System;',
-        'using System.Runtime.InteropServices;',
-        'public class WinInet {',
-        '    [DllImport("wininet.dll", SetLastError = true)]',
-        '    public static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);',
-        '}',
-        '"@',
-        '[WinInet]::InternetSetOption([IntPtr]::Zero, 39, [IntPtr]::Zero, 0)',
-        '[WinInet]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0)'
-      ].join('\n');
-
-      const encoded = Buffer.from(psNotify, 'utf16le').toString('base64');
-      execAsync(`powershell -NoProfile -EncodedCommand ${encoded}`, { windowsHide: true }).catch(() => {});
     } catch (e) {
       console.error('[VlessService] Failed to toggle system proxy:', e);
     }
@@ -1220,19 +1346,44 @@ class VlessService {
     runCfg.routing.domainStrategy = 'AsIs';
     runCfg.routing.rules = runCfg.routing.rules || [];
 
-    // Direct routing for Whitelist (list-exclude) - prioritize at top of rules
+    // Remove IP checkers from existing direct rules (e.g. if provider bundled domain:ru or domain:ipify)
+    const ipCheckersRegex = /2ip|ipinfo|ipify|ifconfig|icanhazip|whoer|browserleaks|whatismyip/i;
+    runCfg.routing.rules.forEach(r => {
+      if (r && r.outboundTag === 'direct' && Array.isArray(r.domain)) {
+        r.domain = r.domain.filter(d => !ipCheckersRegex.test(d));
+      }
+    });
+
+    // Filter out rules that have empty domain arrays to avoid Xray config validation errors
+    runCfg.routing.rules = runCfg.routing.rules.filter(r => !Array.isArray(r.domain) || r.domain.length > 0);
+
+    // Direct routing for Whitelist (list-exclude)
     try {
       const excludeSites = this.zapretService
         ? (this.zapretService.getAllExcludeSites ? this.zapretService.getAllExcludeSites() : this.zapretService.getExcludeSites())
         : [];
-      if (Array.isArray(excludeSites) && excludeSites.length > 0) {
+      const filteredExcludes = Array.isArray(excludeSites)
+        ? excludeSites.filter(d => !ipCheckersRegex.test(d))
+        : [];
+      if (filteredExcludes.length > 0) {
         runCfg.routing.rules.unshift({
           type: 'field',
-          domain: excludeSites,
+          domain: filteredExcludes,
           outboundTag: 'direct'
         });
       }
     } catch {}
+
+    // Force IP checkers to route through proxy so users can reliably verify VPN connectivity
+    const ipCheckersList = [
+      'domain:2ip.ru', 'domain:2ip.io', 'domain:ipinfo.io', 'domain:ipify.org',
+      'domain:ifconfig.me', 'domain:icanhazip.com', 'domain:whoer.net', 'domain:browserleaks.com'
+    ];
+    runCfg.routing.rules.unshift({
+      type: 'field',
+      domain: ipCheckersList,
+      outboundTag: proxyTag
+    });
 
     runCfg.routing.rules.push({
       type: 'field',
@@ -1404,9 +1555,12 @@ class VlessService {
         const excludeSites = this.zapretService
           ? (this.zapretService.getAllExcludeSites ? this.zapretService.getAllExcludeSites() : this.zapretService.getExcludeSites())
           : [];
-        if (Array.isArray(excludeSites) && excludeSites.length > 0) {
+        const filteredExcludes = Array.isArray(excludeSites)
+          ? excludeSites.filter(d => !/^(?:.*\.)?2ip\.(?:ru|io)$/i.test(d))
+          : [];
+        if (filteredExcludes.length > 0) {
           tunConfig.route.rules.unshift({
-            domain_suffix: excludeSites,
+            domain_suffix: filteredExcludes,
             outbound: 'direct'
           });
         }
