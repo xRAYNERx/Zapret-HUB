@@ -1059,10 +1059,12 @@ function toggleSubVisibility(e) {
   const fullText = $('#vpn-sub-full-text');
   if (!input) return;
 
-  const isClosed = drawer ? drawer.classList.contains('hidden') : (input.type === 'password');
+  // Upper input always stays masked with dots as requested
+  input.type = 'password';
 
-  if (isClosed) {
-    input.type = 'text';
+  const isDrawerHidden = drawer ? drawer.classList.contains('hidden') : true;
+
+  if (isDrawerHidden) {
     const textToShow = (input.value || state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim();
     if (drawer && fullText) {
       fullText.innerText = textToShow;
@@ -1073,7 +1075,6 @@ function toggleSubVisibility(e) {
       icon.classList.add('text-emerald-400');
     }
   } else {
-    input.type = 'password';
     if (drawer) {
       drawer.classList.add('hidden');
     }
@@ -1139,6 +1140,7 @@ function updateVpnSubActionsVisibility() {
   // Lock the input so it can ONLY be deleted via the "Удалить" button!
   if (hasSaved && !isModified && !isSubCheckmarkActive) {
     if (input) {
+      input.type = 'password';
       input.readOnly = true;
       input.classList.add('cursor-default');
       input.style.paddingRight = '96px';
@@ -1159,12 +1161,22 @@ function updateVpnSubActionsVisibility() {
   // If user entered / modified a URL or confirmation / measurement is in progress:
   if (isSubCheckmarkActive || isModified) {
     if (input) {
+      input.type = 'password';
       input.readOnly = false;
       input.classList.remove('cursor-default');
       input.style.paddingRight = '130px';
     }
     // Delete header button: hidden while modifying
     if (btnHeaderDel) btnHeaderDel.classList.add('hidden');
+
+    // Drawer is closed while modifying
+    const drawer = $('#vpn-sub-full-drawer');
+    if (drawer) drawer.classList.add('hidden');
+    const eyeIcon = $('#icon-sub-eye');
+    if (eyeIcon) {
+      eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/>';
+      eyeIcon.classList.remove('text-emerald-400');
+    }
 
     // Permanent icons are all HIDDEN as requested:
     // "все вот эти кнопки с боку убираются и заменяются на большую кнопку с галочкой «Подтвердить»"
@@ -1322,7 +1334,8 @@ async function pasteVpnSub(e) {
 }
 window.pasteVpnSub = pasteVpnSub;
 
-async function updateVpnSub() {
+// Подтверждение и добавление новой/изменённой ссылки на подписку (кнопка в левом блоке ввода)
+async function confirmVpnSub() {
   const input = $('#vpn-sub-input');
   const url = (input ? input.value : '').trim();
   if (!url) {
@@ -1330,16 +1343,16 @@ async function updateVpnSub() {
     return;
   }
 
-  const btn = $('#btn-update-sub');
-  const btnText = $('#btn-update-sub-text');
-  const icon = $('#update-sub-icon');
-  const spinner = $('#update-sub-spinner');
-
   const confirmGroup = $('#vpn-sub-confirm-group');
   const btnConfirm = $('#btn-confirm-sub');
   const iconConfirmCheck = $('#icon-confirm-sub-check');
   const iconConfirmSpinner = $('#icon-confirm-sub-spinner');
   const textConfirm = $('#btn-confirm-sub-text');
+
+  const btnRight = $('#btn-update-sub');
+  const btnRightText = $('#btn-update-sub-text');
+  const iconRight = $('#update-sub-icon');
+  const spinnerRight = $('#update-sub-spinner');
 
   if (subCheckmarkTimer) {
     clearTimeout(subCheckmarkTimer);
@@ -1347,18 +1360,19 @@ async function updateVpnSub() {
   }
   isSubCheckmarkActive = false;
 
-  if (btn) btn.disabled = true;
-  if (btnText) btnText.innerText = 'Загрузка...';
-  if (icon) icon.classList.add('hidden');
-  if (spinner) spinner.classList.remove('hidden');
-
+  // «Замер...» и спиннер отображаются на кнопке «Подтвердить» ТОЛЬКО при добавлении подписки
   if (confirmGroup) confirmGroup.classList.remove('hidden');
   if (btnConfirm) btnConfirm.disabled = true;
   if (iconConfirmCheck) iconConfirmCheck.classList.add('hidden');
   if (iconConfirmSpinner) iconConfirmSpinner.classList.remove('hidden');
   if (textConfirm) textConfirm.innerText = 'Замер...';
 
-  toast('Обновление серверов подписки...', 'info');
+  if (btnRight) btnRight.disabled = true;
+  if (btnRightText) btnRightText.innerText = 'Загрузка...';
+  if (iconRight) iconRight.classList.add('hidden');
+  if (spinnerRight) spinnerRight.classList.remove('hidden');
+
+  toast('Подключение подписки...', 'info');
   try {
     const res = await api('vlessUpdateSubscription', url, true);
     const count = res.count || res.serverCount || (res.servers ? res.servers.length : 0);
@@ -1369,10 +1383,9 @@ async function updateVpnSub() {
       renderVpnServers();
     }
     toast(`Загружено серверов: ${count}. Замеряем пинг...`, 'info');
-    if (btnText) btnText.innerText = 'Замер...';
-    if (textConfirm) textConfirm.innerText = 'Замер...';
+    if (btnRightText) btnRightText.innerText = 'Замер...';
 
-    // Immediately test ping across fresh servers
+    // Сразу замеряем пинг свежих серверов
     await api('vlessTestAll');
     const status = await api('vlessGetStatus');
     updateVpnUI(status);
@@ -1388,7 +1401,7 @@ async function updateVpnSub() {
       toast('Подписка пуста', 'error');
     }
 
-    // Show checkmark on Confirm button for exactly 2 seconds, then smoothly transition
+    // Показываем зелёную галочку «Подключено!» на 2 секунды, затем возвращаем постоянные кнопки
     if (iconConfirmSpinner) iconConfirmSpinner.classList.add('hidden');
     if (iconConfirmCheck) iconConfirmCheck.classList.remove('hidden');
     if (textConfirm) textConfirm.innerText = 'Подключено!';
@@ -1400,24 +1413,74 @@ async function updateVpnSub() {
     }, 2000);
 
   } catch (e) {
-    toast(e.message || 'Ошибка обновления подписки', 'error');
+    toast(e.message || 'Ошибка подключения подписки', 'error');
     if (iconConfirmSpinner) iconConfirmSpinner.classList.add('hidden');
     if (iconConfirmCheck) iconConfirmCheck.classList.remove('hidden');
     if (textConfirm) textConfirm.innerText = 'Подтвердить';
     if (btnConfirm) btnConfirm.disabled = false;
   } finally {
-    if (btn) btn.disabled = false;
-    if (btnText) btnText.innerText = 'Обновить';
-    if (icon) icon.classList.remove('hidden');
-    if (spinner) spinner.classList.add('hidden');
+    if (btnRight) btnRight.disabled = false;
+    if (btnRightText) btnRightText.innerText = 'Обновить';
+    if (iconRight) iconRight.classList.remove('hidden');
+    if (spinnerRight) spinnerRight.classList.add('hidden');
 
     if (!isSubCheckmarkActive) {
       updateVpnSubActionsVisibility();
     }
   }
 }
-window.updateVpnSub = updateVpnSub;
-window.vpnUpdateSub = updateVpnSub;
+window.confirmVpnSub = confirmVpnSub;
+
+// Обновление списка серверов по кнопке «Обновить» в правом блоке доступных серверов
+// ВАЖНО: поле ссылки и кнопки в левом блоке ВООБЩЕ не затрагиваются! Никаких «Замер...» на ссылке!
+async function refreshVpnServers() {
+  const input = $('#vpn-sub-input');
+  const url = (state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim() || (input ? input.value : '').trim();
+  if (!url) {
+    toast('Ссылка на подписку не найдена. Сначала добавьте подписку', 'warning');
+    return;
+  }
+
+  const btn = $('#btn-update-sub');
+  const btnText = $('#btn-update-sub-text');
+  const icon = $('#update-sub-icon');
+  const spinner = $('#update-sub-spinner');
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.innerText = 'Загрузка...';
+  if (icon) icon.classList.add('hidden');
+  if (spinner) spinner.classList.remove('hidden');
+
+  toast('Обновление списка серверов...', 'info');
+  try {
+    const res = await api('vlessUpdateSubscription', url, true);
+    const count = res.count || res.serverCount || (res.servers ? res.servers.length : 0);
+    state.vpn.subscriptionUrl = url;
+    state.vpn.subUrl = url;
+    if (res && res.servers) {
+      state.vpn.servers = res.servers;
+      renderVpnServers();
+    }
+
+    if (btnText) btnText.innerText = 'Замер...';
+    // Замеряем пинг всех серверов
+    await api('vlessTestAll');
+    const status = await api('vlessGetStatus');
+    updateVpnUI(status);
+
+    toast(`Список серверов обновлён (${count} узлов). Замер завершён`, 'success');
+  } catch (e) {
+    toast(e.message || 'Ошибка обновления серверов', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.innerText = 'Обновить';
+    if (icon) icon.classList.remove('hidden');
+    if (spinner) spinner.classList.add('hidden');
+  }
+}
+window.refreshVpnServers = refreshVpnServers;
+window.updateVpnSub = refreshVpnServers;
+window.vpnUpdateSub = refreshVpnServers;
 
 async function vpnTestAll() {
   const btn = $('#btn-test-servers');
