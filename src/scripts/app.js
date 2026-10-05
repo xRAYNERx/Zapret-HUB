@@ -246,6 +246,10 @@ function formatReleaseBody(content = '') {
     html = html.replace(/<h[4-6][^>]*>([\s\S]*?)<\/h[4-6]>/gi, 
       '<div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider pt-1.5 pb-0.5">$1</div>');
 
+    // Bold subtitle paragraphs: <p><strong>Title:</strong></p> (NEVER bulleted)
+    html = html.replace(/<p[^>]*>\s*(<strong[^>]*>[\s\S]*?<\/strong>[:\s]*)\s*<\/p>/gi, 
+      '<div class="font-bold text-white text-xs leading-snug pt-3 pb-1 pl-0.5">$1</div>');
+
     // Code styling
     html = html.replace(/<pre[^>]*><code>([\s\S]*?)<\/code><\/pre>/gi, 
       '<pre class="bg-black/50 text-emerald-300 p-2.5 rounded-lg text-xs font-mono my-2 overflow-x-auto">$1</pre>');
@@ -256,40 +260,24 @@ function formatReleaseBody(content = '') {
     html = html.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '<strong class="font-bold text-white">$1</strong>');
     html = html.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '<b class="font-bold text-white">$1</b>');
 
-    // Numbered or bulleted feature groups containing nested lists:
-    // <li><p><strong>Title:</strong></p><ul>...</ul></li>
-    html = html.replace(/<li[^>]*>\s*(?:<p[^>]*>)?\s*([^<]*?<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*)(?:<\/p>)?\s*<ul[^>]*>/gi,
-      '<div class="space-y-1.5 pt-1.5"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5">$1</div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">');
-
-    // Standalone <li> containing only bold heading (without bullet)
-    html = html.replace(/<li[^>]*>\s*(?:<p[^>]*>)?\s*([^<]*?<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*)(?:<\/p>)?\s*<\/li>/gi,
-      '</ul></div><div class="space-y-1.5 pt-2"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5">$1</div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">');
-
-    // Closing nested list: </ul>\s*</li>
-    html = html.replace(/<\/ul>\s*<\/li>/gi, '</ul></div>');
-
-    // Clean remaining ul / ol wrappers
-    html = html.replace(/<ol[^>]*>/gi, '<div class="space-y-3">');
-    html = html.replace(/<\/ol>/gi, '</div>');
-    html = html.replace(/<ul[^>]*>/gi, '<ul class="space-y-1.5 text-slate-300 text-xs leading-relaxed">');
+    // Unordered lists
+    html = html.replace(/<ul[^>]*>/gi, '<ul class="space-y-1.5 text-slate-300 text-xs leading-relaxed pl-1">');
     html = html.replace(/<\/ul>/gi, '</ul>');
+    html = html.replace(/<ol[^>]*>/gi, '<ol class="space-y-1.5 text-slate-300 text-xs leading-relaxed pl-1">');
+    html = html.replace(/<\/ol>/gi, '</ol>');
 
-    // Any remaining <li> items (which are all distinct thoughts / points)
+    // List items
     html = html.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (match, body) => {
       const cleanBody = body.replace(/<\/?p[^>]*>/gi, '').trim();
       if (!cleanBody) return '';
       return `<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${cleanBody}</span></li>`;
     });
 
-    // Standalone <p> elements that are not headings
+    // Remaining standalone <p> elements
     html = html.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (match, text) => {
       const trimmed = text.trim();
       if (!trimmed) return '';
-      // If the paragraph is purely a bold header like <strong>Title:</strong>, render as header without bullet
-      if (/^<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*$/i.test(trimmed)) {
-        return `<div class="font-bold text-white text-xs leading-snug pt-2 pb-0.5 pl-0.5">${trimmed}</div>`;
-      }
-      return `<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${trimmed}</div></div>`;
+      return `<div class="text-xs text-slate-300 leading-relaxed my-1.5 pl-1">${trimmed}</div>`;
     });
 
     return html;
@@ -333,7 +321,7 @@ function formatReleaseBody(content = '') {
       const numMatch = line.match(/^(\d+)\.\s+/);
       const num = numMatch ? numMatch[1] : '';
       let text = line.replace(/^\d+\.\s+/, '').replace(/\*\*(.*?)\*\*/g, '$1').replace(/[:\s]+$/, '');
-      result.push(`<div class="space-y-1.5 pt-1.5"><div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5"><span class="text-emerald-400 font-mono font-bold">${num}.</span><span>${text}:</span></div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
+      result.push(`<div class="space-y-1.5 pt-2"><div class="font-bold text-white text-xs leading-snug flex items-baseline gap-1.5"><span class="text-emerald-400 font-mono font-bold">${num}.</span><span>${text}:</span></div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
       inList = true;
       continue;
     }
@@ -346,7 +334,7 @@ function formatReleaseBody(content = '') {
         inList = false;
       }
       const title = cleanHeader.replace(/\*\*/g, '').replace(/[:\s]+$/, '').trim();
-      result.push(`<div class="space-y-1.5 pt-2"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5"><span>${title}:</span></div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
+      result.push(`<div class="space-y-1.5 pt-2"><div class="font-bold text-white text-xs leading-snug pl-0.5">${title}:</div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
       inList = true;
       continue;
     }
