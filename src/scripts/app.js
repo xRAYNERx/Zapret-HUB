@@ -1055,16 +1055,31 @@ function toggleSubVisibility(e) {
   if (e) e.stopPropagation();
   const input = $('#vpn-sub-input');
   const icon = $('#icon-sub-eye');
+  const drawer = $('#vpn-sub-full-drawer');
+  const fullText = $('#vpn-sub-full-text');
   if (!input) return;
-  if (input.type === 'password') {
+
+  const isClosed = drawer ? drawer.classList.contains('hidden') : (input.type === 'password');
+
+  if (isClosed) {
     input.type = 'text';
+    const textToShow = (input.value || state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim();
+    if (drawer && fullText) {
+      fullText.innerText = textToShow;
+      drawer.classList.remove('hidden');
+    }
     if (icon) {
       icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+      icon.classList.add('text-emerald-400');
     }
   } else {
     input.type = 'password';
+    if (drawer) {
+      drawer.classList.add('hidden');
+    }
     if (icon) {
       icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/>';
+      icon.classList.remove('text-emerald-400');
     }
   }
 }
@@ -1074,7 +1089,7 @@ window.toggleSubVisibility = toggleSubVisibility;
 async function copySubUrl(e) {
   if (e) e.stopPropagation();
   const input = $('#vpn-sub-input');
-  const val = (input ? input.value : '').trim();
+  const val = (input ? input.value : '').trim() || (state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim();
   if (!val) {
     toast('Ссылка пуста', 'error');
     return;
@@ -1104,10 +1119,14 @@ function updateVpnSubActionsVisibility() {
   const val = (input?.value || '').trim();
   const savedUrl = (state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim();
 
-  const btnApply = $('#btn-apply-sub');
-  const iconSpinner = $('#icon-apply-sub-spinner');
-  const iconCheck = $('#icon-apply-sub-check');
+  const confirmGroup = $('#vpn-sub-confirm-group');
+  const btnConfirm = $('#btn-confirm-sub');
+  const iconConfirmCheck = $('#icon-confirm-sub-check');
+  const iconConfirmSpinner = $('#icon-confirm-sub-spinner');
+  const textConfirm = $('#btn-confirm-sub-text');
 
+  const permanentGroup = $('#vpn-sub-permanent-group');
+  const btnPaste = $('#btn-paste-sub');
   const btnEye = $('#btn-toggle-sub-eye');
   const btnCopy = $('#btn-copy-sub');
   const btnHeaderDel = $('#btn-header-delete-sub');
@@ -1116,49 +1135,75 @@ function updateVpnSubActionsVisibility() {
   const isModified = hasVal && val !== savedUrl;
   const hasSaved = Boolean(savedUrl);
 
-  // Apply/Accept button: shown when input has unsaved URL (green checkmark), or when 2s checkmark is active
-  if (btnApply) {
-    if (isSubCheckmarkActive) {
-      btnApply.classList.remove('hidden');
-      if (iconCheck) iconCheck.classList.remove('hidden');
-      if (iconSpinner) iconSpinner.classList.add('hidden');
-      btnApply.disabled = false;
-    } else if (isModified) {
-      btnApply.classList.remove('hidden');
-      if (iconCheck) iconCheck.classList.remove('hidden');
-      if (iconSpinner) iconSpinner.classList.add('hidden');
-      btnApply.disabled = false;
-    } else {
-      btnApply.classList.add('hidden');
+  // If a valid confirmed subscription is saved and not currently being modified:
+  // Lock the input so it can ONLY be deleted via the "Удалить" button!
+  if (hasSaved && !isModified && !isSubCheckmarkActive) {
+    if (input) {
+      input.readOnly = true;
+      input.classList.add('cursor-default');
+      input.style.paddingRight = '96px';
     }
+    if (btnHeaderDel) btnHeaderDel.classList.remove('hidden');
+
+    // Confirm button: hidden
+    if (confirmGroup) confirmGroup.classList.add('hidden');
+
+    // Permanent buttons: visible
+    if (permanentGroup) permanentGroup.classList.remove('hidden');
+    if (btnPaste) btnPaste.classList.remove('hidden');
+    if (btnEye) btnEye.classList.remove('hidden');
+    if (btnCopy) btnCopy.classList.remove('hidden');
+    return;
   }
 
-  // Eye toggle: shown if input has content
-  if (btnEye) {
-    if (hasVal) {
-      btnEye.classList.remove('hidden');
-    } else {
-      btnEye.classList.add('hidden');
+  // If user entered / modified a URL or confirmation / measurement is in progress:
+  if (isSubCheckmarkActive || isModified) {
+    if (input) {
+      input.readOnly = false;
+      input.classList.remove('cursor-default');
+      input.style.paddingRight = '130px';
     }
+    // Delete header button: hidden while modifying
+    if (btnHeaderDel) btnHeaderDel.classList.add('hidden');
+
+    // Permanent icons are all HIDDEN as requested:
+    // "все вот эти кнопки с боку убираются и заменяются на большую кнопку с галочкой «Подтвердить»"
+    if (permanentGroup) permanentGroup.classList.add('hidden');
+
+    // Big Confirm button: SHOWN
+    if (confirmGroup) confirmGroup.classList.remove('hidden');
+    if (btnConfirm) {
+      if (isSubCheckmarkActive) {
+        btnConfirm.disabled = true;
+        if (iconConfirmCheck) iconConfirmCheck.classList.remove('hidden');
+        if (iconConfirmSpinner) iconConfirmSpinner.classList.add('hidden');
+        if (textConfirm) textConfirm.innerText = 'Подключено!';
+      } else {
+        btnConfirm.disabled = false;
+        if (iconConfirmCheck) iconConfirmCheck.classList.remove('hidden');
+        if (iconConfirmSpinner) iconConfirmSpinner.classList.add('hidden');
+        if (textConfirm) textConfirm.innerText = 'Подтвердить';
+      }
+    }
+    return;
   }
 
-  // Copy button: shown if input has content
-  if (btnCopy) {
-    if (hasVal) {
-      btnCopy.classList.remove('hidden');
-    } else {
-      btnCopy.classList.add('hidden');
-    }
+  // Otherwise: Empty input state
+  if (input) {
+    input.readOnly = false;
+    input.classList.remove('cursor-default');
+    input.style.paddingRight = '36px';
   }
+  if (btnHeaderDel) btnHeaderDel.classList.add('hidden');
+  if (confirmGroup) confirmGroup.classList.add('hidden');
+  if (permanentGroup) permanentGroup.classList.remove('hidden');
+  if (btnPaste) btnPaste.classList.remove('hidden');
+  if (btnEye) btnEye.classList.add('hidden');
+  if (btnCopy) btnCopy.classList.add('hidden');
 
-  // Header Delete button: shown if there is a saved subscription or text in input
-  if (btnHeaderDel) {
-    if (hasSaved || hasVal) {
-      btnHeaderDel.classList.remove('hidden');
-    } else {
-      btnHeaderDel.classList.add('hidden');
-    }
-  }
+  // Close full drawer if input became empty
+  const drawer = $('#vpn-sub-full-drawer');
+  if (drawer) drawer.classList.add('hidden');
 }
 window.updateVpnSubActionsVisibility = updateVpnSubActionsVisibility;
 
@@ -1166,6 +1211,27 @@ function handleVpnSubInput(val) {
   updateVpnSubActionsVisibility();
 }
 window.handleVpnSubInput = handleVpnSubInput;
+
+function handleVpnSubPaste(e) {
+  const input = $('#vpn-sub-input');
+  if (!input) return;
+  if (e && e.clipboardData) {
+    const text = e.clipboardData.getData('text');
+    if (text && text.trim()) {
+      e.preventDefault();
+      input.readOnly = false;
+      input.value = text.trim();
+      updateVpnSubActionsVisibility();
+      toast('Ссылка вставлена. Нажмите «Подтвердить» для применения', 'info');
+      return;
+    }
+  }
+  input.readOnly = false;
+  setTimeout(() => {
+    updateVpnSubActionsVisibility();
+  }, 10);
+}
+window.handleVpnSubPaste = handleVpnSubPaste;
 
 function confirmDeleteVpnSub(e) {
   if (e) e.stopPropagation();
@@ -1199,7 +1265,20 @@ async function executeDeleteVpnSub() {
     state.vpn.servers = [];
     state.vpn.activeServerIndex = -1;
     state.vpn.running = false;
-    if (input) input.value = '';
+    if (input) {
+      input.value = '';
+      input.readOnly = false;
+      input.classList.remove('cursor-default');
+    }
+
+    // Hide drawer and reset eye icon
+    const drawer = $('#vpn-sub-full-drawer');
+    if (drawer) drawer.classList.add('hidden');
+    const eyeIcon = $('#icon-sub-eye');
+    if (eyeIcon) {
+      eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/>';
+      eyeIcon.classList.remove('text-emerald-400');
+    }
 
     updateVpnUI(res || { running: false, servers: [], subscriptionUrl: '' });
     renderVpnServers();
@@ -1229,10 +1308,11 @@ async function pasteVpnSub(e) {
     }
     const input = $('#vpn-sub-input');
     if (input && text && text.trim()) {
+      input.readOnly = false;
       input.value = text.trim();
       input.focus();
       updateVpnSubActionsVisibility();
-      toast('Ссылка вставлена. Нажмите галочку для применения', 'info');
+      toast('Ссылка вставлена. Нажмите «Подтвердить» для применения', 'info');
     } else {
       toast('Буфер обмена пуст', 'error');
     }
@@ -1255,9 +1335,11 @@ async function updateVpnSub() {
   const icon = $('#update-sub-icon');
   const spinner = $('#update-sub-spinner');
 
-  const btnApply = $('#btn-apply-sub');
-  const iconSpinner = $('#icon-apply-sub-spinner');
-  const iconCheck = $('#icon-apply-sub-check');
+  const confirmGroup = $('#vpn-sub-confirm-group');
+  const btnConfirm = $('#btn-confirm-sub');
+  const iconConfirmCheck = $('#icon-confirm-sub-check');
+  const iconConfirmSpinner = $('#icon-confirm-sub-spinner');
+  const textConfirm = $('#btn-confirm-sub-text');
 
   if (subCheckmarkTimer) {
     clearTimeout(subCheckmarkTimer);
@@ -1270,12 +1352,11 @@ async function updateVpnSub() {
   if (icon) icon.classList.add('hidden');
   if (spinner) spinner.classList.remove('hidden');
 
-  if (btnApply) {
-    btnApply.classList.remove('hidden');
-    btnApply.disabled = true;
-  }
-  if (iconCheck) iconCheck.classList.add('hidden');
-  if (iconSpinner) iconSpinner.classList.remove('hidden');
+  if (confirmGroup) confirmGroup.classList.remove('hidden');
+  if (btnConfirm) btnConfirm.disabled = true;
+  if (iconConfirmCheck) iconConfirmCheck.classList.add('hidden');
+  if (iconConfirmSpinner) iconConfirmSpinner.classList.remove('hidden');
+  if (textConfirm) textConfirm.innerText = 'Замер...';
 
   toast('Обновление серверов подписки...', 'info');
   try {
@@ -1289,6 +1370,7 @@ async function updateVpnSub() {
     }
     toast(`Загружено серверов: ${count}. Замеряем пинг...`, 'info');
     if (btnText) btnText.innerText = 'Замер...';
+    if (textConfirm) textConfirm.innerText = 'Замер...';
 
     // Immediately test ping across fresh servers
     await api('vlessTestAll');
@@ -1306,13 +1388,10 @@ async function updateVpnSub() {
       toast('Подписка пуста', 'error');
     }
 
-    // Show checkmark in the input for exactly 2 seconds, then smoothly hide
-    if (iconSpinner) iconSpinner.classList.add('hidden');
-    if (iconCheck) iconCheck.classList.remove('hidden');
-    if (btnApply) {
-      btnApply.classList.remove('hidden');
-      btnApply.disabled = false;
-    }
+    // Show checkmark on Confirm button for exactly 2 seconds, then smoothly transition
+    if (iconConfirmSpinner) iconConfirmSpinner.classList.add('hidden');
+    if (iconConfirmCheck) iconConfirmCheck.classList.remove('hidden');
+    if (textConfirm) textConfirm.innerText = 'Подключено!';
     isSubCheckmarkActive = true;
 
     subCheckmarkTimer = setTimeout(() => {
@@ -1322,16 +1401,19 @@ async function updateVpnSub() {
 
   } catch (e) {
     toast(e.message || 'Ошибка обновления подписки', 'error');
-    if (iconSpinner) iconSpinner.classList.add('hidden');
-    if (iconCheck) iconCheck.classList.remove('hidden');
-    if (btnApply) btnApply.disabled = false;
+    if (iconConfirmSpinner) iconConfirmSpinner.classList.add('hidden');
+    if (iconConfirmCheck) iconConfirmCheck.classList.remove('hidden');
+    if (textConfirm) textConfirm.innerText = 'Подтвердить';
+    if (btnConfirm) btnConfirm.disabled = false;
   } finally {
     if (btn) btn.disabled = false;
     if (btnText) btnText.innerText = 'Обновить';
     if (icon) icon.classList.remove('hidden');
     if (spinner) spinner.classList.add('hidden');
 
-    updateVpnSubActionsVisibility();
+    if (!isSubCheckmarkActive) {
+      updateVpnSubActionsVisibility();
+    }
   }
 }
 window.updateVpnSub = updateVpnSub;
@@ -1974,22 +2056,22 @@ function setSitesListMode(mode) {
 
   if (mode === 'bypass') {
     if (btnBypass) {
-      btnBypass.className = 'h-8 px-3 rounded-xl text-xs font-bold text-white bg-white/10 border border-white/15 shadow-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+      btnBypass.className = 'sites-mode-btn sites-mode-btn-active flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap';
     }
     if (dotBypass) {
       dotBypass.className = 'w-2 h-2 rounded-full bg-teal-400';
     }
     if (pillBypass) {
-      pillBypass.className = 'px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30';
+      pillBypass.className = 'sites-mode-badge sites-mode-badge-active px-2 py-0.5 text-[11px] font-bold';
     }
     if (btnWhitelist) {
-      btnWhitelist.className = 'h-8 px-3 rounded-xl text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+      btnWhitelist.className = 'sites-mode-btn sites-mode-btn-inactive flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap';
     }
     if (dotWhitelist) {
       dotWhitelist.className = 'w-2 h-2 rounded-full bg-slate-500';
     }
     if (pillWhitelist) {
-      pillWhitelist.className = 'px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/5 text-slate-400 border border-white/10';
+      pillWhitelist.className = 'sites-mode-badge sites-mode-badge-inactive px-2 py-0.5 text-[11px] font-semibold';
     }
     if (subDesc) subDesc.innerText = 'Файл list-general.txt · Обход DPI';
     if (summary) summary.innerText = 'Маршрутизация: Kyber / Fake TLS активна';
@@ -1999,22 +2081,22 @@ function setSitesListMode(mode) {
     }
   } else {
     if (btnWhitelist) {
-      btnWhitelist.className = 'h-8 px-3 rounded-xl text-xs font-bold text-white bg-white/10 border border-white/15 shadow-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+      btnWhitelist.className = 'sites-mode-btn sites-mode-btn-active flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap';
     }
     if (dotWhitelist) {
       dotWhitelist.className = 'w-2 h-2 rounded-full bg-teal-400';
     }
     if (pillWhitelist) {
-      pillWhitelist.className = 'px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30';
+      pillWhitelist.className = 'sites-mode-badge sites-mode-badge-active px-2 py-0.5 text-[11px] font-bold';
     }
     if (btnBypass) {
-      btnBypass.className = 'h-8 px-3 rounded-xl text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-2 cursor-pointer transition-all active:scale-95 whitespace-nowrap';
+      btnBypass.className = 'sites-mode-btn sites-mode-btn-inactive flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap';
     }
     if (dotBypass) {
       dotBypass.className = 'w-2 h-2 rounded-full bg-slate-500';
     }
     if (pillBypass) {
-      pillBypass.className = 'px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white/5 text-slate-400 border border-white/10';
+      pillBypass.className = 'sites-mode-badge sites-mode-badge-inactive px-2 py-0.5 text-[11px] font-semibold';
     }
     if (subDesc) subDesc.innerText = 'Файл list-exclude-user.txt · Прямое подключение (Direct)';
     if (summary) summary.innerText = 'Белый список: прямой трафик мимо VPN и Zapret';
