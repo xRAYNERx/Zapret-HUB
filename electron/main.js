@@ -13,8 +13,8 @@ const { VlessService } = require('./services/vlessService');
 const { fetchUrl, fetchGithubRelease, fetchGithubReleases, downloadFile } = require('./helpers/httpFetch');
 const appPkg = require('../package.json');
 
-const PRIME_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-Prime/releases/latest';
-const PRIME_RELEASE_PAGE = 'https://github.com/xRAYNERx/Zapret-Prime/releases/latest';
+const PRIME_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-PRIME/releases/latest';
+const PRIME_RELEASE_PAGE = 'https://github.com/xRAYNERx/Zapret-PRIME/releases/latest';
 const HUB_RELEASE_API = 'https://api.github.com/repos/xRAYNERx/Zapret-HUB/releases/latest';
 const HUB_RELEASE_PAGE = 'https://github.com/xRAYNERx/Zapret-HUB/releases/latest';
 
@@ -741,43 +741,96 @@ async function fetchHubReleasePageTag() {
   for (const pageUrl of [PRIME_RELEASE_PAGE, HUB_RELEASE_PAGE]) {
     try {
       const res = await fetchUrl(pageUrl, {
-        headers: { 'User-Agent': 'ZapretPrime', Accept: 'text/html, */*' },
+        headers: { 'User-Agent': 'Mozilla/5.0 ZapretPrime', Accept: 'text/html, */*' },
+        timeoutMs: 4000,
         maxRedirects: 6
       });
       const html = res.body;
-      const canonical = html.match(/<link[^>]+rel="canonical"[^>]+href="[^"]*\/releases\/tag\/([^"]+)"/i);
-      const embedded = html.match(/"tag_name"\s*:\s*"(v?[\d.]+[a-z]*)"/i);
-      const tag = canonical?.[1] || embedded?.[1] || null;
-      if (tag) return tag;
+      const tagMatch = html.match(/\/releases\/tag\/(v?[\d.]+[a-z]*)/i);
+      if (tagMatch?.[1]) return tagMatch[1];
+      const titleMatch = html.match(/<title>Release .*?(v?[\d.]+[a-z]*)/i);
+      if (titleMatch?.[1]) return titleMatch[1];
     } catch {}
   }
   return null;
 }
 
 async function resolveHubRemoteRelease() {
-  // 1. Try Prime API then Hub API
+  // 1. Try official GitHub API (fast check, 3000ms timeout)
   for (const apiUrl of [PRIME_RELEASE_API, HUB_RELEASE_API]) {
     try {
-      const rel = await fetchGithubRelease(apiUrl);
+      const rel = await fetchGithubRelease(apiUrl, { timeoutMs: 3000 });
       if (rel && rel.tag_name) return rel;
     } catch {}
   }
 
-  // 2. Fallback to scraping release page
+  // 2. Fallback to public GitHub Releases Atom feed (zero rate limits, fast, reliable)
+  try {
+    const list = await fetchGithubReleases('xRAYNERx/Zapret-PRIME', { timeoutMs: 4000 });
+    if (Array.isArray(list) && list.length > 0) {
+      const latest = list[0];
+      const tag = latest.tag_name;
+      const version = String(tag).replace(/^v/i, '');
+      return {
+        tag_name: tag.startsWith('v') ? tag : `v${tag}`,
+        name: latest.name || `Zapret Prime v${version}`,
+        body: latest.body || '',
+        published_at: latest.published_at,
+        html_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/tag/v${version}`,
+        assets: [
+          {
+            name: `ZapretPrime-Patch-${version}.zip`,
+            browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretPrime-Patch-${version}.zip`
+          },
+          {
+            name: `ZapretHub-Patch-${version}.zip`,
+            browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretHub-Patch-${version}.zip`
+          },
+          {
+            name: `ZapretPrime-Setup-${version}.exe`,
+            browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretPrime-Setup-${version}.exe`
+          },
+          {
+            name: `ZapretHub-Setup-${version}.exe`,
+            browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretHub-Setup-${version}.exe`
+          },
+          {
+            name: `ZapretPrime-Portable-${version}.exe`,
+            browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretPrime-Portable-${version}.exe`
+          },
+          {
+            name: `ZapretHub-Portable-${version}.exe`,
+            browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretHub-Portable-${version}.exe`
+          }
+        ],
+        _source: 'atom-fallback'
+      };
+    }
+  } catch {}
+
+  // 3. Fallback to scraping release page
   const tag = await fetchHubReleasePageTag();
   if (!tag) throw new Error('Не удалось получить информацию о релизах с GitHub');
   const version = String(tag).replace(/^v/i, '');
   return {
     tag_name: tag.startsWith('v') ? tag : `v${tag}`,
-    html_url: `https://github.com/xRAYNERx/Zapret-Prime/releases/tag/v${version}`,
+    html_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/tag/v${version}`,
     assets: [
       {
-        name: `ZapretPrime-Setup-${version}.exe`,
-        browser_download_url: `https://github.com/xRAYNERx/Zapret-Prime/releases/download/v${version}/ZapretPrime-Setup-${version}.exe`
+        name: `ZapretPrime-Patch-${version}.zip`,
+        browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretPrime-Patch-${version}.zip`
       },
       {
-        name: `ZapretPrime-Portable-${version}.exe`,
-        browser_download_url: `https://github.com/xRAYNERx/Zapret-Prime/releases/download/v${version}/ZapretPrime-Portable-${version}.exe`
+        name: `ZapretHub-Patch-${version}.zip`,
+        browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretHub-Patch-${version}.zip`
+      },
+      {
+        name: `ZapretPrime-Setup-${version}.exe`,
+        browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretPrime-Setup-${version}.exe`
+      },
+      {
+        name: `ZapretHub-Setup-${version}.exe`,
+        browser_download_url: `https://github.com/xRAYNERx/Zapret-PRIME/releases/download/v${version}/ZapretHub-Setup-${version}.exe`
       }
     ],
     _source: 'page-fallback'
@@ -1018,17 +1071,51 @@ async function applyHubUpdate(onProgress) {
 }
 
 async function checkAllUpdatesBundle(options = {}) {
-  const [hub, zapretUpdate, tg] = await Promise.all([
-    checkHubForUpdates(),
-    zapret.checkForUpdates(options),
-    tgProxy ? tgProxy.checkForUpdates() : Promise.resolve({ updateAvailable: false })
-  ]);
+  try {
+    const checkPromise = Promise.all([
+      checkHubForUpdates(),
+      zapret ? zapret.checkForUpdates(options) : Promise.resolve({ updateAvailable: false }),
+      tgProxy ? tgProxy.checkForUpdates() : Promise.resolve({ updateAvailable: false })
+    ]).then(([hub, zapretUpdate, tg]) => ({
+      hub,
+      zapret: { product: 'zapret', label: 'Движок обхода', ...zapretUpdate },
+      tg: { product: 'tg', label: 'TG Proxy', ...tg }
+    }));
 
-  return {
-    hub,
-    zapret: { product: 'zapret', label: 'Движок обхода', ...zapretUpdate },
-    tg: { product: 'tg', label: 'TG Proxy', ...tg }
-  };
+    const timeoutPromise = new Promise((resolve) =>
+      setTimeout(() => {
+        resolve({
+          hub: {
+            product: 'hub',
+            label: 'Zapret Prime',
+            local: appPkg.version,
+            remote: null,
+            updateAvailable: false,
+            releaseUrl: PRIME_RELEASE_PAGE,
+            error: 'Превышен таймаут ответа GitHub'
+          },
+          zapret: { product: 'zapret', label: 'Движок обхода', updateAvailable: false },
+          tg: { product: 'tg', label: 'TG Proxy', updateAvailable: false }
+        });
+      }, 7000)
+    );
+
+    return await Promise.race([checkPromise, timeoutPromise]);
+  } catch (err) {
+    return {
+      hub: {
+        product: 'hub',
+        label: 'Zapret Prime',
+        local: appPkg.version,
+        remote: null,
+        updateAvailable: false,
+        releaseUrl: PRIME_RELEASE_PAGE,
+        error: err.message
+      },
+      zapret: { product: 'zapret', label: 'Движок обхода', updateAvailable: false },
+      tg: { product: 'tg', label: 'TG Proxy', updateAvailable: false }
+    };
+  }
 }
 
 function hasPendingUpdates(all) {

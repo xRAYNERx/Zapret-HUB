@@ -2319,17 +2319,23 @@ async function checkAllUpdatesSim() {
   if (icon) icon.classList.add('animate-spin');
 
   try {
-    const all = await api('checkAllUpdates', { force: true });
+    const all = await Promise.race([
+      api('checkAllUpdates', { force: true }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Превышено время ожидания ответа сервера')), 9000))
+    ]);
+
     if (all?.hub?.updateAvailable) {
       _pendingHubUpdate = all.hub;
       updateChangelogInstallButton();
       showHubUpdateModal(all.hub);
+    } else if (all?.hub?.error) {
+      toast(`Не удалось проверить обновления: ${all.hub.error}`, 'error');
     } else {
       const currentVer = (all?.hub?.local || state.appVersion || '2.0.5').replace(/^v/i, '');
       toast(`У вас установлена последняя версия Zapret Prime (v${currentVer})`, 'success');
     }
   } catch (e) {
-    toast(e.message, 'error');
+    toast(e.message || 'Ошибка проверки обновлений', 'error');
   } finally {
     if (btn) btn.innerText = 'Обновить';
     if (icon) icon.classList.remove('animate-spin');

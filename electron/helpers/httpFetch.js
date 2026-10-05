@@ -2,60 +2,95 @@ const https = require('https');
 const http = require('http');
 
 /**
- * Unified HTTP/HTTPS fetch helper with redirect following and configurable timeout.
+ * Unified HTTP/HTTPS fetch helper with redirect following and guaranteed overall timeout.
  */
-function fetchUrl(targetUrl, { headers = {}, timeoutMs = 15000, maxRedirects = 6 } = {}) {
+function fetchUrl(targetUrl, { headers = {}, timeoutMs = 8000, maxRedirects = 6 } = {}) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let activeReq = null;
+    let timer = null;
+
+    const cleanup = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const done = (err, result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (activeReq) {
+        try {
+          activeReq.destroy();
+        } catch (_) {}
+        activeReq = null;
+      }
+      if (err) reject(err);
+      else resolve(result);
+    };
+
+    timer = setTimeout(() => {
+      done(new Error(`Превышен таймаут соединения (${timeoutMs}мс)`));
+    }, timeoutMs);
+
     const follow = (urlStr, depth = 0) => {
+      if (settled) return;
       let parsed;
       try {
         parsed = new URL(urlStr);
       } catch (err) {
-        return reject(new Error(`Invalid URL: ${urlStr}`));
+        return done(new Error(`Invalid URL: ${urlStr}`));
       }
 
       const getter = parsed.protocol === 'https:' ? https : http;
       const reqHeaders = {
-        'User-Agent': 'ZapretPrime',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ZapretPrime',
         ...headers
       };
 
-      const req = getter.get(parsed, { headers: reqHeaders }, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          if (depth >= maxRedirects) {
+      try {
+        activeReq = getter.get(parsed, { headers: reqHeaders }, (res) => {
+          if (settled) {
             res.resume();
-            return reject(new Error('Слишком много перенаправлений'));
+            return;
           }
-          const nextUrl = res.headers.location.startsWith('http')
-            ? res.headers.location
-            : new URL(res.headers.location, urlStr).toString();
-          res.resume();
-          return follow(nextUrl, depth + 1);
-        }
 
-        if (res.statusCode && res.statusCode >= 400) {
-          res.resume();
-          return reject(new Error(`HTTP ${res.statusCode}`));
-        }
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            if (depth >= maxRedirects) {
+              res.resume();
+              return done(new Error('Слишком много перенаправлений'));
+            }
+            const nextUrl = res.headers.location.startsWith('http')
+              ? res.headers.location
+              : new URL(res.headers.location, urlStr).toString();
+            res.resume();
+            return follow(nextUrl, depth + 1);
+          }
 
-        const chunks = [];
-        res.on('data', (c) => chunks.push(c));
-        res.on('end', () => {
-          resolve({
-            statusCode: res.statusCode,
-            headers: res.headers,
-            body: Buffer.concat(chunks).toString('utf8'),
-            buffer: Buffer.concat(chunks)
+          if (res.statusCode && res.statusCode >= 400) {
+            res.resume();
+            return done(new Error(`HTTP ${res.statusCode}`));
+          }
+
+          const chunks = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => {
+            done(null, {
+              statusCode: res.statusCode,
+              headers: res.headers,
+              body: Buffer.concat(chunks).toString('utf8'),
+              buffer: Buffer.concat(chunks)
+            });
           });
+          res.on('error', (err) => done(err));
         });
-      });
 
-      req.setTimeout(timeoutMs, () => {
-        req.destroy();
-        reject(new Error('Превышен таймаут соединения'));
-      });
-
-      req.on('error', reject);
+        activeReq.on('error', (err) => done(err));
+      } catch (err) {
+        done(err);
+      }
     };
 
     follow(targetUrl, 0);
@@ -65,10 +100,10 @@ function fetchUrl(targetUrl, { headers = {}, timeoutMs = 15000, maxRedirects = 6
 /**
  * Fetch GitHub release data via GitHub API
  */
-async function fetchGithubRelease(apiUrl, { timeoutMs = 15000 } = {}) {
+async function fetchGithubRelease(apiUrl, { timeoutMs = 4000 } = {}) {
   const res = await fetchUrl(apiUrl, {
     headers: {
-      'User-Agent': 'ZapretPrime',
+      'User-Agent': 'Mozilla/5.0 ZapretPrime',
       Accept: 'application/vnd.github+json'
     },
     timeoutMs
