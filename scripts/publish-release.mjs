@@ -121,6 +121,16 @@ async function main() {
       contentType: 'application/zip'
     },
     {
+      name: `ZapretPrime-Setup-${version}.exe`,
+      filePath: setupFile,
+      contentType: 'application/vnd.microsoft.portable-executable'
+    },
+    {
+      name: `ZapretPrime-Patch-${version}.zip`,
+      filePath: patchFile,
+      contentType: 'application/zip'
+    },
+    {
       name: `ZapretHub-Setup-${version}.exe`,
       filePath: setupFile,
       contentType: 'application/vnd.microsoft.portable-executable'
@@ -131,19 +141,6 @@ async function main() {
       contentType: 'application/zip'
     }
   ];
-
-  // Clean up any old ZapretPrime assets from release
-  if (release.assets) {
-    for (const a of release.assets) {
-      if (a.name.toLowerCase().includes('prime')) {
-        console.log(`Cleaning up legacy asset ${a.name} (ID: ${a.id})...`);
-        await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${a.id}`, {
-          method: 'DELETE',
-          headers
-        });
-      }
-    }
-  }
 
   for (const asset of assetsToUpload) {
     if (!fs.existsSync(asset.filePath)) {
