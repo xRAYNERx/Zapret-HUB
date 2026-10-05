@@ -1,6 +1,6 @@
 {
   "name": "zapret-net",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Zapret.NET — панель обхода блокировок Discord, YouTube, Telegram",
   "main": "electron/main.js",
   "author": "RAYNER",
