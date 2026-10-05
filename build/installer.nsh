@@ -12,6 +12,8 @@ Var DoCleanInstall
 
 !macro customCheckAppRunning
   # Принудительно выгружаем все процессы перед началом установки
+  nsExec::Exec 'taskkill /F /IM "Zapret.NET.exe"'
+  Pop $0
   nsExec::Exec 'taskkill /F /IM "Zapret Prime.exe"'
   Pop $0
   nsExec::Exec 'taskkill /F /IM "Zapret HUB.exe"'
@@ -38,7 +40,7 @@ Function CleanInstallPageCreate
     Abort
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 0 100% 20u "Выберите параметры установки Zapret Prime:"
+  ${NSD_CreateLabel} 0 0 100% 20u "Выберите параметры установки Zapret.NET:"
   Pop $0
 
   ${NSD_CreateCheckbox} 0 24u 100% 14u "Выполнить чистую переустановку (с удалением старых файлов)"
@@ -61,6 +63,8 @@ FunctionEnd
 
 Function DoCleanInstallRoutine
   DetailPrint "Завершение фоновых процессов..."
+  nsExec::Exec 'taskkill /F /IM "Zapret.NET.exe"'
+  Pop $0
   nsExec::Exec 'taskkill /F /IM "Zapret Prime.exe"'
   Pop $0
   nsExec::Exec 'taskkill /F /IM "Zapret HUB.exe"'
@@ -91,8 +95,18 @@ Function DoCleanInstallRoutine
   Pop $0
 
   # Очистка предыдущей версии в целевой директории
-  ${If} ${FileExists} "$INSTDIR\Zapret Prime.exe"
+  ${If} ${FileExists} "$INSTDIR\Zapret.NET.exe"
     DetailPrint "Очистка файлов предыдущей версии в $INSTDIR..."
+    RMDir /r "$INSTDIR\resources"
+    RMDir /r "$INSTDIR\locales"
+    Delete "$INSTDIR\Zapret.NET.exe"
+    Delete "$INSTDIR\*.dll"
+    Delete "$INSTDIR\*.pak"
+    Delete "$INSTDIR\*.dat"
+    Delete "$INSTDIR\*.bin"
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\Zapret Prime.exe"
+    DetailPrint "Очистка файлов предыдущей версии Zapret Prime в $INSTDIR..."
     RMDir /r "$INSTDIR\resources"
     RMDir /r "$INSTDIR\locales"
     Delete "$INSTDIR\Zapret Prime.exe"

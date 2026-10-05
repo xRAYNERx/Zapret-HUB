@@ -46,7 +46,7 @@ function fetchUrl(targetUrl, { headers = {}, timeoutMs = 8000, maxRedirects = 6 
 
       const getter = parsed.protocol === 'https:' ? https : http;
       const reqHeaders = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ZapretPrime',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Zapret.NET',
         ...headers
       };
 
@@ -103,7 +103,7 @@ function fetchUrl(targetUrl, { headers = {}, timeoutMs = 8000, maxRedirects = 6 
 async function fetchGithubRelease(apiUrl, { timeoutMs = 4000 } = {}) {
   const res = await fetchUrl(apiUrl, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 ZapretPrime',
+      'User-Agent': 'Mozilla/5.0 Zapret.NET',
       Accept: 'application/vnd.github+json'
     },
     timeoutMs
@@ -139,7 +139,7 @@ function downloadFile(url, destPath, { onProgress, maxRedirects = 6 } = {}) {
         return reject(new Error(`Invalid URL: ${targetUrl}`));
       }
       const getter = parsed.protocol === 'https:' ? https : http;
-      getter.get(targetUrl, { headers: { 'User-Agent': 'ZapretPrime' } }, (response) => {
+      getter.get(targetUrl, { headers: { 'User-Agent': 'Zapret.NET' } }, (response) => {
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           if (depth >= maxRedirects) {
             response.resume();
@@ -213,8 +213,11 @@ function parseReleasesAtom(xml) {
 /**
  * Fetch GitHub releases list via GitHub API with Atom feed fallback
  */
-async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-Prime', { timeoutMs = 12000 } = {}) {
+async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-NET', { timeoutMs = 12000 } = {}) {
   const reposToTry = [repo];
+  if (repo !== 'xRAYNERx/Zapret-PRIME') {
+    reposToTry.push('xRAYNERx/Zapret-PRIME');
+  }
   if (repo !== 'xRAYNERx/Zapret-HUB') {
     reposToTry.push('xRAYNERx/Zapret-HUB');
   }
@@ -225,7 +228,7 @@ async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-Prime', { timeoutMs =
       const url = `https://api.github.com/repos/${targetRepo}/releases?per_page=10`;
       const res = await fetchUrl(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 ZapretPrime',
+          'User-Agent': 'Mozilla/5.0 Zapret.NET',
           Accept: 'application/vnd.github+json'
         },
         timeoutMs
@@ -241,7 +244,7 @@ async function fetchGithubReleases(repo = 'xRAYNERx/Zapret-Prime', { timeoutMs =
       const atomUrl = `https://github.com/${targetRepo}/releases.atom`;
       const res = await fetchUrl(atomUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 ZapretPrime',
+          'User-Agent': 'Mozilla/5.0 Zapret.NET',
           Accept: 'application/atom+xml, application/xml, text/xml, */*'
         },
         timeoutMs

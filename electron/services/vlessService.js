@@ -471,7 +471,7 @@ class VlessService {
 
     try {
       const { stdout } = await execAsync(
-        `curl.exe -s -I -A "Happ/4.2.1, ZapretPrime/2.0.0" --max-time 8 "${url.replace(/"/g, '`"')}"`,
+        `curl.exe -s -I -A "Happ/4.2.1, Zapret.NET/2.0.0" --max-time 8 "${url.replace(/"/g, '`"')}"`,
         { windowsHide: true, timeout: 9000 }
       );
       if (stdout) {
@@ -525,7 +525,7 @@ class VlessService {
       const getter = parsed.protocol === 'https:' ? https : http;
       getter.get(url, {
         headers: {
-          'User-Agent': 'Happ/4.2.1, ZapretPrime/2.0.0',
+          'User-Agent': 'Happ/4.2.1, Zapret.NET/2.0.0',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache'
         }
@@ -550,7 +550,7 @@ class VlessService {
   async fetchSubscriptionUrl(url) {
     try {
       const { stdout } = await execAsync(
-        `curl.exe -s -L -D - -H "Cache-Control: no-cache, no-store, must-revalidate" -H "Pragma: no-cache" -A "Happ/4.2.1, ZapretPrime/2.0.0" --max-time 15 "${url.replace(/"/g, '`"')}"`,
+        `curl.exe -s -L -D - -H "Cache-Control: no-cache, no-store, must-revalidate" -H "Pragma: no-cache" -A "Happ/4.2.1, Zapret.NET/2.0.0" --max-time 15 "${url.replace(/"/g, '`"')}"`,
         { windowsHide: true, timeout: 16000 }
       );
       if (stdout && stdout.trim().length > 0) {

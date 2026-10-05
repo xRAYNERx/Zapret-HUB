@@ -23,7 +23,7 @@ if (fs.existsSync(stagingDir)) {
 }
 fs.mkdirSync(stagingDir, { recursive: true });
 
-console.log(`Building lightweight patch for Zapret Prime v${version}...`);
+console.log(`Building lightweight patch for Zapret.NET v${version}...`);
 
 // 1. Copy app.asar
 const asarSrc = path.join(unpackedResources, 'app.asar');
@@ -46,7 +46,7 @@ if (fs.existsSync(listsSrc)) {
 }
 
 // 4. Create zip using tar.exe
-const zipName = `ZapretPrime-Patch-${version}.zip`;
+const zipName = `ZapretNet-Patch-${version}.zip`;
 const zipPath = path.join(distDir, zipName);
 if (fs.existsSync(zipPath)) {
   fs.unlinkSync(zipPath);

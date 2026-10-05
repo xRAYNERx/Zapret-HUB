@@ -1,6 +1,6 @@
 # Сторонние компоненты
 
-Zapret Prime — обёртка (GUI) вокруг открытых инструментов обхода DPI. Ниже — что используется и на каких условиях.
+Zapret.NET — обёртка (GUI) вокруг открытых инструментов обхода DPI. Ниже — что используется и на каких условиях.
 
 ## WinDivert & winws
 - **Проект:** [bol-van/zapret](https://github.com/bol-van/zapret) / WinDivert
@@ -8,7 +8,7 @@ Zapret Prime — обёртка (GUI) вокруг открытых инстру
 - **Лицензия:** см. upstream
 
 ## Telegram Proxy (ZapretTgProxy)
-- **Проект:** Встроенный компонент Zapret Prime
+- **Проект:** Встроенный компонент Zapret.NET
 - **Назначение:** локальный шлюз MTProto / WebSocket Fake-TLS для Telegram
 
 ## Xray-core (VPN VLESS Reality)

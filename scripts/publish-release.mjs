@@ -27,18 +27,18 @@ const version = pkg.version;
 
 const TOKEN = getGitToken();
 const OWNER = 'xRAYNERx';
-const REPO = 'Zapret-PRIME';
+const REPO = 'Zapret-NET';
 const TAG = `v${version}`;
-const RELEASE_NAME = `Zapret Prime v${version}`;
+const RELEASE_NAME = `Zapret.NET v${version}`;
 
-const BODY = `### 🚀 Что нового в Zapret Prime v${version}
+const BODY = `### 🚀 Что нового в Zapret.NET v${version}
 
 * **🔍 База сервисов и умное добавление доменов:**
   * На вкладку «Сайты» добавлена встроенная база популярных ресурсов (Notion, Spotify, Twitch, ChatGPT, Steam, Epic Games, GitHub и др.).
   * Добавление сервиса в один клик: программа автоматически находит и добавляет в список не только основной сайт, но и все сопутствующие служебные домены, CDN и API для стабильной работы.
 
-* **🛡️ Ребрендинг в Zapret Prime:**
-  * Приложение официально переименовано в **Zapret Prime**.
+* **🛡️ Ребрендинг в Zapret.NET:**
+  * Приложение официально переименовано в **Zapret.NET**.
   * Обновлены интерфейс, установщик и системные компоненты.
 
 * **🌐 Белый список (прямое подключение):**
@@ -60,14 +60,14 @@ const BODY = `### 🚀 Что нового в Zapret Prime v${version}
 
 ---
 ### 📦 Файлы релиза:
-- **\`ZapretPrime-Setup-${version}.exe\`** (~114 МБ) — полный инсталлятор для первичной или чистой установки.
-- **\`ZapretPrime-Patch-${version}.zip\`** (~1.2 МБ) — легковесный патч для мгновенного обновления существующей программы.
+- **\`ZapretNet-Setup-${version}.exe\`** (~114 МБ) — полный инсталлятор для первичной или чистой установки.
+- **\`ZapretNet-Patch-${version}.zip\`** (~1.2 МБ) — легковесный патч для мгновенного обновления существующей программы.
 `;
 
 const headers = {
   'Accept': 'application/vnd.github+json',
   'Authorization': `Bearer ${TOKEN}`,
-  'User-Agent': 'ZapretPrime-Release-Bot'
+  'User-Agent': 'ZapretNet-Release-Bot'
 };
 
 async function main() {
@@ -112,22 +112,24 @@ async function main() {
     console.log(`Created release: ID ${release.id}`);
   }
 
+  const setupNet = path.join(rootDir, 'dist', `ZapretNet-Setup-${version}.exe`);
   const setupPrime = path.join(rootDir, 'dist', `ZapretPrime-Setup-${version}.exe`);
   const setupHub = path.join(rootDir, 'dist', `ZapretHub-Setup-${version}.exe`);
+  const patchNet = path.join(rootDir, 'dist', `ZapretNet-Patch-${version}.zip`);
   const patchPrime = path.join(rootDir, 'dist', `ZapretPrime-Patch-${version}.zip`);
   const patchHub = path.join(rootDir, 'dist', `ZapretHub-Patch-${version}.zip`);
 
-  const setupFile = fs.existsSync(setupPrime) ? setupPrime : setupHub;
-  const patchFile = fs.existsSync(patchPrime) ? patchPrime : patchHub;
+  const setupFile = fs.existsSync(setupNet) ? setupNet : (fs.existsSync(setupPrime) ? setupPrime : setupHub);
+  const patchFile = fs.existsSync(patchNet) ? patchNet : (fs.existsSync(patchPrime) ? patchPrime : patchHub);
 
   const assetsToUpload = [
     {
-      name: `ZapretPrime-Setup-${version}.exe`,
+      name: `ZapretNet-Setup-${version}.exe`,
       filePath: setupFile,
       contentType: 'application/vnd.microsoft.portable-executable'
     },
     {
-      name: `ZapretPrime-Patch-${version}.zip`,
+      name: `ZapretNet-Patch-${version}.zip`,
       filePath: patchFile,
       contentType: 'application/zip'
     },
@@ -142,6 +144,19 @@ async function main() {
       contentType: 'application/zip'
     }
   ];
+
+  // Clean up any old ZapretPrime assets from release
+  if (release.assets) {
+    for (const a of release.assets) {
+      if (a.name.toLowerCase().includes('prime')) {
+        console.log(`Cleaning up legacy asset ${a.name} (ID: ${a.id})...`);
+        await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${a.id}`, {
+          method: 'DELETE',
+          headers
+        });
+      }
+    }
+  }
 
   for (const asset of assetsToUpload) {
     if (!fs.existsSync(asset.filePath)) {

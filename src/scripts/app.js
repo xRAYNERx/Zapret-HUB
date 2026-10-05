@@ -1,5 +1,5 @@
 // =========================================================================
-// Zapret Prime v2.0 - Elevated Slate Engine Script
+// Zapret.NET v2.0 - Elevated Slate Engine Script
 // =========================================================================
 
 const $ = (sel) => document.querySelector(sel);
@@ -399,7 +399,10 @@ async function loadChangelogFromGithub(force = false) {
     if (releases.length === 0) {
       // Direct renderer fetch fallback from GitHub Atom feed if IPC returned empty
       try {
-        let resp = await fetch('https://github.com/xRAYNERx/Zapret-Prime/releases.atom').catch(() => null);
+        let resp = await fetch('https://github.com/xRAYNERx/Zapret-NET/releases.atom').catch(() => null);
+        if (!resp || !resp.ok) {
+          resp = await fetch('https://github.com/xRAYNERx/Zapret-PRIME/releases.atom').catch(() => null);
+        }
         if (!resp || !resp.ok) {
           resp = await fetch('https://github.com/xRAYNERx/Zapret-HUB/releases.atom').catch(() => null);
         }
@@ -500,7 +503,7 @@ function showHubUpdateModal(updateInfo) {
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
   if (descEl) {
-    descEl.innerText = `Вышла новая версия Zapret Prime v${remote} с важными исправлениями и обновлениями. Хотите скачать и установить обновление сейчас? Приложение автоматически загрузит установщик и перезапустится.`;
+    descEl.innerText = `Вышла новая версия Zapret.NET v${remote} с важными исправлениями и обновлениями. Хотите скачать и установить обновление сейчас? Приложение автоматически загрузит установщик и перезапустится.`;
   }
 
   if (actionsEl) actionsEl.classList.remove('hidden');
@@ -537,7 +540,7 @@ async function executeHubUpdate() {
   if (label) label.innerText = 'Подключение к GitHub…';
 
   try {
-    toast('Загрузка обновления Zapret Prime...', 'info');
+    toast('Загрузка обновления Zapret.NET...', 'info');
     await api('applyHubUpdate');
   } catch (err) {
     console.error('Update failed:', err);
@@ -645,6 +648,7 @@ window.addEventListener('keydown', (e) => {
     if (dropdown) dropdown.classList.add('hidden');
     $('#closeChoiceModal')?.classList.add('hidden');
     $('#appRestartModal')?.classList.add('hidden');
+    closeSelfHealingModal();
     dismissFirstLaunchProbeModal();
   }
 });
@@ -2048,7 +2052,7 @@ async function addServiceBundle(bundleKey) {
   const isTargetWhitelist = targetMode === 'whitelist';
 
   if (!isTargetWhitelist && bundleKey === 'youtube') {
-    toast('YouTube уже встроен в движок обхода Zapret Prime по умолчанию (через list-google.txt)', 'info');
+    toast('YouTube уже встроен в движок обхода Zapret.NET по умолчанию (через list-google.txt)', 'info');
     hideBundleAutocompletes();
     return;
   }
@@ -2214,11 +2218,11 @@ function renderQuickAddServices() {
     grid.innerHTML = bypassKeys.map(k => {
       const b = SERVICE_BUNDLES[k];
       if (!b) return '';
-      // YouTube и Discord встроены в ядро Zapret Prime по умолчанию (list-google.txt и list-general.txt)
+      // YouTube и Discord встроены в ядро Zapret.NET по умолчанию (list-google.txt и list-general.txt)
       const isBuiltinBypass = (k === 'youtube' || k === 'discord');
       const isAdded = isBuiltinBypass || b.domains.every(d => targetSet.has(d));
       const tooltip = isAdded
-        ? `${b.name} (${k === 'youtube' ? 'встроенный обход Zapret Prime' : 'уже в списке'})`
+        ? `${b.name} (${k === 'youtube' ? 'встроенный обход Zapret.NET' : 'уже в списке'})`
         : `Добавить ${b.name} (${b.domains.length} доменов)`;
       const actionIcon = isAdded
         ? `<span class="w-5 h-5 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center transition-all flex-shrink-0" title="${tooltip}">
@@ -2651,7 +2655,7 @@ async function checkAllUpdatesSim() {
       toast(`Не удалось проверить обновления: ${all.hub.error}`, 'error');
     } else {
       const currentVer = (all?.hub?.local || state.appVersion || '2.0.6').replace(/^v/i, '');
-      toast(`У вас установлена последняя версия Zapret Prime (v${currentVer})`, 'success');
+      toast(`У вас установлена последняя версия Zapret.NET (v${currentVer})`, 'success');
     }
   } catch (e) {
     toast(e.message || 'Ошибка проверки обновлений', 'error');
@@ -2661,31 +2665,153 @@ async function checkAllUpdatesSim() {
   }
 }
 
-async function runDiagnosticsSim() {
-  const btn = $('#btn-settings-diag-text');
-  const icon = $('#settings-diag-icon');
-  if (btn) btn.innerText = 'Проверка сети...';
-  if (icon) icon.classList.add('animate-pulse');
+// ─── Self-Healing & System Rescue ───
+let isHealingRunning = false;
+
+function openSelfHealingModal() {
+  const modal = $('#selfHealingModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  startSelfHealingFlow();
+}
+window.openSelfHealingModal = openSelfHealingModal;
+
+function closeSelfHealingModal() {
+  if (isHealingRunning) return;
+  const modal = $('#selfHealingModal');
+  if (modal) modal.classList.add('hidden');
+}
+window.closeSelfHealingModal = closeSelfHealingModal;
+
+async function startSelfHealingFlow() {
+  if (isHealingRunning) return;
+  isHealingRunning = true;
+
+  const container = $('#healing-steps-container');
+  const summaryCard = $('#healing-summary-card');
+  const summaryDot = $('#healing-summary-dot');
+  const summaryTitle = $('#healing-summary-title');
+  const summaryText = $('#healing-summary-text');
+  const btnDone = $('#btn-healing-done');
+  const btnRetry = $('#btn-healing-retry');
+
+  if (summaryCard) summaryCard.classList.add('hidden');
+  if (btnDone) {
+    btnDone.disabled = true;
+    btnDone.classList.add('opacity-50', 'cursor-not-allowed');
+    btnDone.innerText = 'Проверка...';
+  }
+  if (btnRetry) {
+    btnRetry.disabled = true;
+    btnRetry.classList.add('opacity-50', 'cursor-not-allowed');
+  }
+
+  // Placeholder steps with spinner
+  const placeholderSteps = [
+    { id: 'processes', name: 'Фоновые процессы ядра', message: 'Поиск зависших процессов...' },
+    { id: 'driver', name: 'Драйвер WinDivert', message: 'Проверка службы драйвера...' },
+    { id: 'proxy', name: 'Системный прокси Windows', message: 'Проверка ключа ProxyEnable...' },
+    { id: 'bfe', name: 'Служба фильтрации BFE', message: 'Проверка службы фильтрации...' },
+    { id: 'tcp', name: 'Параметры TCP стека', message: 'Проверка оптимизации пакетов...' },
+    { id: 'dns', name: 'DNS и сетевые адаптеры', message: 'Контроль неприкосновенности DNS...' }
+  ];
+
+  if (container) {
+    container.innerHTML = placeholderSteps.map(s => `
+      <div id="step-row-${s.id}" class="inner-panel rounded-xl p-2.5 px-3.5 flex items-center justify-between gap-3 transition-all">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-white truncate">${s.name}</span>
+          </div>
+          <p id="step-desc-${s.id}" class="text-[11px] text-slate-400 truncate mt-0.5">${s.message}</p>
+        </div>
+        <div id="step-icon-${s.id}" class="flex-shrink-0 text-slate-500">
+          <svg class="w-4 h-4 text-slate-400 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </div>
+      </div>
+    `).join('');
+  }
 
   try {
-    const diag = await api('runDiagnostics');
-    const fails = Array.isArray(diag) ? diag.filter(r => r.severity === 'fail') : [];
-    const warns = Array.isArray(diag) ? diag.filter(r => r.severity === 'warn') : [];
+    const result = await api('runSelfHealing');
+    const steps = result?.steps || [];
 
-    if (fails.length > 0) {
-      toast(`Диагностика: найдено проблем — ${fails.length}. Проверьте настройки и службы.`, 'error');
-    } else if (warns.length > 0) {
-      toast(`Диагностика: ${warns.length} предупреждений, критических ошибок нет`, 'info');
-    } else {
-      toast('Диагностика завершена: все компоненты в норме', 'success');
+    // Reveal results step by step with smooth delay
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      await new Promise(r => setTimeout(r, 220));
+
+      const row = $(`#step-row-${step.id}`);
+      const desc = $(`#step-desc-${step.id}`);
+      const icon = $(`#step-icon-${step.id}`);
+
+      if (desc) desc.innerText = step.message;
+
+      if (icon) {
+        if (step.fixed) {
+          icon.innerHTML = `
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 whitespace-nowrap">Исправлено</span>
+              <svg class="w-4 h-4 text-emerald-400 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          `;
+        } else if (step.status === 'ok') {
+          icon.innerHTML = `<svg class="w-4 h-4 text-emerald-400 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+        } else {
+          icon.innerHTML = `<svg class="w-4 h-4 text-slate-400 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+        }
+      }
+
+      if (row && step.fixed) {
+        row.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+      }
     }
-  } catch (e) {
-    toast(e.message, 'error');
+
+    // Show summary card
+    if (summaryCard) {
+      summaryCard.classList.remove('hidden');
+      if (result && result.fixedCount > 0) {
+        if (summaryDot) summaryDot.className = 'w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0';
+        if (summaryTitle) summaryTitle.innerText = `Устранено неполадок: ${result.fixedCount}`;
+        if (summaryText) summaryText.innerText = 'Зависшие фоновые задачи завершены, сетевые службы синхронизированы. Ваши настройки DNS и IP сохранены без изменений.';
+      } else {
+        if (summaryDot) summaryDot.className = 'w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0';
+        if (summaryTitle) summaryTitle.innerText = 'Все системы в норме: сбоев не обнаружено';
+        if (summaryText) summaryText.innerText = 'Фоновые процессы ядра, драйвер WinDivert, системный прокси и служба BFE работают штатно. Ваши настройки DNS и IP сохранены без изменений.';
+      }
+    }
+
+    // Refresh app status in background so UI reflects cleaned up state
+    try {
+      const newStatus = await api('getStatus');
+      updateZapretUI(newStatus);
+    } catch {}
+
+  } catch (err) {
+    if (container) {
+      container.innerHTML += `
+        <div class="inner-panel rounded-xl p-3 border-rose-500/30 text-xs text-rose-300">
+          Ошибка при выполнении проверки: ${err.message}
+        </div>
+      `;
+    }
   } finally {
-    if (btn) btn.innerText = 'Запустить проверку';
-    if (icon) icon.classList.remove('animate-pulse');
+    isHealingRunning = false;
+    if (btnDone) {
+      btnDone.disabled = false;
+      btnDone.classList.remove('opacity-50', 'cursor-not-allowed');
+      btnDone.innerText = 'Готово';
+    }
+    if (btnRetry) {
+      btnRetry.disabled = false;
+      btnRetry.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
   }
 }
+window.startSelfHealingFlow = startSelfHealingFlow;
 
 // ─── UI Renderers ───
 function updateZapretUI(status) {

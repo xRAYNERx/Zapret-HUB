@@ -1,7 +1,7 @@
 {
-  "name": "zapret-prime",
+  "name": "zapret-net",
   "version": "2.0.6",
-  "description": "Zapret Prime — панель обхода блокировок Discord, YouTube, Telegram",
+  "description": "Zapret.NET — панель обхода блокировок Discord, YouTube, Telegram",
   "main": "electron/main.js",
   "author": "RAYNER",
   "engines": {
@@ -21,8 +21,8 @@
     "postinstall": "node install-electron.js"
   },
   "build": {
-    "appId": "com.rayner.zapret-prime",
-    "productName": "Zapret Prime",
+    "appId": "com.rayner.zapret-net",
+    "productName": "Zapret.NET",
     "directories": {
       "output": "dist"
     },
@@ -66,7 +66,7 @@
         ]
       }
     ],
-    "artifactName": "ZapretPrime-Setup-${version}.${ext}",
+    "artifactName": "ZapretNet-Setup-${version}.${ext}",
     "win": {
       "target": [
         {
@@ -87,7 +87,7 @@
       "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Zapret Prime",
+      "shortcutName": "Zapret.NET",
       "runAfterFinish": true,
       "displayLanguageSelector": false,
       "installerLanguages": [

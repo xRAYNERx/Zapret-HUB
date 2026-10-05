@@ -1,13 +1,13 @@
-# Руководство по интеграции локального Telegram Proxy в Android-версию Zapret Prime
+# Руководство по интеграции локального Telegram Proxy в Android-версию Zapret.NET
 
-> Данный документ составлен на основе реализации модуля **Telegram Proxy (`ZapretTgProxy` / `TgWsProxy`)** в десктопной версии Zapret Prime.  
+> Данный документ составлен на основе реализации модуля **Telegram Proxy (`ZapretTgProxy` / `TgWsProxy`)** в десктопной версии Zapret.NET.  
 > Передайте этот файл AI-разработчику или в чат разработки Android-приложения для быстрой и безошибочной реализации фичи на Android.
 
 ---
 
-## 1. Как это работает в десктопной версии Zapret Prime
+## 1. Как это работает в десктопной версии Zapret.NET
 
-В ПК-версии Zapret Prime встроен отдельный легковесный прокси-сервер (`ZapretTgProxy.exe`, форк `TgWsProxy`):
+В ПК-версии Zapret.NET встроен отдельный легковесный прокси-сервер (`ZapretTgProxy.exe`, форк `TgWsProxy`):
 
 1. **Локальный порт и хост:** Сервер слушает локальный сокет `127.0.0.1:1443`.
 2. **Секрет (Fake-TLS):** При первом старте генерируется случайный 16-байтный hex-ключ (32 символа). Для маскировки трафика под TLS к нему добавляется префикс `dd`:  
@@ -30,7 +30,7 @@
 
 ### Капкан №2: Убийство процесса в фоне (Doze Mode / OOM Killer)
 * **Типичная ошибка:** AI запускает процесс через корутину в обычной Activity или ViewModel.
-* **Что происходит:** Как только пользователь переключается из Zapret Prime в приложение Telegram, Android через 10–20 секунд замораживает или убивает процесс прокси. Прокси мгновенно отваливается.
+* **Что происходит:** Как только пользователь переключается из Zapret.NET в приложение Telegram, Android через 10–20 секунд замораживает или убивает процесс прокси. Прокси мгновенно отваливается.
 * **Как правильно:** Запуск бинарника должен производиться строго внутри **Android `ForegroundService`** с постоянным уведомлением в шторке («Telegram Proxy работает») и частичным WakeLock при необходимости.
 
 ### Капкан №3: Архитектура процессора (ARM64 vs x86)
@@ -261,7 +261,7 @@ class TgProxyForegroundService : Service() {
 
     private fun buildNotification(text: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Zapret Prime — Telegram Proxy")
+            .setContentTitle("Zapret.NET — Telegram Proxy")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)

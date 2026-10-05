@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Локальная сборка → dist\win-unpacked (канонический билд для «Запуск Zapret Prime.bat»).
+ * Локальная сборка → dist\win-unpacked (канонический билд для «Запуск Zapret.NET.bat»).
  * Вызывать после правок в D:\PROGRAMMS\Zapret Build — агентом или вручную.
  */
 const { spawnSync } = require('child_process');
@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const EXE = path.join(ROOT, 'dist', 'win-unpacked', 'Zapret Prime.exe');
+const EXE = path.join(ROOT, 'dist', 'win-unpacked', 'Zapret.NET.exe');
 const STAMP = path.join(ROOT, 'dist', '.deploy-local.stamp');
 
 function die(msg) {
@@ -24,8 +24,8 @@ const running = spawnSync('tasklist', ['/NH'], {
   encoding: 'utf8',
   shell: true,
 });
-if (/Zapret (Prime|HUB)\.exe/i.test(running.stdout || '')) {
-  die('Zapret Prime запущен — закрой приложение (включая трей) и повтори deploy:local.');
+if (/Zapret (NET|Prime|HUB)\.exe/i.test(running.stdout || '')) {
+  die('Zapret.NET запущен — закрой приложение (включая трей) и повтори deploy:local.');
 }
 
 const unpacked = path.join(ROOT, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked');
@@ -60,4 +60,4 @@ fs.mkdirSync(path.dirname(STAMP), { recursive: true });
 fs.writeFileSync(STAMP, JSON.stringify(stamp, null, 2), 'utf8');
 
 console.log('[deploy-local] Готово →', EXE);
-console.log('[deploy-local] Запуск: «Запуск Zapret Prime.bat» или run.bat');
+console.log('[deploy-local] Запуск: «Запуск Zapret.NET.bat» или run.bat');

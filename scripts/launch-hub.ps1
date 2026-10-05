@@ -1,13 +1,15 @@
-# Zapret Prime launcher: dist\win-unpacked, rebuild when sources are newer.
+# Zapret.NET launcher: dist\win-unpacked, rebuild when sources are newer.
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 function Get-ZapretExe {
-    $p = Join-Path $Root 'dist\win-unpacked\Zapret Prime.exe'
+    $n = Join-Path $Root 'dist\win-unpacked\Zapret.NET.exe'
+    $p = Join-Path $Root 'dist\win-unpacked\Zapret.NET.exe'
     $h = Join-Path $Root 'dist\win-unpacked\Zapret HUB.exe'
+    if (Test-Path $n) { return $n }
     if (Test-Path $p) { return $p }
     if (Test-Path $h) { return $h }
-    return $p
+    return $n
 }
 
 $Exe = Get-ZapretExe
@@ -32,7 +34,8 @@ function Get-MaxWriteTime {
 
 function Stop-AllAppProcesses {
     $procNames = @(
-        'Zapret Prime',
+        'Zapret.NET',
+        'Zapret.NET',
         'Zapret HUB',
         'ZapretTgProxy',
         'electron',
@@ -49,7 +52,7 @@ function Stop-AllAppProcesses {
         }
     }
     if ($found) {
-        Write-Host 'Closing previous Zapret Prime and background processes...'
+        Write-Host 'Closing previous Zapret.NET and background processes...'
         Start-Sleep -Milliseconds 800
     }
 }
@@ -106,6 +109,6 @@ if (-not (Test-Path $Exe)) {
     exit 1
 }
 
-Write-Host 'Launching Zapret Prime...'
+Write-Host 'Launching Zapret.NET...'
 Start-Process -FilePath $Exe -WorkingDirectory (Split-Path -Parent $Exe)
 exit 0

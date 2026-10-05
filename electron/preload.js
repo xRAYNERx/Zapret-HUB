@@ -33,6 +33,7 @@ const api = {
   browseZapretPath: () => ipcRenderer.invoke('browse-zapret-path'),
   validatePath: () => ipcRenderer.invoke('validate-path'),
   runDiagnostics: () => ipcRenderer.invoke('run-diagnostics'),
+  runSelfHealing: () => ipcRenderer.invoke('run-self-healing'),
   checkUpdates: (options) => ipcRenderer.invoke('check-updates', options),
   checkAllUpdates: (options) => ipcRenderer.invoke('check-all-updates', options),
   getGithubReleases: () => ipcRenderer.invoke('get-github-releases'),
