@@ -1105,7 +1105,6 @@ function updateVpnSubActionsVisibility() {
   const savedUrl = (state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim();
 
   const btnApply = $('#btn-apply-sub');
-  const iconRefresh = $('#icon-apply-sub-refresh');
   const iconSpinner = $('#icon-apply-sub-spinner');
   const iconCheck = $('#icon-apply-sub-check');
 
@@ -1117,15 +1116,17 @@ function updateVpnSubActionsVisibility() {
   const isModified = hasVal && val !== savedUrl;
   const hasSaved = Boolean(savedUrl);
 
-  // Apply/Update button: shown when input has unsaved URL, or when checkmark 2s animation is active
+  // Apply/Accept button: shown when input has unsaved URL (green checkmark), or when 2s checkmark is active
   if (btnApply) {
     if (isSubCheckmarkActive) {
       btnApply.classList.remove('hidden');
+      if (iconCheck) iconCheck.classList.remove('hidden');
+      if (iconSpinner) iconSpinner.classList.add('hidden');
+      btnApply.disabled = false;
     } else if (isModified) {
       btnApply.classList.remove('hidden');
-      if (iconRefresh) iconRefresh.classList.remove('hidden');
+      if (iconCheck) iconCheck.classList.remove('hidden');
       if (iconSpinner) iconSpinner.classList.add('hidden');
-      if (iconCheck) iconCheck.classList.add('hidden');
       btnApply.disabled = false;
     } else {
       btnApply.classList.add('hidden');
@@ -1231,7 +1232,7 @@ async function pasteVpnSub(e) {
       input.value = text.trim();
       input.focus();
       updateVpnSubActionsVisibility();
-      toast('Ссылка вставлена. Нажмите «Обновить» для применения', 'info');
+      toast('Ссылка вставлена. Нажмите галочку для применения', 'info');
     } else {
       toast('Буфер обмена пуст', 'error');
     }
@@ -1252,9 +1253,9 @@ async function updateVpnSub() {
   const btn = $('#btn-update-sub');
   const btnText = $('#btn-update-sub-text');
   const icon = $('#update-sub-icon');
+  const spinner = $('#update-sub-spinner');
 
   const btnApply = $('#btn-apply-sub');
-  const iconRefresh = $('#icon-apply-sub-refresh');
   const iconSpinner = $('#icon-apply-sub-spinner');
   const iconCheck = $('#icon-apply-sub-check');
 
@@ -1266,13 +1267,13 @@ async function updateVpnSub() {
 
   if (btn) btn.disabled = true;
   if (btnText) btnText.innerText = 'Загрузка...';
-  if (icon) icon.classList.add('animate-spin');
+  if (icon) icon.classList.add('hidden');
+  if (spinner) spinner.classList.remove('hidden');
 
   if (btnApply) {
     btnApply.classList.remove('hidden');
     btnApply.disabled = true;
   }
-  if (iconRefresh) iconRefresh.classList.add('hidden');
   if (iconCheck) iconCheck.classList.add('hidden');
   if (iconSpinner) iconSpinner.classList.remove('hidden');
 
@@ -1294,7 +1295,16 @@ async function updateVpnSub() {
     const status = await api('vlessGetStatus');
     updateVpnUI(status);
 
-    toast(`Подписка обновлена: ${count} узлов, пинг измерен`, 'success');
+    const allServers = status?.servers || state.vpn.servers || [];
+    const workingServers = allServers.filter(s => s.status === 'ok' && typeof s.ping === 'number' && s.ping > 0);
+
+    if (workingServers.length > 0) {
+      toast('Подписка подключена и работает стабильно', 'success');
+    } else if (count > 0) {
+      toast(`Подписка загружена (${count} узлов), но доступные серверы не ответили`, 'warning');
+    } else {
+      toast('Подписка пуста', 'error');
+    }
 
     // Show checkmark in the input for exactly 2 seconds, then smoothly hide
     if (iconSpinner) iconSpinner.classList.add('hidden');
@@ -1307,20 +1317,19 @@ async function updateVpnSub() {
 
     subCheckmarkTimer = setTimeout(() => {
       isSubCheckmarkActive = false;
-      if (iconCheck) iconCheck.classList.add('hidden');
-      if (iconRefresh) iconRefresh.classList.remove('hidden');
       updateVpnSubActionsVisibility();
     }, 2000);
 
   } catch (e) {
     toast(e.message || 'Ошибка обновления подписки', 'error');
     if (iconSpinner) iconSpinner.classList.add('hidden');
-    if (iconRefresh) iconRefresh.classList.remove('hidden');
+    if (iconCheck) iconCheck.classList.remove('hidden');
     if (btnApply) btnApply.disabled = false;
   } finally {
     if (btn) btn.disabled = false;
     if (btnText) btnText.innerText = 'Обновить';
-    if (icon) icon.classList.remove('animate-spin');
+    if (icon) icon.classList.remove('hidden');
+    if (spinner) spinner.classList.add('hidden');
 
     updateVpnSubActionsVisibility();
   }
@@ -2901,7 +2910,7 @@ function renderVpnServers() {
         card.className = 'rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all node-card-active cursor-default';
         card.removeAttribute('onclick');
       } else {
-        card.className = 'rounded-2xl p-3 flex items-center justify-between gap-3 border transition-all border-white/10 hover:border-white/20 bg-[#141923]/60 hover:bg-[#141923] cursor-pointer active:scale-[0.99]';
+        card.className = 'service-chip rounded-2xl p-3 flex items-center justify-between gap-3 transition-all cursor-pointer active:scale-[0.99]';
         card.setAttribute('onclick', `connectServer(${idx})`);
       }
       const pingContainer = card.querySelector('[data-vpn-ping]');
@@ -2930,7 +2939,7 @@ function renderVpnServers() {
 
     const cardBg = isCurrent
       ? 'node-card-active'
-      : 'border-white/10 hover:border-white/20 bg-[#141923]/60 hover:bg-[#141923]';
+      : 'service-chip';
 
     const cardClickAttr = isCurrent ? '' : `onclick="connectServer(${idx})"`;
     const cardCursorClass = isCurrent ? 'cursor-default' : 'cursor-pointer active:scale-[0.99]';
@@ -3037,7 +3046,7 @@ function updateFooterStatus() {
   if (state.vpn.running) {
     const cur = state.vpn.servers[state.vpn.activeServerIndex] || state.vpn.activeServer;
     if (cur && cur.ping) activePing = `${cur.ping} мс`;
-    else activePing = '36 мс';
+    else activePing = '—';
   } else if (state.tg.running && state.tg.pingMs) {
     activePing = `${state.tg.pingMs} мс`;
   } else if (state.zapret.running) {
@@ -3205,9 +3214,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.zapretAPI?.onVlessTestProgress?.((data) => {
     if (!data) return;
     const btnText = $('#btn-update-sub-text');
+    const updateIcon = $('#update-sub-icon');
+    const updateSpinner = $('#update-sub-spinner');
     if (btnText && data.current && data.total) {
       btnText.innerText = `${data.current}/${data.total}`;
     }
+    if (updateIcon) updateIcon.classList.add('hidden');
+    if (updateSpinner) updateSpinner.classList.remove('hidden');
     if (typeof data.index === 'number' && data.server) {
       if (state.vpn.servers && state.vpn.servers[data.index]) {
         Object.assign(state.vpn.servers[data.index], data.server);
@@ -3257,22 +3270,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!data) return;
     const { index, ping, blocked, disconnected } = data;
 
+    const activePingEl = $('#vpn-active-ping');
+    const footerPingEl = $('#footer-ping-text');
+
     if (disconnected) {
-      const activePingEl = $('#vpn-active-ping');
       if (activePingEl) activePingEl.innerText = '—';
+      if (footerPingEl && state.vpn.running) footerPingEl.innerText = '—';
       return;
     }
 
-    // Update active ping indicator on Home & VPN pages
-    const activePingEl = $('#vpn-active-ping');
+    const formattedPing = blocked ? 'Сбой' : (typeof ping === 'number' && ping > 0 ? `${ping} мс` : '—');
+
+    // Synchronously update both active card ping and footer ping in the exact same millisecond
     if (activePingEl) {
+      activePingEl.innerText = formattedPing;
       if (blocked) {
-        activePingEl.innerText = 'Сбой';
         activePingEl.className = 'font-bold text-rose-400 font-mono text-xs';
       } else if (typeof ping === 'number' && ping > 0) {
-        activePingEl.innerText = `${ping} мс`;
         activePingEl.className = 'font-bold text-emerald-400 font-mono text-xs';
+      } else {
+        activePingEl.className = 'font-bold text-slate-400 font-mono text-xs';
       }
+    }
+
+    if (footerPingEl && state.vpn.running) {
+      footerPingEl.innerText = formattedPing;
     }
 
     // Update state server ping and UI card
@@ -3282,6 +3304,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       else if (ping) state.vpn.servers[index].status = 'ok';
 
       updateVpnServerCard(index, state.vpn.servers[index]);
+    }
+
+    if (state.vpn.activeServer) {
+      if (state.vpn.activeServerIndex === index || typeof index !== 'number') {
+        state.vpn.activeServer.ping = ping;
+        if (blocked) state.vpn.activeServer.status = 'blocked';
+        else if (ping) state.vpn.activeServer.status = 'ok';
+      }
     }
 
     // Refresh smart ping badge with lowest ping
