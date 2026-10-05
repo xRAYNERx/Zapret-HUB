@@ -1,6 +1,6 @@
 {
   "name": "zapret-prime",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Zapret Prime — панель обхода блокировок Discord, YouTube, Telegram",
   "main": "electron/main.js",
   "author": "RAYNER",

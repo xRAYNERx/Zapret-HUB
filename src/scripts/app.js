@@ -7,7 +7,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // Unified State
 let state = {
-  appVersion: '2.0.5',
+  appVersion: '2.0.6',
   activeTab: 'home',
   zapret: {
     running: false,
@@ -377,7 +377,7 @@ function formatReleaseBody(content = '') {
 }
 
 function updateAppVersionUI(ver) {
-  const v = String(ver || state.appVersion || '2.0.5').replace(/^v/i, '');
+  const v = String(ver || state.appVersion || '2.0.6').replace(/^v/i, '');
   state.appVersion = v;
   const settingsBadge = $('#app-settings-version');
   if (settingsBadge) settingsBadge.innerText = `v${v}`;
@@ -414,7 +414,7 @@ async function loadChangelogFromGithub(force = false) {
     const container = $('#changelog-container');
     if (!container) return;
 
-    const currentAppVersion = (state.appVersion || state.version || '2.0.5').replace(/^v/i, '');
+    const currentAppVersion = (state.appVersion || state.version || '2.0.6').replace(/^v/i, '');
 
     const blocks = releases.map((rel, idx) => {
       const tag = (rel.tag_name || '').replace(/^v/i, '');
@@ -494,8 +494,8 @@ function showHubUpdateModal(updateInfo) {
   const progressEl = $('#update-progress-section');
   const closeBtn = $('#btn-close-update-modal');
 
-  const local = (updateInfo?.local || state.appVersion || '2.0.5').replace(/^v/i, '');
-  const remote = (updateInfo?.remote || '2.0.5').replace(/^v/i, '');
+  const local = (updateInfo?.local || state.appVersion || '2.0.6').replace(/^v/i, '');
+  const remote = (updateInfo?.remote || '2.0.6').replace(/^v/i, '');
 
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
@@ -2650,7 +2650,7 @@ async function checkAllUpdatesSim() {
     } else if (all?.hub?.error) {
       toast(`Не удалось проверить обновления: ${all.hub.error}`, 'error');
     } else {
-      const currentVer = (all?.hub?.local || state.appVersion || '2.0.5').replace(/^v/i, '');
+      const currentVer = (all?.hub?.local || state.appVersion || '2.0.6').replace(/^v/i, '');
       toast(`У вас установлена последняя версия Zapret Prime (v${currentVer})`, 'success');
     }
   } catch (e) {

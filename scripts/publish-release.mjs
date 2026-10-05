@@ -22,27 +22,48 @@ function getGitToken() {
   }
 }
 
+const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+const version = pkg.version;
+
 const TOKEN = getGitToken();
 const OWNER = 'xRAYNERx';
-const REPO = 'Zapret-Prime';
-const TAG = 'v2.0.5';
-const RELEASE_NAME = 'Zapret Prime v2.0.5';
+const REPO = 'Zapret-PRIME';
+const TAG = `v${version}`;
+const RELEASE_NAME = `Zapret Prime v${version}`;
 
-const BODY = `### 🚀 Что нового в Zapret Prime v2.0.5
+const BODY = `### 🚀 Что нового в Zapret Prime v${version}
 
-- **Устранение блокировки интернета после перезагрузки/сбоя (Hotfix)**:
-  - Исправлена критическая проблема, когда в случае перезагрузки ПК или аварийного завершения работы при активном VPN в настройках Windows оставался включённым системный прокси (\`127.0.0.1:10809\`), из-за чего без VPN пропадал доступ ко всем сайтам («нет подключения к интернету»).
-  - Приложение теперь при каждом старте и выключении автоматически проверяет настройки прокси Windows и безопасно очищает любые зависшие локальные перенаправления.
+- **База сервисов и умный поиск доменов**:
+  - На вкладку «Сайты» добавлена база популярных веб-сервисов и ресурсов (Notion, Spotify, Twitch, ChatGPT, Steam, Epic Games, GitHub и др.).
+  - Добавление любого ресурса в один клик: программа автоматически находит и добавляет в список не только сам сайт, но и все сопутствующие служебные домены, CDN, балансировщики и API.
+  - Полностью переработан интерфейс поиска: непрозрачный выпадающий список без наложений и перекрытия соседних элементов интерфейса.
 
-- **Мгновенные легковесные обновления (~1.2 МБ вместо 120 МБ)**:
-  - Реализована поддержка дифференциальных патчей поверх существующей установки.
-  - Пользователям с установленной программой больше не требуется заново выкачивать 120 МБ полного установщика — встроенный апдейтер автоматически скачивает патч за долю секунды, бесшовно применяет его в фоне за 1 секунду и перезапускает программу.
-  - Все пользовательские настройки, стратегии и списки исключений гарантированно сохраняются.
+- **Глобальный ребрендинг в Zapret Prime**:
+  - Приложение официально переименовано в **Zapret Prime**.
+  - Обновлены визуальный стиль, установщик, фоновые системные процессы, пути конфигураций в \`AppData\` и документация.
+
+- **Маршрутизация и Белый список (Direct bypass)**:
+  - Полноценная поддержка белого списка исключений (\`list-exclude-user.txt\`). Выбранные домены направляются напрямую в обход DPI-фильтра (winws), Xray и TUN-режима sing-box.
+  - Исправлена привязка системного прокси WinINet: системный трафик гарантированно направляется через активный туннель и корректно сбрасывается при выключении.
+
+- **VPN и управление подписками (VLESS Reality)**:
+  - **Интуитивное добавление подписки**: при вставке ссылки появляется кнопка «Подтвердить», автоматически запускается тестирование серверов и отображается статус «Подключено!».
+  - **Защита ключа подписки**: активная ссылка защищена от случайного стирания (\`readOnly\`). Полный ключ теперь открывается в аккуратной панели снизу по кнопке с глазом, а верхнее поле остаётся скрытым точками.
+  - **Безопасное удаление**: добавлена кнопка удаления подписки с модальным окном подтверждения.
+  - **Изоляция обновления серверов**: кнопка «Обновить» в блоке серверов обновляет список узлов и замеряет пинг без лишних статусов на поле ссылки. Синхронизирован пинг в карточке и в нижнем статус-баре.
+
+- **Центр обновлений и стабильность**:
+  - Устранено зависание проверки обновлений: добавлены жесткие таймауты и fallback через Atom-ленту GitHub.
+  - Фоновые процессы (включая Telegram-прокси) теперь чисто завершаются перед обновлением или перезапуском, исключая ошибки блокировки файлов ("Access is denied").
+
+- **Улучшения интерфейса**:
+  - Цвет фона всех плашек и карточек серверов унифицирован со стилем карточек главного экрана.
+  - Устранена пиксельная «лесенка» на скруглениях кнопок переключателя режимов.
 
 ---
 ### 📦 Файлы релиза:
-- **\`ZapretPrime-Setup-2.0.5.exe\`** (~119 МБ) — полный инсталлятор для первичной или чистой установки.
-- **\`ZapretPrime-Patch-2.0.5.zip\`** (~1.2 МБ) — легковесный патч для мгновенного обновления существующей установки (скачивается приложением автоматически).
+- **\`ZapretPrime-Setup-${version}.exe\`** (~119 МБ) — полный инсталлятор для первичной или чистой установки.
+- **\`ZapretPrime-Patch-${version}.zip\`** (~1.2 МБ) — легковесный патч для мгновенного обновления существующей установки (скачивается приложением автоматически).
 `;
 
 const headers = {
@@ -79,20 +100,33 @@ async function main() {
     console.log(`Created release: ID ${release.id}`);
   }
 
-  const setupPrime = path.join(rootDir, 'dist', 'ZapretPrime-Setup-2.0.5.exe');
-  const setupHub = path.join(rootDir, 'dist', 'ZapretHub-Setup-2.0.5.exe');
-  const patchPrime = path.join(rootDir, 'dist', 'ZapretPrime-Patch-2.0.5.zip');
-  const patchHub = path.join(rootDir, 'dist', 'ZapretHub-Patch-2.0.5.zip');
+  const setupPrime = path.join(rootDir, 'dist', `ZapretPrime-Setup-${version}.exe`);
+  const setupHub = path.join(rootDir, 'dist', `ZapretHub-Setup-${version}.exe`);
+  const patchPrime = path.join(rootDir, 'dist', `ZapretPrime-Patch-${version}.zip`);
+  const patchHub = path.join(rootDir, 'dist', `ZapretHub-Patch-${version}.zip`);
+
+  const setupFile = fs.existsSync(setupPrime) ? setupPrime : setupHub;
+  const patchFile = fs.existsSync(patchPrime) ? patchPrime : patchHub;
 
   const assetsToUpload = [
     {
-      name: 'ZapretPrime-Setup-2.0.5.exe',
-      filePath: fs.existsSync(setupPrime) ? setupPrime : setupHub,
+      name: `ZapretPrime-Setup-${version}.exe`,
+      filePath: setupFile,
       contentType: 'application/vnd.microsoft.portable-executable'
     },
     {
-      name: 'ZapretPrime-Patch-2.0.5.zip',
-      filePath: fs.existsSync(patchPrime) ? patchPrime : patchHub,
+      name: `ZapretPrime-Patch-${version}.zip`,
+      filePath: patchFile,
+      contentType: 'application/zip'
+    },
+    {
+      name: `ZapretHub-Setup-${version}.exe`,
+      filePath: setupFile,
+      contentType: 'application/vnd.microsoft.portable-executable'
+    },
+    {
+      name: `ZapretHub-Patch-${version}.zip`,
+      filePath: patchFile,
       contentType: 'application/zip'
     }
   ];
