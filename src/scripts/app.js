@@ -258,8 +258,12 @@ function formatReleaseBody(content = '') {
 
     // Numbered or bulleted feature groups containing nested lists:
     // <li><p><strong>Title:</strong></p><ul>...</ul></li>
-    html = html.replace(/<li[^>]*>\s*(?:<p[^>]*>)?\s*(<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*)(?:<\/p>)?\s*<ul[^>]*>/gi,
+    html = html.replace(/<li[^>]*>\s*(?:<p[^>]*>)?\s*([^<]*?<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*)(?:<\/p>)?\s*<ul[^>]*>/gi,
       '<div class="space-y-1.5 pt-1.5"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5">$1</div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">');
+
+    // Standalone <li> containing only bold heading (without bullet)
+    html = html.replace(/<li[^>]*>\s*(?:<p[^>]*>)?\s*([^<]*?<strong class="font-bold text-white">[\s\S]*?<\/strong>[:\s]*)(?:<\/p>)?\s*<\/li>/gi,
+      '</ul></div><div class="space-y-1.5 pt-2"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5">$1</div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">');
 
     // Closing nested list: </ul>\s*</li>
     html = html.replace(/<\/ul>\s*<\/li>/gi, '</ul></div>');
@@ -334,14 +338,15 @@ function formatReleaseBody(content = '') {
       continue;
     }
 
-    // Bold title lines: **Title:** (acts as feature heading)
-    if (/^\*\*[^*]+\*\*[:\s]*$/.test(line)) {
+    // Bold title lines: with or without bullet marker (acts as feature heading, NEVER bulleted)
+    const cleanHeader = line.replace(/^[-*]\s+/, '').trim();
+    if (/^(?:[^\w\s]+\s+)?\*\*[^*]+\*\*[:\s]*$/.test(cleanHeader)) {
       if (inList) {
         result.push('</ul></div>');
         inList = false;
       }
-      const title = line.replace(/^\*\*/, '').replace(/\*\*[:\s]*$/, '').replace(/[:\s]+$/, '').trim();
-      result.push(`<div class="space-y-1.5 pt-1.5"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5"><span>${title}:</span></div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
+      const title = cleanHeader.replace(/\*\*/g, '').replace(/[:\s]+$/, '').trim();
+      result.push(`<div class="space-y-1.5 pt-2"><div class="font-bold text-white text-xs leading-snug flex items-center gap-1.5 pl-0.5"><span>${title}:</span></div><ul class="space-y-1.5 pl-3 text-slate-300 text-xs leading-relaxed">`);
       inList = true;
       continue;
     }
