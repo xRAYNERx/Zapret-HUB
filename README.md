@@ -24,17 +24,33 @@ Zapret Prime является независимой панелью управл
 
 ## Скриншоты интерфейса (Elevated Slate 2.0)
 
-| 1. Главный экран (обход выключен) | 2. Главный экран (обход включён) |
-|:---:|:---:|
-| ![Главный экран — выключено](docs/screenshots/01-glavnaya-vyklyucheno.png) | ![Главный экран — включено](docs/screenshots/02-glavnaya-vklyucheno.png) |
+<table width="100%">
+  <tr>
+    <th width="50%" align="center">1. Главный экран (обход выключен)</th>
+    <th width="50%" align="center">2. Главный экран (обход включён)</th>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/screenshots/01-glavnaya-vyklyucheno.png" alt="Главный экран — выключено" /></td>
+    <td width="50%" align="center"><img src="docs/screenshots/02-glavnaya-vklyucheno.png" alt="Главный экран — включено" /></td>
+  </tr>
+  <tr>
+    <th width="50%" align="center">3. Модуль VPN (VLESS Reality)</th>
+    <th width="50%" align="center">4. Списки сайтов и доменов</th>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="docs/screenshots/03-vkladka-vpn.png" alt="Вкладка VPN" /></td>
+    <td width="50%" align="center"><img src="docs/screenshots/04-vkladka-sajty.png" alt="Вкладка Сайты" /></td>
+  </tr>
+</table>
 
-| 3. Модуль VPN (VLESS Reality) | 4. Списки сайтов и доменов |
-|:---:|:---:|
-| ![Вкладка VPN](docs/screenshots/03-vkladka-vpn.png) | ![Вкладка Сайты](docs/screenshots/04-vkladka-sajty.png) |
-
-| 5. Настройки программы |
-|:---:|
-| ![Вкладка Настройки](docs/screenshots/05-vkladka-nastrojki.png) |
+<table width="100%">
+  <tr>
+    <th align="center">5. Настройки программы</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/05-vkladka-nastrojki.png" alt="Вкладка Настройки" /></td>
+  </tr>
+</table>
 
 ---
 
