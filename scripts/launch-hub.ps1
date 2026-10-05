@@ -30,10 +30,28 @@ function Get-MaxWriteTime {
     return $max
 }
 
-function Test-ZapretRunning {
-    $p1 = Get-Process -Name 'Zapret Prime' -ErrorAction SilentlyContinue
-    $p2 = Get-Process -Name 'Zapret HUB' -ErrorAction SilentlyContinue
-    return [bool]($p1 -or $p2)
+function Stop-AllAppProcesses {
+    $procNames = @(
+        'Zapret Prime',
+        'Zapret HUB',
+        'ZapretTgProxy',
+        'electron',
+        'winws',
+        'xray',
+        'sing-box'
+    )
+    $found = $false
+    foreach ($name in $procNames) {
+        $procs = Get-Process -Name $name -ErrorAction SilentlyContinue
+        if ($procs) {
+            $found = $true
+            $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if ($found) {
+        Write-Host 'Closing previous Zapret Prime and background processes...'
+        Start-Sleep -Milliseconds 800
+    }
 }
 
 $sourcePaths = @(
@@ -49,12 +67,7 @@ $builtTime = if (Test-Path $Asar) { (Get-Item $Asar).LastWriteTime } elseif (Tes
 $sourceTime = Get-MaxWriteTime -Paths $sourcePaths
 $needsBuild = -not (Test-Path $Exe) -or ($sourceTime -gt $builtTime)
 
-if (Test-ZapretRunning) {
-    Write-Host 'Closing previous Zapret Prime instance...'
-    Stop-Process -Name 'Zapret Prime' -Force -ErrorAction SilentlyContinue
-    Stop-Process -Name 'Zapret HUB' -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 600
-}
+Stop-AllAppProcesses
 
 if ($needsBuild) {
     Write-Host ''
