@@ -1353,6 +1353,7 @@ function registerIpc() {
     'open-tg-proxy-settings': () => tgProxy.openSettings(shell),
     'vless-get-status': () => vless.getStatus(),
     'vless-update-subscription': (_, url, resetPings = true) => vless.updateSubscription(url, resetPings),
+    'vless-clear-subscription': () => vless.clearSubscription(),
     'vless-test-server': (_, idx) => vless.testSingleServer(idx),
     'vless-test-all': async () => {
       const sendProgress = (progress) => {

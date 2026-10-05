@@ -843,6 +843,18 @@ class VlessService {
     return { count: parsedServers.length, serverCount: parsedServers.length, servers: parsedServers, subscriptionInfo: this.settings.subscriptionInfo, daysLeft: this.settings.subscriptionInfo?.daysLeft };
   }
 
+  async clearSubscription() {
+    if (this._isConnected) {
+      await this.disconnect(true);
+    }
+    this.settings.subscriptionUrl = '';
+    this.settings.subscriptionInfo = null;
+    this.settings.servers = [];
+    this.settings.selectedServerIndex = 0;
+    this.saveSettings();
+    return this.getStatus();
+  }
+
   async testSingleServer(serverIndex, customTimeout = 3000) {
     const srv = this.settings.servers[serverIndex];
     if (!srv) throw new Error('Сервер не найден');

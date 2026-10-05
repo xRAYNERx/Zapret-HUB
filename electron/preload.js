@@ -98,6 +98,7 @@ const api = {
   },
   vlessGetStatus: () => ipcRenderer.invoke('vless-get-status'),
   vlessUpdateSubscription: (url, resetPings) => ipcRenderer.invoke('vless-update-subscription', url, resetPings),
+  vlessClearSubscription: () => ipcRenderer.invoke('vless-clear-subscription'),
   vlessTestServer: (idx) => ipcRenderer.invoke('vless-test-server', idx),
   vlessTestAll: () => ipcRenderer.invoke('vless-test-all'),
   vlessConnect: (idx) => ipcRenderer.invoke('vless-connect', idx),

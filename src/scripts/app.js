@@ -121,6 +121,10 @@ function navigateTo(pageId) {
       }
     }
   });
+
+  if (pageId === 'vpn' && typeof updateVpnSubActionsVisibility === 'function') {
+    updateVpnSubActionsVisibility();
+  }
 }
 
 // ─── Mutual Exclusion Conflict Modal ───
@@ -1092,6 +1096,111 @@ async function copySubUrl(e) {
 }
 window.copySubUrl = copySubUrl;
 
+function updateVpnSubActionsVisibility() {
+  const input = $('#vpn-sub-input');
+  const val = (input?.value || '').trim();
+  const savedUrl = (state.vpn.subscriptionUrl || state.vpn.subUrl || '').trim();
+
+  const btnApply = $('#btn-apply-sub');
+  const btnEye = $('#btn-toggle-sub-eye');
+  const btnCopy = $('#btn-copy-sub');
+  const btnDel = $('#btn-delete-sub');
+  const btnHeaderDel = $('#btn-header-delete-sub');
+
+  const hasVal = Boolean(val);
+  const isModified = hasVal && val !== savedUrl;
+  const hasSaved = Boolean(savedUrl);
+
+  // Apply button (Green checkmark): shown when user entered or pasted an unsaved subscription URL
+  if (btnApply) {
+    if (isModified) {
+      btnApply.classList.remove('hidden');
+    } else {
+      btnApply.classList.add('hidden');
+    }
+  }
+
+  // Eye toggle: shown if input has content
+  if (btnEye) {
+    if (hasVal) {
+      btnEye.classList.remove('hidden');
+    } else {
+      btnEye.classList.add('hidden');
+    }
+  }
+
+  // Copy button: shown if input has content
+  if (btnCopy) {
+    if (hasVal) {
+      btnCopy.classList.remove('hidden');
+    } else {
+      btnCopy.classList.add('hidden');
+    }
+  }
+
+  // Delete button: shown if there is a saved subscription or text in input
+  if (btnDel) {
+    if (hasSaved || hasVal) {
+      btnDel.classList.remove('hidden');
+    } else {
+      btnDel.classList.add('hidden');
+    }
+  }
+  if (btnHeaderDel) {
+    if (hasSaved || hasVal) {
+      btnHeaderDel.classList.remove('hidden');
+    } else {
+      btnHeaderDel.classList.add('hidden');
+    }
+  }
+}
+window.updateVpnSubActionsVisibility = updateVpnSubActionsVisibility;
+
+function handleVpnSubInput(val) {
+  updateVpnSubActionsVisibility();
+}
+window.handleVpnSubInput = handleVpnSubInput;
+
+function confirmDeleteVpnSub(e) {
+  if (e) e.stopPropagation();
+  const modal = $('#deleteSubModal');
+  if (modal) modal.classList.remove('hidden');
+}
+window.confirmDeleteVpnSub = confirmDeleteVpnSub;
+
+function closeDeleteSubModal() {
+  const modal = $('#deleteSubModal');
+  if (modal) modal.classList.add('hidden');
+}
+window.closeDeleteSubModal = closeDeleteSubModal;
+
+async function executeDeleteVpnSub() {
+  closeDeleteSubModal();
+  const input = $('#vpn-sub-input');
+  const btnConfirm = $('#btn-confirm-delete-sub');
+  if (btnConfirm) btnConfirm.disabled = true;
+
+  try {
+    const res = await api('vlessClearSubscription');
+    state.vpn.subscriptionUrl = '';
+    state.vpn.subUrl = '';
+    state.vpn.servers = [];
+    state.vpn.activeServerIndex = -1;
+    state.vpn.running = false;
+    if (input) input.value = '';
+
+    updateVpnUI(res || { running: false, servers: [], subscriptionUrl: '' });
+    renderVpnServers();
+    updateVpnSubActionsVisibility();
+    toast('Подписка удалена из приложения', 'info');
+  } catch (err) {
+    toast(err.message || 'Ошибка удаления подписки', 'error');
+  } finally {
+    if (btnConfirm) btnConfirm.disabled = false;
+  }
+}
+window.executeDeleteVpnSub = executeDeleteVpnSub;
+
 async function pasteVpnSub(e) {
   if (e) e.stopPropagation();
   try {
@@ -1110,7 +1219,8 @@ async function pasteVpnSub(e) {
     if (input && text && text.trim()) {
       input.value = text.trim();
       input.focus();
-      toast('Ссылка вставлена. Нажмите «Обновить»', 'info');
+      updateVpnSubActionsVisibility();
+      toast('Ссылка вставлена. Нажмите «Обновить» (галочку) для применения', 'info');
     } else {
       toast('Буфер обмена пуст', 'error');
     }
@@ -1132,25 +1242,37 @@ async function updateVpnSub() {
   const btnText = $('#btn-update-sub-text');
   const icon = $('#update-sub-icon');
 
+  const btnApply = $('#btn-apply-sub');
+  const iconApply = $('#icon-apply-sub-check');
+  const textApply = $('#text-apply-sub');
+
   if (btn) btn.disabled = true;
   if (btnText) btnText.innerText = 'Загрузка...';
   if (icon) icon.classList.add('animate-spin');
+
+  if (btnApply) btnApply.disabled = true;
+  if (textApply) textApply.innerText = 'Загрузка...';
+  if (iconApply) iconApply.classList.add('animate-spin');
 
   toast('Обновление серверов подписки...', 'info');
   try {
     const res = await api('vlessUpdateSubscription', url, true);
     const count = res.count || res.serverCount || (res.servers ? res.servers.length : 0);
+    state.vpn.subscriptionUrl = url;
+    state.vpn.subUrl = url;
     if (res && res.servers) {
       state.vpn.servers = res.servers;
       renderVpnServers();
     }
     toast(`Загружено серверов: ${count}. Замеряем пинг...`, 'info');
     if (btnText) btnText.innerText = 'Замер...';
+    if (textApply) textApply.innerText = 'Замер...';
 
     // Immediately test ping across fresh servers
     await api('vlessTestAll');
     const status = await api('vlessGetStatus');
     updateVpnUI(status);
+    updateVpnSubActionsVisibility();
     toast(`Подписка обновлена: ${count} узлов, пинг измерен`, 'success');
   } catch (e) {
     toast(e.message || 'Ошибка обновления подписки', 'error');
@@ -1158,6 +1280,11 @@ async function updateVpnSub() {
     if (btn) btn.disabled = false;
     if (btnText) btnText.innerText = 'Обновить';
     if (icon) icon.classList.remove('animate-spin');
+
+    if (btnApply) btnApply.disabled = false;
+    if (textApply) textApply.innerText = 'Обновить';
+    if (iconApply) iconApply.classList.remove('animate-spin');
+    updateVpnSubActionsVisibility();
   }
 }
 window.updateVpnSub = updateVpnSub;
@@ -2522,26 +2649,41 @@ function updateVpnUI(status) {
 
   // Subscription service name and days left
   const subInfo = status.subscriptionInfo || {};
+  const hasSub = Boolean(status.subscriptionUrl || status.subUrl);
   const serviceNameEl = $('#sub-service-name');
   if (serviceNameEl) {
-    serviceNameEl.innerText = subInfo.serviceName || status.serviceName || 'DedVPN Private';
+    if (hasSub) {
+      serviceNameEl.innerText = subInfo.serviceName || status.serviceName || 'DedVPN Private';
+    } else {
+      serviceNameEl.innerText = 'Подписка не добавлена';
+    }
   }
   const daysLeftEl = $('#sub-days-left');
   if (daysLeftEl) {
-    const days = typeof status.daysLeft === 'number'
-      ? status.daysLeft
-      : (typeof subInfo.daysLeft === 'number' ? subInfo.daysLeft : null);
-    if (typeof days === 'number') {
-      daysLeftEl.innerText = `Осталось ${days} ${pluralizeDays(days)}`;
+    if (!hasSub) {
+      daysLeftEl.innerText = 'Нет активного ключа';
     } else {
-      daysLeftEl.innerText = 'Подписка активна';
+      const days = typeof status.daysLeft === 'number'
+        ? status.daysLeft
+        : (typeof subInfo.daysLeft === 'number' ? subInfo.daysLeft : null);
+      if (typeof days === 'number') {
+        daysLeftEl.innerText = `Осталось ${days} ${pluralizeDays(days)}`;
+      } else {
+        daysLeftEl.innerText = 'Подписка активна';
+      }
     }
   }
 
-  // Populate subscription URL into input if input is currently empty
+  // Populate subscription URL into input if matching or empty
   const subInput = $('#vpn-sub-input');
-  if (subInput && !subInput.value.trim() && (status.subscriptionUrl || status.subUrl)) {
-    subInput.value = status.subscriptionUrl || status.subUrl;
+  if (subInput) {
+    if (hasSub) {
+      if (!subInput.value.trim() || subInput.value === state.vpn.subscriptionUrl) {
+        subInput.value = status.subscriptionUrl || status.subUrl;
+      }
+    } else {
+      subInput.value = '';
+    }
   }
 
   const total = state.vpn.servers.length;
@@ -2673,6 +2815,7 @@ function updateVpnUI(status) {
   }
 
   renderVpnServers();
+  updateVpnSubActionsVisibility();
   updateFooterStatus();
 }
 
