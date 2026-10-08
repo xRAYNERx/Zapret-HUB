@@ -391,6 +391,40 @@ let trayVlessRunning = false;
 let trayVlessNodeName = '';
 let trayVlessPing = null;
 
+async function enforceStopZapretBeforeVpn() {
+  if (zapret) {
+    lastIntentionalBypassStop = Date.now();
+    bypassWasRunning = false;
+    try {
+      await zapret.stop();
+    } catch (err) {
+      logStartup(`enforceStopZapretBeforeVpn error: ${err?.message || err}`);
+    }
+    trayZapretRunning = false;
+    try {
+      const zStatus = await zapret.getStatus();
+      mainWindow?.webContents.send('status-changed', zStatus);
+    } catch {}
+  }
+}
+
+async function enforceStopVpnBeforeZapret() {
+  if (vless) {
+    try {
+      await vless.disconnect();
+    } catch (err) {
+      logStartup(`enforceStopVpnBeforeZapret error: ${err?.message || err}`);
+    }
+    trayVlessRunning = false;
+    trayVlessPing = null;
+    trayVlessNodeName = '';
+    try {
+      const vStatus = await vless.getStatus();
+      mainWindow?.webContents.send('vless-status-changed', vStatus);
+    } catch {}
+  }
+}
+
 async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode, vlessPing) {
   if (!tray) return;
 
@@ -445,14 +479,8 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode,
             bypassWasRunning = false;
             await zapret.stop();
           } else {
-            if (trayVlessRunning && vless) {
-              await vless.disconnect();
-              trayVlessRunning = false;
-              trayVlessPing = null;
-              const vStatus = await vless.getStatus();
-              mainWindow?.webContents.send('vless-status-changed', vStatus);
-            }
-            const status = await zapret.start(zapret.config.lastStrategy || 'general.bat');
+            await enforceStopVpnBeforeZapret();
+            const status = await zapret.start(zapret.config.lastStrategy || 'general (ALT).bat');
             if (status.running) {
               sendInAppNotify('Включение обхода');
             }
@@ -480,17 +508,11 @@ async function updateTrayMenu(zapretRunning, tgRunning, vlessRunning, vlessNode,
             const vStatus = await vless.disconnect();
             trayVlessRunning = false;
             trayVlessPing = null;
+            trayVlessNodeName = '';
             mainWindow?.webContents.send('vless-status-changed', vStatus);
             sendInAppNotify('VPN отключён');
           } else {
-            if (trayZapretRunning && zapret) {
-              lastIntentionalBypassStop = Date.now();
-              bypassWasRunning = false;
-              await zapret.stop();
-              trayZapretRunning = false;
-              const zStatus = await zapret.getStatus();
-              mainWindow?.webContents.send('status-changed', zStatus);
-            }
+            await enforceStopZapretBeforeVpn();
             const vStatus = await vless.connect(0);
             trayVlessRunning = Boolean(vStatus.running);
             trayVlessNodeName = vStatus.activeServer?.name || '';
@@ -701,13 +723,14 @@ async function runAutostartZapret() {
   try {
     const status = await zapret.getStatus();
     if (status.running) return;
-    const strategy = zapret.config.lastStrategy || 'general.bat';
+    await enforceStopVpnBeforeZapret();
+    const strategy = zapret.config.lastStrategy || 'general (ALT).bat';
     const result = await zapret.start(strategy);
     if (result.running) {
       sendInAppNotify('Автозапуск: включение обхода');
       markBypassRunning(true);
       mainWindow?.webContents.send('status-changed', result);
-      updateTrayMenu(true, trayTgRunning);
+      updateTrayMenu(true, trayTgRunning, false, '', null);
     }
   } catch (err) {
     logStartup(`Autostart zapret failed: ${err.message}`);
@@ -941,6 +964,11 @@ function getHubInstallDir() {
 
 async function stopServicesBeforeHubInstall() {
   try {
+    if (vless) await vless.disconnect();
+  } catch (err) {
+    logStartup(`Hub update stop vless failed: ${err.message}`);
+  }
+  try {
     if (zapret) {
       const status = await zapret.getStatus();
       if (status.running) await zapret.stop();
@@ -953,6 +981,13 @@ async function stopServicesBeforeHubInstall() {
   } catch (err) {
     logStartup(`Hub update stop tg-proxy failed: ${err.message}`);
   }
+  // Force kill any lingering binaries and stop WinDivert driver to prevent locked-file errors
+  try {
+    await execAsync('taskkill /F /IM winws.exe /IM ZapretTgProxy.exe /IM xray.exe /IM sing-box.exe', { windowsHide: true });
+  } catch {}
+  try {
+    await execAsync('net stop WinDivert', { windowsHide: true });
+  } catch {}
 }
 
 async function applyHubPatch(patchZipPath, onProgress) {
@@ -981,16 +1016,33 @@ set "TARGET_DIR=%~1"
 set "SOURCE_DIR=%~2"
 set "APP_EXE=%~3"
 
-timeout /t 1 /nobreak >nul
+timeout /t 2 /nobreak >nul
 taskkill /F /IM "Zapret.NET.exe" >nul 2>&1
 taskkill /F /IM "Zapret Prime.exe" >nul 2>&1
 taskkill /F /IM "Zapret HUB.exe" >nul 2>&1
+taskkill /F /IM "winws.exe" >nul 2>&1
+taskkill /F /IM "ZapretTgProxy.exe" >nul 2>&1
+taskkill /F /IM "xray.exe" >nul 2>&1
+taskkill /F /IM "sing-box.exe" >nul 2>&1
+net stop WinDivert >nul 2>&1
 timeout /t 1 /nobreak >nul
 
-xcopy /E /Y /I "%SOURCE_DIR%\\*" "%TARGET_DIR%\\" >nul 2>&1
+robocopy "%SOURCE_DIR%" "%TARGET_DIR%" /E /IS /IT /R:5 /W:1 >nul 2>&1
+if errorlevel 8 (
+  xcopy /E /Y /I "%SOURCE_DIR%\\*" "%TARGET_DIR%\\" >nul 2>&1
+)
 
 if exist "%APP_EXE%" (
   start "" "%APP_EXE%"
+) else (
+  set "EXE_DIR=%~dp3"
+  if exist "%EXE_DIR%Zapret.NET.exe" (
+    start "" "%EXE_DIR%Zapret.NET.exe"
+  ) else if exist "%EXE_DIR%Zapret Prime.exe" (
+    start "" "%EXE_DIR%Zapret Prime.exe"
+  ) else if exist "%EXE_DIR%Zapret HUB.exe" (
+    start "" "%EXE_DIR%Zapret HUB.exe"
+  )
 )
 exit
 `;
@@ -1014,20 +1066,50 @@ exit
 
 async function launchHubInstaller(installerPath, onProgress) {
   if (typeof onProgress === 'function') {
-    onProgress({ percent: 100, message: 'Запуск обновления…' });
+    onProgress({ percent: 100, message: 'Запуск обновления и перезапуск…' });
   }
 
   await stopServicesBeforeHubInstall();
   logStartup(`Hub update: launching ${installerPath}`);
 
   const installDir = getHubInstallDir();
-  const args = ['/S', '--updated', '--force-run'];
-  if (app.isPackaged && installDir) {
-    args.push(`/D=${installDir}`);
-  }
+  const updatesDir = path.dirname(installerPath);
+  const batPath = path.join(updatesDir, 'run_installer.bat');
+
+  // NSIS requirement: /D must NOT have quotes around it, even if path has spaces!
+  // A batch file allows passing /D=%INSTALL_DIR% unquoted cleanly.
+  const batScript = `@echo off
+setlocal
+set "INSTALLER=%~1"
+set "INSTALL_DIR=%~2"
+
+timeout /t 2 /nobreak >nul
+taskkill /F /IM "Zapret.NET.exe" >nul 2>&1
+taskkill /F /IM "Zapret Prime.exe" >nul 2>&1
+taskkill /F /IM "Zapret HUB.exe" >nul 2>&1
+taskkill /F /IM "winws.exe" >nul 2>&1
+taskkill /F /IM "ZapretTgProxy.exe" >nul 2>&1
+taskkill /F /IM "xray.exe" >nul 2>&1
+taskkill /F /IM "sing-box.exe" >nul 2>&1
+net stop WinDivert >nul 2>&1
+
+timeout /t 1 /nobreak >nul
+
+if "%INSTALL_DIR%"=="" (
+  start "" "%INSTALLER%" /S --updated --force-run
+) else (
+  start "" "%INSTALLER%" /S --updated --force-run /D=%INSTALL_DIR%
+)
+exit
+`;
+  fs.writeFileSync(batPath, batScript, 'utf8');
 
   try {
-    const child = spawn(installerPath, args, { detached: true, stdio: 'ignore' });
+    const child = spawn('cmd.exe', ['/c', batPath, installerPath, (app.isPackaged && installDir) ? installDir : ''], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
     child.unref();
   } catch (err) {
     logStartup(`Spawn silent update failed: ${err.message}, fallback to openPath`);
@@ -1039,7 +1121,7 @@ async function launchHubInstaller(installerPath, onProgress) {
   }
 
   app.isQuitting = true;
-  setTimeout(() => app.quit(), 1000);
+  setTimeout(() => app.quit(), 500);
 }
 
 async function applyHubUpdate(onProgress) {
@@ -1244,6 +1326,7 @@ function registerIpc() {
     'get-status': () => zapret.getStatus(),
     'get-strategies': () => zapret.getStrategies(),
     'start': async (_, strategy) => {
+      await enforceStopVpnBeforeZapret();
       suppressBypassDrop(BYPASS_RESTART_SUPPRESS_MS);
       bypassWasRunning = false;
       const status = await zapret.start(strategy);
@@ -1251,10 +1334,12 @@ function registerIpc() {
       if (status.running) {
         sendInAppNotify('Включение обхода');
       }
+      updateTrayMenu(Boolean(status.running), trayTgRunning, trayVlessRunning, trayVlessNodeName, trayVlessPing);
       return status;
     },
     'set-strategy': (_, strategy) => zapret.setLastStrategy(strategy),
     'restart': async (_, strategy) => {
+      await enforceStopVpnBeforeZapret();
       suppressBypassDrop(BYPASS_RESTART_SUPPRESS_MS);
       bypassWasRunning = false;
       const status = await zapret.restart(strategy);
@@ -1262,6 +1347,7 @@ function registerIpc() {
       if (status.running) {
         sendInAppNotify('Смена стратегии обхода');
       }
+      updateTrayMenu(Boolean(status.running), trayTgRunning, trayVlessRunning, trayVlessNodeName, trayVlessPing);
       return status;
     },
     'stop': async () => {
@@ -1269,6 +1355,7 @@ function registerIpc() {
       const status = await zapret.stop();
       bypassWasRunning = false;
       sendInAppNotify('Выключение обхода');
+      updateTrayMenu(Boolean(status.running), trayTgRunning, trayVlessRunning, trayVlessNodeName, trayVlessPing);
       return status;
     },
     'get-sites': () => zapret.getGeneralSites(),
@@ -1354,6 +1441,7 @@ function registerIpc() {
       return zapret.applyUpdate(remoteVersion, sendProgress);
     },
     'run-strategy-probe': async (_, options) => {
+      await enforceStopVpnBeforeZapret();
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('strategy-probe-progress', progress);
       };
@@ -1364,6 +1452,7 @@ function registerIpc() {
       } finally {
         const status = await zapret.getStatus();
         markBypassRunning(status.running);
+        updateTrayMenu(Boolean(status.running), trayTgRunning, trayVlessRunning, trayVlessNodeName, trayVlessPing);
       }
     },
     'cancel-strategy-probe': () => zapret.cancelStrategyProbe(),
@@ -1394,23 +1483,36 @@ function registerIpc() {
     'copy-tg-proxy-link': () => tgProxy.copyProxyLink(clipboard),
     'open-tg-proxy-settings': () => tgProxy.openSettings(shell),
     'vless-get-status': () => vless.getStatus(),
-    'vless-update-subscription': (_, url, resetPings = true) => vless.updateSubscription(url, resetPings),
+    'vless-update-subscription': async (_, url, resetPings = true) => {
+      await enforceStopZapretBeforeVpn();
+      return vless.updateSubscription(url, resetPings);
+    },
     'vless-clear-subscription': () => vless.clearSubscription(),
     'vless-test-server': (_, idx) => vless.testSingleServer(idx),
     'vless-test-all': async () => {
+      await enforceStopZapretBeforeVpn();
       const sendProgress = (progress) => {
         mainWindow?.webContents.send('vless-test-progress', progress);
       };
       return vless.testAllServers(sendProgress);
     },
     'vless-connect': async (_, idx) => {
+      await enforceStopZapretBeforeVpn();
       const res = await vless.connect(idx);
-      updateTrayMenu(trayZapretRunning, trayTgRunning, Boolean(res.running), res.activeServer?.name, res.activeServer?.ping || null);
+      trayVlessRunning = Boolean(res.running);
+      trayVlessNodeName = res.activeServer?.name || '';
+      trayVlessPing = res.activeServer?.ping || null;
+      updateTrayMenu(trayZapretRunning, trayTgRunning, trayVlessRunning, trayVlessNodeName, trayVlessPing);
+      mainWindow?.webContents.send('vless-status-changed', res);
       return res;
     },
     'vless-disconnect': async () => {
       const res = await vless.disconnect();
+      trayVlessRunning = false;
+      trayVlessPing = null;
+      trayVlessNodeName = '';
       updateTrayMenu(trayZapretRunning, trayTgRunning, false, '', null);
+      mainWindow?.webContents.send('vless-status-changed', res);
       return res;
     },
     'vless-toggle-system-proxy': (_, enabled) => vless.toggleSystemProxy(enabled),
@@ -1418,6 +1520,21 @@ function registerIpc() {
     'set-close-behavior': (_, mode) => zapret.setCloseBehavior(mode ?? null),
     'set-onboarding-completed': (_, completed) => zapret.setOnboardingCompleted(completed),
     'read-clipboard-text': () => clipboard.readText(),
+    'export-logs-dialog': async () => {
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Выгрузить логи и диагностику',
+        defaultPath: `zapret_net_logs_${dateStr}.txt`,
+        filters: [
+          { name: 'Текстовый отчет (*.txt)', extensions: ['txt'] },
+          { name: 'Файл логов (*.log)', extensions: ['log'] }
+        ]
+      });
+      if (canceled || !filePath) return { saved: false };
+      const report = await zapret.generateFullDiagnosticLog({ tgProxy, vless });
+      fs.writeFileSync(filePath, report, 'utf8');
+      return { saved: true, filePath };
+    },
     'export-sites-dialog': async (_, options = {}) => {
       const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         title: 'Экспорт списка доменов',
@@ -1525,6 +1642,7 @@ app.whenReady().then(async () => {
       resourcesPath: process.resourcesPath,
       zapretService: zapret
     });
+    zapret.setVlessService(vless);
     vless.cleanupStaleProxy().catch(() => {});
     vless.onPingUpdate = ({ index, ping, serverName, blocked, disconnected }) => {
       if (disconnected) {

@@ -96,6 +96,11 @@ class ZapretService {
     this._installedStrategyCacheAt = 0;
     this._isElevatedCache = null;
     this._starting = false;
+    this.vlessService = options.vlessService || null;
+  }
+
+  setVlessService(vlessService) {
+    this.vlessService = vlessService;
   }
 
   loadConfig() {
@@ -224,6 +229,20 @@ class ZapretService {
     this.ensurePackagedEngine();
     await this.applyPendingUpdates();
     this.syncActiveCustomList();
+
+    // Ensure a valid, existing strategy is selected in config
+    const current = (this.config.lastStrategy || '').trim();
+    const zapretPath = this.getZapretPath();
+    const strategyExists = current && fs.existsSync(path.join(zapretPath, current));
+    if (!strategyExists) {
+      const available = this.getStrategies();
+      this.config.lastStrategy = available.length > 0
+        ? (available[0].file || available[0].name)
+        : 'general (ALT).bat';
+      this.saveConfig();
+    } else if (!fs.existsSync(this.configPath)) {
+      this.saveConfig();
+    }
   }
 
   resolveZapretPath() {
@@ -1645,6 +1664,23 @@ class ZapretService {
         }
       }
 
+      // 100% Mutual Exclusion: Disconnect VPN and ensure no leftover tunnel/proxy
+      if (this.vlessService) {
+        try {
+          const vStatus = await this.vlessService.getStatus();
+          if (vStatus.running) {
+            await this.vlessService.disconnect();
+          }
+        } catch (e) {
+          console.warn('[ZapretService] Error disconnecting vless before start:', e);
+        }
+      }
+      try {
+        await execAsync('taskkill /IM xray.exe /F /T', { windowsHide: true, timeout: 2000 });
+        await execAsync('taskkill /IM sing-box.exe /F /T', { windowsHide: true, timeout: 2000 });
+        await execAsync('reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f', { windowsHide: true });
+      } catch {}
+
       const winwsRunning = await this.isProcessRunning('winws.exe');
       const serviceState = await this.getServiceState('zapret');
 
@@ -2001,6 +2037,148 @@ class ZapretService {
     );
 
     return results;
+  }
+
+  async generateFullDiagnosticLog({ tgProxy, vless } = {}) {
+    const os = require('os');
+    const sections = [];
+    const now = new Date();
+
+    sections.push('================================================================================');
+    sections.push('  ZAPRET.NET — ПОЛНЫЙ ДИАГНОСТИЧЕСКИЙ ОТЧЕТ И СИСТЕМНЫЕ ЛОГИ');
+    sections.push(`  Дата формирования: ${now.toLocaleString('ru-RU')} (UTC: ${now.toISOString()})`);
+    sections.push(`  Версия приложения: ${appPkg.version || '2.0.8'}`);
+    sections.push('================================================================================\n');
+
+    // 1. Система и окружение
+    sections.push('[1. СИСТЕМА И ОКРУЖЕНИЕ]');
+    sections.push(`- ОС: ${os.type()} ${os.release()} (${os.arch()})`);
+    sections.push(`- Платформа: Windows (${process.platform})`);
+    sections.push(`- Версия Node.js: ${process.versions.node}`);
+    sections.push(`- Версия Electron: ${process.versions.electron || 'N/A'}`);
+    sections.push(`- Путь приложения: ${this.appPath}`);
+    sections.push(`- Каталог данных: ${this.userDataPath}`);
+    sections.push(`- Путь Zapret: ${this.getZapretPath()}`);
+    sections.push(`- Аптайм системы: ${Math.round(os.uptime() / 60)} мин.`);
+    sections.push('');
+
+    // 2. Zapret / DPI Bypass
+    sections.push('[2. СТАТУС ОБХОДА ZAPRET (DPI)]');
+    try {
+      const zStatus = await this.getStatus();
+      const winwsRunning = await this.isProcessRunning('winws.exe');
+      const divertState = await this.getServiceState('WinDivert');
+      const zapretSvcState = await this.getServiceState('zapret');
+      sections.push(`- Состояние обхода (UI): ${zStatus.running ? 'ВКЛЮЧЕН' : 'ОТКЛЮЧЕН'}`);
+      sections.push(`- Выбранная стратегия: ${this.config.lastStrategy || 'general (ALT).bat'}`);
+      sections.push(`- Процесс winws.exe: ${winwsRunning ? 'ЗАПУЩЕН' : 'НЕ ЗАПУЩЕН'}`);
+      sections.push(`- Служба WinDivert: ${divertState}`);
+      sections.push(`- Служба zapret: ${zapretSvcState}`);
+      sections.push(`- Автозапуск с Windows: ${Boolean(this.config.autostartZapret)}`);
+      sections.push(`- Поведение при закрытии: ${this.config.closeBehavior || 'tray'}`);
+      sections.push('- Конфиг Zapret (config.json):');
+      sections.push(JSON.stringify(this.config, null, 2));
+    } catch (e) {
+      sections.push(`- Ошибка получения статуса Zapret: ${e.message}`);
+    }
+    sections.push('');
+
+    // 3. Telegram Proxy
+    sections.push('[3. TELEGRAM PROXY (ZapretTgProxy)]');
+    try {
+      const tgStatus = tgProxy ? await tgProxy.getStatus() : null;
+      const tgExeRunning = await this.isProcessRunning('ZapretTgProxy.exe');
+      sections.push(`- Состояние прокси (UI): ${tgStatus?.running ? 'РАБОТАЕТ' : 'ОСТАНОВЛЕН'}`);
+      sections.push(`- Процесс ZapretTgProxy.exe: ${tgExeRunning ? 'ЗАПУЩЕН' : 'НЕ ЗАПУЩЕН'}`);
+      sections.push(`- Хост / Порт: ${tgStatus?.host || '127.0.0.1'}:${tgStatus?.port || 1443}`);
+      sections.push(`- Ключ (секрет): ${tgStatus?.secret || 'N/A'}`);
+      sections.push(`- Ссылка подключения: ${tgStatus?.proxyUrl || 'N/A'}`);
+
+      const tgConfigPath = path.join(process.env.APPDATA || this.userDataPath, 'TgWsProxy', 'config.json');
+      if (fs.existsSync(tgConfigPath)) {
+        try {
+          sections.push('- Конфигурация (%APPDATA%\\TgWsProxy\\config.json):');
+          sections.push(fs.readFileSync(tgConfigPath, 'utf8').trim());
+        } catch {}
+      } else {
+        sections.push('- Файл config.json в TgWsProxy: не найден');
+      }
+
+      const tgLogPath = path.join(process.env.APPDATA || this.userDataPath, 'TgWsProxy', 'proxy.log');
+      if (fs.existsSync(tgLogPath)) {
+        try {
+          const rawLog = fs.readFileSync(tgLogPath, 'utf8');
+          const lines = rawLog.split(/\r?\n/).filter(Boolean);
+          const tail = lines.slice(-300);
+          sections.push(`\n- Лог Telegram Proxy (%APPDATA%\\TgWsProxy\\proxy.log) [последние ${tail.length} строк]:`);
+          sections.push('--------------------------------------------------------------------------------');
+          sections.push(tail.join('\n'));
+          sections.push('--------------------------------------------------------------------------------');
+        } catch (e) {
+          sections.push(`- Ошибка чтения proxy.log: ${e.message}`);
+        }
+      } else {
+        sections.push('- Файл proxy.log: отсутствует (запусков не было)');
+      }
+    } catch (e) {
+      sections.push(`- Ошибка сбора информации Telegram Proxy: ${e.message}`);
+    }
+    sections.push('');
+
+    // 4. VPN / VLESS
+    sections.push('[4. СТАТУС VPN / VLESS]');
+    try {
+      const vStatus = vless ? await vless.getStatus() : null;
+      const xrayRunning = await this.isProcessRunning('xray.exe');
+      const singBoxRunning = await this.isProcessRunning('sing-box.exe');
+      sections.push(`- Состояние VPN (UI): ${vStatus?.running ? 'ПОДКЛЮЧЕН' : 'ОТКЛЮЧЕН'}`);
+      sections.push(`- Процесс xray.exe: ${xrayRunning ? 'ЗАПУЩЕН' : 'НЕ ЗАПУЩЕН'}`);
+      sections.push(`- Процесс sing-box.exe: ${singBoxRunning ? 'ЗАПУЩЕН' : 'НЕ ЗАПУЩЕН'}`);
+      sections.push(`- Системный прокси VPN: ${vStatus?.systemProxy ? 'ВКЛЮЧЕН' : 'ОТКЛЮЧЕН'}`);
+      sections.push(`- Текущий узел: ${vStatus?.activeServer?.name || 'Нет'}`);
+      sections.push(`- Задержка узла: ${vStatus?.activeServer?.ping ? `${vStatus.activeServer.ping} мс` : '—'}`);
+      sections.push(`- Всего серверов: ${vStatus?.servers?.length || 0}`);
+    } catch (e) {
+      sections.push(`- Ошибка статуса VPN: ${e.message}`);
+    }
+    sections.push('');
+
+    // 5. Диагностика сети и системных компонентов
+    sections.push('[5. РЕЗУЛЬТАТЫ ДИАГНОСТИКИ СЕТИ И СИСТЕМЫ]');
+    try {
+      const diagResults = await this.runDiagnostics();
+      for (const item of diagResults) {
+        sections.push(`- [${item.severity.toUpperCase()}] ${item.name}: ${item.message}`);
+      }
+    } catch (e) {
+      sections.push(`- Ошибка выполнения runDiagnostics: ${e.message}`);
+    }
+    sections.push('');
+
+    // 6. Сетевые параметры Windows
+    sections.push('[6. СЕТЕВЫЕ ПАРАМЕТРЫ WINDOWS]');
+    try {
+      const { stdout: proxyReg } = await execAsync(
+        'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"',
+        { windowsHide: true, timeout: 2000 }
+      ).catch(() => ({ stdout: '' }));
+      const pEnable = proxyReg.match(/ProxyEnable\s+REG_DWORD\s+(0x[0-9a-fA-F]+)/i);
+      const pServer = proxyReg.match(/ProxyServer\s+REG_SZ\s+(.+)/i);
+      sections.push(`- Системный прокси (ProxyEnable): ${pEnable ? (pEnable[1] === '0x1' ? 'ВКЛЮЧЕН (1)' : 'ОТКЛЮЧЕН (0)') : 'Не задан'}`);
+      sections.push(`- Адрес прокси (ProxyServer): ${pServer ? pServer[1].trim() : 'Не задан'}`);
+    } catch {}
+
+    try {
+      const { stdout: ipOut } = await execAsync('chcp 65001 >nul && ipconfig', { windowsHide: true, timeout: 3000 }).catch(() => ({ stdout: '' }));
+      sections.push('\n- Краткий вывод ipconfig:');
+      sections.push(ipOut.trim().split(/\r?\n/).slice(0, 50).join('\n'));
+    } catch {}
+
+    sections.push('\n================================================================================');
+    sections.push('  КОНЕЦ ОТЧЕТА');
+    sections.push('================================================================================');
+
+    return sections.join('\n');
   }
 
   async runSelfHealing(serviceState = {}) {

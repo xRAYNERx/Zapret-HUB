@@ -93,9 +93,9 @@
       transition: all 0.15s ease !important;
     }
     .sites-mode-badge-active {
-      background: rgba(20, 184, 166, 0.22) !important;
-      color: #5eead4 !important;
-      box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.35) !important;
+      background: rgba(16, 185, 129, 0.22) !important;
+      color: #34d399 !important;
+      box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.35) !important;
       border: none !important;
     }
     .sites-mode-badge-inactive {
@@ -103,6 +103,26 @@
       color: #94a3b8 !important;
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10) !important;
       border: none !important;
+    }
+    /* Unified Emerald Accent Buttons - Clean, Flat, No Glow */
+    .btn-emerald-accent {
+      color: #34d399 !important;
+      background: rgba(16, 185, 129, 0.14) !important;
+      border: 1px solid rgba(16, 185, 129, 0.38) !important;
+      box-shadow: none !important;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    .btn-emerald-accent:hover {
+      color: #ffffff !important;
+      background: rgba(16, 185, 129, 0.25) !important;
+      border-color: rgba(16, 185, 129, 0.70) !important;
+      box-shadow: none !important;
+    }
+    .btn-emerald-accent:active {
+      transform: scale(0.96) !important;
+    }
+    .btn-emerald-accent svg {
+      stroke: currentColor !important;
     }
   </style>
 </head>
@@ -231,7 +251,7 @@
                 <div class="flex items-center justify-between">
                   <!-- Frameless Big Discord Icon -->
                   <div class="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                    <svg class="w-8 h-8 fill-[#5865F2]" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                    <svg class="w-8 h-8 fill-[#5865F2]" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.078.078 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
                   </div>
                   <span id="discord-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                     <span id="discord-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Включён
@@ -245,23 +265,23 @@
               </div>
 
               <!-- Custom Sites Card (Clickable to switch tab) -->
-              <div onclick="navigateTo('sites')" class="service-chip rounded-2xl p-4 flex flex-col justify-between min-h-[125px] transition-all cursor-pointer hover:border-teal-400/40 hover:bg-teal-500/[0.04] group" title="Открыть управление списком сайтов">
+              <div onclick="navigateTo('sites')" class="service-chip rounded-2xl p-4 flex flex-col justify-between min-h-[125px] transition-all cursor-pointer hover:border-emerald-400/40 hover:bg-emerald-500/[0.04] group" title="Открыть управление списком сайтов">
                 <div class="flex items-center justify-between">
                   <!-- Frameless Big Symmetrical Globe Icon -->
                   <div class="w-8 h-8 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <svg class="w-7 h-7 stroke-[#2dd4bf] stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><ellipse cx="12" cy="12" rx="4.5" ry="10"/></svg>
+                    <svg class="w-7 h-7 stroke-[#10b981] stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><ellipse cx="12" cy="12" rx="4.5" ry="10"/></svg>
                   </div>
-                  <span id="sites-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center gap-1 group-hover:bg-teal-500/30 transition-colors">
-                    <span id="sites-status-dot" class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> <span id="sites-badge-count">0 сайтов</span>
+                  <span id="sites-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 group-hover:bg-emerald-500/30 transition-colors">
+                    <span id="sites-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> <span id="sites-badge-count">0 сайтов</span>
                   </span>
                 </div>
                 <div class="mt-2 flex items-end justify-between">
                   <div>
-                    <h4 class="text-sm font-bold text-white leading-tight group-hover:text-teal-300 transition-colors">Сайты</h4>
-                    <span id="sites-card-status" class="text-xs text-teal-400 block whitespace-nowrap font-medium leading-tight mt-1">Список активен</span>
+                    <h4 class="text-sm font-bold text-white leading-tight group-hover:text-emerald-300 transition-colors">Сайты</h4>
+                    <span id="sites-card-status" class="text-xs text-emerald-400 block whitespace-nowrap font-medium leading-tight mt-1">Список активен</span>
                     <span class="text-[10px] text-slate-400 block whitespace-nowrap mt-0.5">Авто-маршрутизация</span>
                   </div>
-                  <svg class="w-4 h-4 stroke-slate-500 group-hover:stroke-teal-400 stroke-2 fill-none mb-0.5 transition-colors" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                  <svg class="w-4 h-4 stroke-slate-500 group-hover:stroke-emerald-400 stroke-2 fill-none mb-0.5 transition-colors" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
                 </div>
               </div>
 
@@ -275,8 +295,8 @@
             <div class="flex-1 min-w-0 pr-4 border-r border-white/10 flex items-center justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Текущая стратегия</span>
-                <div id="active-strategy-name" class="text-sm font-bold text-white font-mono truncate mt-0.5" title="discord-youtube-alt">
-                  discord-youtube-alt
+                <div id="active-strategy-name" class="text-sm font-bold text-white font-mono truncate mt-0.5" title="general (ALT)">
+                  general (ALT)
                 </div>
               </div>
               <div class="relative flex-shrink-0">
@@ -291,21 +311,9 @@
                     <span id="strategy-dropdown-count" class="text-[10px] font-mono text-slate-500"></span>
                   </div>
                   <div id="strategy-dropdown-items" class="p-1.5 overflow-y-auto custom-scrollbar space-y-1 flex-1">
-                    <button onclick="selectStrategy('discord-youtube-alt')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
-                      <span class="truncate">discord-youtube-alt</span>
-                      <span class="text-[9px] font-sans font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">Реком.</span>
-                    </button>
-                    <button onclick="selectStrategy('general-fake-tls')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
-                      <span class="truncate">general-fake-tls</span>
-                      <span class="text-[9px] font-sans text-slate-400">DPI bypass</span>
-                    </button>
-                    <button onclick="selectStrategy('kyber-modern')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
-                      <span class="truncate">kyber-modern</span>
-                      <span class="text-[9px] font-sans text-slate-400">TLS 1.3</span>
-                    </button>
-                    <button onclick="selectStrategy('discord-voice-fix')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-200 hover:text-white hover:bg-white/10 flex items-center justify-between cursor-pointer transition-colors">
-                      <span class="truncate">discord-voice-fix</span>
-                      <span class="text-[9px] font-sans text-slate-400">RTC UDP</span>
+                    <button onclick="selectStrategy('general (ALT).bat')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono text-emerald-400 bg-emerald-500/15 font-bold border border-emerald-500/25 flex items-center justify-between cursor-pointer transition-colors active-strat-btn">
+                      <span class="truncate">general (ALT)</span>
+                      <span class="text-[9px] font-sans font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Активна</span>
                     </button>
                   </div>
                 </div>
@@ -318,12 +326,11 @@
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block whitespace-nowrap">Если есть сбои</span>
                 <span class="text-xs text-slate-300 block whitespace-nowrap mt-0.5">Авто-проверка</span>
               </div>
-              <button onclick="runStrategyProbeFlow()" id="btn-probe" class="h-8 px-3.5 rounded-lg text-xs font-bold text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 flex items-center gap-1.5 flex-shrink-0 cursor-pointer transition-all active:scale-95">
-                <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <button onclick="runStrategyProbeFlow()" id="btn-probe" class="h-8 px-3.5 rounded-lg text-xs font-bold btn-emerald-accent flex items-center gap-1.5 flex-shrink-0 cursor-pointer group active:scale-95">
+                <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 <span id="btn-probe-text">Подобрать</span>
               </button>
             </div>
-
           </div>
 
         </div>
@@ -638,7 +645,7 @@
                   <!-- Органичный переключатель режимов: Обход DPI ↔ Белый список -->
                   <div class="inline-flex items-center p-1 sites-mode-switcher rounded-2xl gap-1">
                     <button id="btn-sites-mode-bypass" onclick="setSitesListMode('bypass')" class="sites-mode-btn sites-mode-btn-active flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap">
-                      <span id="sites-dot-bypass" class="w-2 h-2 rounded-full bg-teal-400"></span>
+                      <span id="sites-dot-bypass" class="w-2 h-2 rounded-full bg-emerald-400"></span>
                       <span>Обход DPI</span>
                       <span id="sites-count-pill-bypass" class="sites-mode-badge sites-mode-badge-active px-2 py-0.5 text-[11px] font-bold">0</span>
                     </button>
@@ -691,7 +698,7 @@
                 <!-- Search input with Bundle Autocomplete -->
                 <div class="sm:col-span-6 relative flex items-center">
                   <svg class="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input id="sites-search-input" oninput="handleSitesSearchInput(this.value)" type="search" placeholder="Поиск по доменам или сервисам..." class="w-full h-8 pl-8 pr-3 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-teal-400/50 transition-all" spellcheck="false" autocomplete="off" />
+                  <input id="sites-search-input" oninput="handleSitesSearchInput(this.value)" type="search" placeholder="Поиск по доменам или сервисам..." class="w-full h-8 pl-8 pr-3 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-emerald-400/50 transition-all" spellcheck="false" autocomplete="off" />
                   <div id="sites-search-autocomplete" class="hidden absolute top-full left-0 right-0 w-full mt-2 bg-[#121620] border border-white/15 rounded-xl shadow-2xl p-1 z-50 max-h-56 overflow-y-auto overflow-x-hidden custom-scrollbar"></div>
                 </div>
 
@@ -701,8 +708,8 @@
                     <input id="sites-new-input" oninput="handleSitesAddInput(this.value)" type="text" placeholder="Добавить домен..." class="w-full h-8 px-3 rounded-xl bg-[#141923] border border-white/10 text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-emerald-400/50 transition-all font-mono" spellcheck="false" autocomplete="off" />
                     <div id="sites-add-autocomplete" class="hidden absolute top-full left-0 right-0 w-full mt-2 bg-[#121620] border border-white/15 rounded-xl shadow-2xl p-1 z-50 max-h-56 overflow-y-auto overflow-x-hidden custom-scrollbar"></div>
                   </div>
-                  <button type="submit" class="h-8 px-3 rounded-xl text-xs font-bold text-gray-950 bg-gradient-to-r from-emerald-500 to-teal-400 hover:brightness-110 active:scale-95 flex items-center justify-center gap-1 cursor-pointer flex-shrink-0 transition-all shadow-sm">
-                    <svg class="w-3 h-3 stroke-current stroke-[3] fill-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  <button type="submit" class="h-8 px-3 rounded-xl text-xs font-semibold text-slate-200 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 hover:border-white/20 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer flex-shrink-0 transition-all shadow-sm">
+                    <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Добавить</span>
                   </button>
                 </form>
@@ -775,9 +782,9 @@
 
             <!-- Section 3: Подсказка по синтаксису (с четкой иконкой вопросика) -->
             <div class="inner-panel rounded-2xl p-2.5 flex items-start gap-2.5">
-              <svg class="w-4 h-4 text-teal-400 flex-shrink-0 mt-0.5 fill-current" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
+              <svg class="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5 fill-current" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
               <div id="sites-tip-content" class="text-[11px] text-slate-400 leading-relaxed">
-                <span class="font-semibold text-slate-300">Подсказка:</span> Можно вставлять ссылки в любом виде (с <code class="text-teal-400">https://</code>, путями или префиксами) — программа сама очистит их до домена. Поддомены перехватываются автоматически.
+                <span class="font-semibold text-slate-300">Подсказка:</span> Можно вставлять ссылки в любом виде (с <code class="text-emerald-400">https://</code>, путями или префиксами) — программа сама очистит их до домена. Поддомены перехватываются автоматически.
               </div>
             </div>
 
@@ -817,7 +824,7 @@
                     <button type="button" onclick="setCloseBehavior('ask')" id="btn-close-ask" class="h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center">
                       Спрашивать
                     </button>
-                    <button type="button" onclick="setCloseBehavior('tray')" id="btn-close-tray" class="h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center">
+                    <button type="button" onclick="setCloseBehavior('tray')" id="btn-close-tray" class="h-7 rounded-lg text-xs font-semibold text-white bg-white/15 border border-white/20 transition-all cursor-pointer flex items-center justify-center shadow-sm">
                       В трей
                     </button>
                     <button type="button" onclick="setCloseBehavior('quit')" id="btn-close-quit" class="h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center">
@@ -892,7 +899,7 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1.5">
                   <span class="text-xs font-bold text-white">IPSet фильтрация</span>
-                  <button type="button" onclick="toggleIpsetHelp()" class="cursor-pointer text-slate-400 hover:text-teal-300 transition-colors" title="Что такое IPSet фильтр">
+                  <button type="button" onclick="toggleIpsetHelp()" class="cursor-pointer text-slate-400 hover:text-emerald-300 transition-colors" title="Что такое IPSet фильтр">
                     <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
                   </button>
                 </div>
@@ -900,7 +907,7 @@
               </div>
 
               <div class="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[#141923] border border-white/10">
-                <button type="button" onclick="setIpsetMode('loaded')" id="btn-ipset-loaded" class="h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center">
+                <button type="button" onclick="setIpsetMode('loaded')" id="btn-ipset-loaded" class="h-7 rounded-lg text-xs font-semibold text-white bg-white/15 border border-white/20 transition-all cursor-pointer flex items-center justify-center shadow-sm">
                   Загружен
                 </button>
                 <button type="button" onclick="setIpsetMode('none')" id="btn-ipset-none" class="h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center">
@@ -930,7 +937,7 @@
                   <h4 class="text-xs font-bold text-white tracking-tight">Zapret.NET</h4>
                   <span class="text-[11px] text-slate-400 block mt-0.5">Центр обхода и маршрутизации</span>
                 </div>
-                <span id="app-settings-version" class="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">v2.0.2</span>
+                <span id="app-settings-version" class="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/25">v2.0.7</span>
               </div>
 
               <!-- Действия обновлений -->
@@ -990,9 +997,18 @@
                 </p>
               </div>
 
-              <button type="button" onclick="openSelfHealingModal()" id="btn-settings-heal" class="w-full h-8 px-3 rounded-xl text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 shadow-sm">
-                <svg id="settings-heal-icon" class="w-3.5 h-3.5 stroke-emerald-400 stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+              <button type="button" onclick="openSelfHealingModal()" id="btn-settings-heal" class="w-full h-8 px-3 rounded-xl text-xs font-semibold btn-emerald-accent flex items-center justify-center gap-2 cursor-pointer group active:scale-95">
+                <svg id="settings-heal-icon" class="w-3.5 h-3.5 stroke-current stroke-[2.2] fill-none flex-shrink-0 transition-transform duration-500 group-hover:rotate-90" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                  <circle cx="12" cy="1.2" r="1.2" fill="currentColor"/>
+                </svg>
                 <span id="btn-settings-heal-text">Найти и устранить неполадки</span>
+              </button>
+
+              <button type="button" onclick="exportDiagnosticsLogs()" id="btn-settings-export-logs" class="w-full h-8 px-3 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 group">
+                <svg id="settings-export-logs-icon" class="w-3.5 h-3.5 stroke-current stroke-2 fill-none flex-shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span id="btn-settings-export-logs-text">Выгрузить логи</span>
               </button>
             </div>
 
@@ -1032,7 +1048,7 @@
           <!-- Top Header: Icon + Title + Close Button -->
           <div class="flex items-start justify-between gap-3">
             <div class="flex items-center gap-3.5 min-w-0">
-              <div class="flex items-center justify-center flex-shrink-0 text-teal-400">
+              <div class="flex items-center justify-center flex-shrink-0 text-emerald-400">
                 <svg class="w-7 h-7 stroke-current stroke-[2.2] fill-none" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 8h16M16 4l4 4-4 4"/>
                   <path d="M20 16H4M8 12l-4 4 4 4"/>
@@ -1041,7 +1057,7 @@
               <div class="min-w-0">
                 <h3 id="conflict-modal-title" class="text-[15px] font-bold text-white tracking-tight leading-snug">Переключение на VPN</h3>
                 <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mt-0.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> Автоматическое переключение
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Автоматическое переключение
                 </span>
               </div>
             </div>
@@ -1070,7 +1086,7 @@
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
                 <span id="conflict-to-service" class="font-medium text-slate-300">VPN (VLESS Reality)</span>
               </div>
-              <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/25">Включится</span>
+              <span id="conflict-to-badge" class="text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/25">Включится</span>
             </div>
           </div>
 
@@ -1144,7 +1160,7 @@
               <span id="update-progress-pct" class="font-bold text-emerald-400">0%</span>
             </div>
             <div class="w-full h-2.5 rounded-full bg-[#131924] border border-white/10 overflow-hidden p-0.5">
-              <div id="update-progress-bar" class="h-full rounded-full bg-gradient-to-r from-teal-500 via-emerald-400 to-emerald-500 transition-all duration-200" style="width: 0%"></div>
+              <div id="update-progress-bar" class="h-full rounded-full transition-all duration-200" style="width: 0%; background: linear-gradient(90deg, #059669, #10b981);"></div>
             </div>
             <p id="update-progress-sub" class="text-[11px] text-slate-400 text-center">
               Пожалуйста, подождите. После загрузки приложение автоматически перезапустится для установки.
@@ -1153,7 +1169,7 @@
 
           <!-- Action Buttons -->
           <div id="update-modal-actions" class="pt-2 border-t border-white/10 flex items-center justify-between gap-2.5">
-            <button type="button" onclick="openChangelogModal(); closeHubUpdateModal();" class="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1.5 transition-colors cursor-pointer py-1">
+            <button type="button" onclick="openChangelogModal(); closeHubUpdateModal();" class="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition-colors cursor-pointer py-1">
               <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               <span>Что нового?</span>
             </button>
@@ -1178,13 +1194,13 @@
           <!-- Header -->
           <div class="flex items-start justify-between gap-3 pb-4 border-b border-white/10 flex-shrink-0">
             <div class="flex items-center gap-3.5 min-w-0">
-              <div class="flex items-center justify-center flex-shrink-0 text-teal-400">
+              <div class="flex items-center justify-center flex-shrink-0 text-emerald-400">
                 <svg class="w-7 h-7 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               </div>
               <div class="min-w-0">
                 <h3 class="text-[15px] font-bold text-white tracking-tight leading-snug">История обновлений</h3>
                 <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mt-0.5">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> Список изменений из GitHub
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Список изменений из GitHub
                 </span>
               </div>
             </div>
@@ -1200,7 +1216,7 @@
               <div class="flex items-center justify-between pb-1.5 border-b border-white/5">
                 <div class="flex items-center gap-2">
                   <span class="text-xs font-bold text-white font-mono">v2.0.7</span>
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-teal-500/20 text-teal-300">Текущая версия</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300">Текущая версия</span>
                 </div>
                 <span class="text-[11px] text-slate-400 font-mono">05 октября 2026</span>
               </div>
@@ -1212,23 +1228,23 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>На вкладку «Настройки» добавлена функция быстрого восстановления работы приложения и сети в один клик («Найти и устранить неполадки»).</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Автоматический поиск и безопасное завершение зависших фоновых процессов (winws, xray, ZapretTgProxy, wintun).</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Безопасная очистка залипших локальных прокси Windows без изменения пользовательских настроек сети и DNS.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Мягкий перезапуск и сброс фильтров сетевого драйвера WinDivert без перезагрузки системы.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Проверка доступности ключевых шлюзов и подробный понятный отчёт об исправленных неполадках.</span>
                     </li>
                   </ul>
@@ -1241,15 +1257,15 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Кнопка «Патчи» в настройках перекрашена под строгий дизайн приложения.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Оптимизирована карточка системных компонентов: убран некорректный статический статус активности.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Центрирование и адаптивность системных диалоговых окон, удобные и просторные кнопки управления.</span>
                     </li>
                   </ul>
@@ -1273,7 +1289,7 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>В раздел «Сайты» добавлена база популярных ресурсов. Добавление сервиса и всех сопутствующих доменов, CDN и API в один клик.</span>
                     </li>
                   </ul>
@@ -1286,7 +1302,7 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Сайты из белого списка идут напрямую через вашего провайдера в обход DPI и VPN. Надёжная маршрутизация системного трафика.</span>
                     </li>
                   </ul>
@@ -1299,7 +1315,7 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Кнопка «Подтвердить» с автоматическим замером при вставке ссылки, защита ключа от случайного изменения, просмотр полного ключа и безопасное удаление.</span>
                     </li>
                   </ul>
@@ -1312,7 +1328,7 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Исправлено зависание проверки обновлений, корректное закрытие фоновых служб при перезапуске, унифицированный визуальный стиль всех панелей.</span>
                     </li>
                   </ul>
@@ -1337,11 +1353,11 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                      <span>Исправлена критическая проблема, когда при перезагрузке ПК или сбое с активным VPN в реестре Windows оставался включённым системный прокси (<code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">127.0.0.1:10809</code>), из-за чего пропадал интернет без VPN.</span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                      <span>Исправлена критическая проблема, когда при перезагрузке ПК или сбое с активным VPN в реестре Windows оставался включённым системный прокси (<code class="bg-white/5 text-emerald-300 px-1 py-0.5 rounded font-mono text-[11px]">127.0.0.1:10809</code>), из-за чего пропадал интернет без VPN.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Приложение при каждом старте и выключении автоматически проверяет настройки прокси Windows и безопасно сбрасывает любые зависшие локальные перенаправления.</span>
                     </li>
                   </ul>
@@ -1354,11 +1370,11 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Реализована поддержка дифференциальных патчей поверх существующей установки. Теперь вместо 120 МБ полного установщика скачивается только компактный архив с изменениями за доли секунды.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Обновление бесшовно применяется в фоне за 1 секунду с автоматическим перезапуском приложения.</span>
                     </li>
                   </ul>
@@ -1383,7 +1399,7 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Исправлена проблема, когда при автозапуске программы в трее службы обхода и TG Proxy не стартовали автоматически до ручного открытия окна.</span>
                     </li>
                   </ul>
@@ -1396,7 +1412,7 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Добавлены в список прямых исключений все основные домены Steam/Valve и TikTok/ByteDance.</span>
                     </li>
                   </ul>
@@ -1409,7 +1425,7 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Устранено мерцание переключателей и выровнен размер плашек пинга серверов.</span>
                     </li>
                   </ul>
@@ -1434,11 +1450,11 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Теперь VPN работает через виртуальный адаптер Wintun по умолчанию — абсолютно весь трафик системы (онлайн-игры, Discord, Telegram, любые браузеры и программы) автоматически идёт через выбранный сервер.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Мгновенное и чистое отключение: при выключении VPN сетевой адаптер и системные маршруты сразу сбрасываются без зависаний интернета.</span>
                     </li>
                   </ul>
@@ -1451,11 +1467,11 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Задержка подключения постоянно измеряется на лету (каждые 5 секунд) и обновляется прямо в трее Windows и на карточке сервера.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>В трее убраны лишние технические коды стран (DE, NL) — отображается только аккуратное и понятное название.</span>
                     </li>
                   </ul>
@@ -1468,8 +1484,8 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                      <span>В основной список сайтов добавлены домены Telegram (<code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">t.me</code>, <code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">telegram.org</code>, <code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">api.telegram.org</code>). Ссылки, веб-версия и боты работают без VPN.</span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                      <span>В основной список сайтов добавлены домены Telegram (<code class="bg-white/5 text-emerald-300 px-1 py-0.5 rounded font-mono text-[11px]">t.me</code>, <code class="bg-white/5 text-emerald-300 px-1 py-0.5 rounded font-mono text-[11px]">telegram.org</code>, <code class="bg-white/5 text-emerald-300 px-1 py-0.5 rounded font-mono text-[11px]">api.telegram.org</code>). Ссылки, веб-версия и боты работают без VPN.</span>
                     </li>
                   </ul>
                 </div>
@@ -1481,11 +1497,11 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Быстрое включение отдельного локального MTProto-прокси для Telegram прямо с главного экрана.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>В настройках можно независимо настроить автозапуск при старте Windows для Zapret и Telegram Proxy.</span>
                     </li>
                   </ul>
@@ -1498,15 +1514,15 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Теперь обновления накатываются прямо поверх текущей версии в автоматическом режиме — больше не нужно заново проходить весь мастер установки.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                      <span>Инсталлятор автоматически завершает все работающие фоновые процессы (<code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">sing-box</code>, <code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">xray</code>, <code class="bg-white/5 text-teal-300 px-1 py-0.5 rounded font-mono text-[11px]">winws</code>) перед обновлением без ошибок «Файл занят» и сразу перезапускает программу.</span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                      <span>Инсталлятор автоматически завершает все работающие фоновые процессы (<code class="bg-white/5 text-emerald-300 px-1 py-0.5 rounded font-mono text-[11px]">sing-box</code>, <code class="bg-white/5 text-emerald-300 px-1 py-0.5 rounded font-mono text-[11px]">xray</code>, <code class="bg-white/5 text-emerald-300 px-1 py-0.5 rounded font-mono text-[11px]">winws</code>) перед обновлением без ошибок «Файл занят» и сразу перезапускает программу.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Все личные настройки, выбранная стратегия обхода, подписки на серверы и списки сайтов гарантированно сохраняются.</span>
                     </li>
                   </ul>
@@ -1531,24 +1547,24 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Чекбокс «Выполнить чистую установку (рекомендуется)» при выборе папки.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                      <span>Автоматически завершает все фоновые процессы (<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">Zapret.NET.exe</code>, <code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">winws.exe</code>, <code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">xray.exe</code>, <code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">ZapretTgProxy.exe</code>).</span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                      <span>Автоматически завершает все фоновые процессы (<code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">Zapret.NET.exe</code>, <code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">winws.exe</code>, <code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">xray.exe</code>, <code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">ZapretTgProxy.exe</code>).</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                      <span>Останавливает и удаляет драйверные службы (<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">zapret</code>, <code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">WinDivert</code>, <code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">WinDivert14</code>).</span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                      <span>Останавливает и удаляет драйверные службы (<code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">zapret</code>, <code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">WinDivert</code>, <code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">WinDivert14</code>).</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Удаляет старые бинарные файлы и библиотеки перед установкой свежих.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                      <span><strong class="font-bold text-white">Полностью сохраняет все настройки пользователя</strong> (стратегия, подписка VPN, список сайтов) в <code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">%APPDATA%\zapret-net</code>.</span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                      <span><strong class="font-bold text-white">Полностью сохраняет все настройки пользователя</strong> (стратегия, подписка VPN, список сайтов) в <code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">%APPDATA%\zapret-net</code>.</span>
                     </li>
                   </ul>
                 </div>
@@ -1560,15 +1576,15 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>При наличии новой версии кнопка «Обновить» и уведомление открывают нативное диалоговое окно обновления с кнопкой «Скачать и установить».</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Интерактивный прогресс-бар скачивания с отображением процентов и мегабайт.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Автоматический запуск инсталлятора после загрузки.</span>
                     </li>
                   </ul>
@@ -1581,11 +1597,11 @@
                   </div>
                   <ul class="space-y-1.5 pl-3.5 text-slate-300 text-xs leading-relaxed">
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Устранены сторонние проверки, вызывавшие ложное уведомление о доступности обновления и открытие истории патчей вместо апдейта.</span>
                     </li>
                     <li class="flex items-start gap-2">
-                      <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                       <span>Номер версии динамически выводится в интерфейсе (панель «О программе» и статус-бар).</span>
                     </li>
                   </ul>
@@ -1604,24 +1620,24 @@
               </div>
               <ul class="space-y-1.5 text-xs">
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Исправление запуска обхода при обновлении</strong>: устранена проблема, из-за которой кнопка «Включить» не запускала обход, если в системе оставалась старая служба Zapret от предыдущих версий.</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                  <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Автоматическая синхронизация движка</strong>: теперь при обновлении приложения все новые файлы стратегий (<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">.bat</code>), бинарные компоненты и списки автоматически обновляются в рабочей папке AppData.</div>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                  <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Автоматическая синхронизация движка</strong>: теперь при обновлении приложения все новые файлы стратегий (<code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">.bat</code>), бинарные компоненты и списки автоматически обновляются в рабочей папке AppData.</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Очистка сетевых драйверов перед стартом</strong>: автоматический сброс зависших сессий WinDivert и удаление конфликтующих устаревших служб перед запуском.</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Отказоустойчивый fallback стратегий</strong>: если в файле конфигурации была сохранена недоступная или перемещённая стратегия, приложение автоматически подбирает и запускает первую рабочую стратегию.</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
-                  <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Плавный и тихий скрытый запуск</strong>: оптимизирован запуск <code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">winws.exe</code> без мигания консольных окон и без вторичных запросов прав UAC.</div>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
+                  <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Плавный и тихий скрытый запуск</strong>: оптимизирован запуск <code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">winws.exe</code> без мигания консольных окон и без вторичных запросов прав UAC.</div>
                 </li>
               </ul>
             </div>
@@ -1637,23 +1653,23 @@
               </div>
               <ul class="space-y-1.5 text-xs">
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1">Встроенный модуль <strong class="font-bold text-white">VPN (VLESS Reality)</strong> с поддержкой ссылок на подписки, параллельным замером задержки и кнопкой «Подключить лучший».</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1"><strong class="font-bold text-white">Раздельный автозапуск</strong> для обхода DPI и Telegram-прокси с независимым управлением в настройках.</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1">Защита от конфликтов сетевых драйверов: автоматическое безопасное переключение между Zapret DPI и VPN.</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1">Полный редизайн интерфейса <strong class="font-bold text-white">Elevated Slate 2.0</strong> с быстрым переключением между вкладками.</div>
                 </li>
                 <li class="flex items-start gap-2 text-slate-300">
-                  <span class="w-1.5 h-1.5 rounded-full bg-teal-400/80 mt-1.5 flex-shrink-0"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
                   <div class="leading-relaxed flex-1">Повышена безопасность Electron (Sandbox) и устранена фоновая нагрузка сетевых служб.</div>
                 </li>
               </ul>
@@ -1662,7 +1678,7 @@
 
           <!-- Footer Actions -->
           <div class="pt-3 border-t border-white/10 flex items-center justify-between flex-shrink-0">
-            <a href="https://github.com/xRAYNERx/Zapret-NET/releases" target="_blank" class="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1.5 transition-colors">
+            <a href="https://github.com/xRAYNERx/Zapret-NET/releases" target="_blank" class="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition-colors">
               <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               <span>Все релизы на GitHub</span>
             </a>
@@ -1765,7 +1781,7 @@
               <span id="strategyProbePercent" class="font-mono text-[11px] font-bold text-slate-300">0%</span>
             </div>
             <div class="w-full bg-[#141923] h-2 rounded-full overflow-hidden border border-white/5">
-              <div id="strategyProbeProgressFill" class="bg-gradient-to-r from-teal-400 to-emerald-400 h-full w-0 transition-all duration-300"></div>
+              <div id="strategyProbeProgressFill" class="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full w-0 transition-all duration-300"></div>
             </div>
           </div>
 
@@ -1817,55 +1833,189 @@
         </div>
       </div>
 
-      <!-- First Launch Strategy Probe Offer Modal -->
-      <div id="firstLaunchProbeModal" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-        <div class="slate-card rounded-3xl p-6 md:p-8 max-w-lg w-full border border-white/15 space-y-6 shadow-2xl relative">
+      <!-- ─── ONBOARDING SETUP WIZARD MODAL ─── -->
+      <div id="onboardingModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md app-no-drag">
+        <div class="slate-card rounded-3xl p-6 md:p-8 max-w-lg w-full border border-white/15 space-y-6 shadow-[0_25px_60px_-10px_rgba(0,0,0,0.85)] relative app-no-drag overflow-hidden">
           
-          <!-- Top Row: Icon + Close Button -->
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex items-center gap-3.5">
-              <!-- Pure magnifying glass SVG icon, no background div -->
-              <svg class="w-9 h-9 text-emerald-400 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <div class="space-y-1">
-                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400">
-                  Первый запуск
-                </div>
-                <h3 class="text-lg font-black text-white tracking-tight">Подбор стратегии обхода</h3>
+          <!-- Top Row: Logo & Title + Steps Indicator -->
+          <div class="flex items-center justify-between pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2.5">
+              <div class="relative w-7 h-7 flex-shrink-0 flex items-center justify-center">
+                <img src="../assets/logo.png" onerror="this.onerror=null; this.src='../assets/icon.png';" alt="Zapret.NET" class="w-7 h-7 object-contain" />
               </div>
+              <span class="text-xs font-black tracking-wider text-slate-300 uppercase">Мастер первого запуска</span>
             </div>
             
-            <button onclick="dismissFirstLaunchProbeModal()" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-all active:scale-95" title="Закрыть">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
+            <!-- Step Indicators -->
+            <div class="flex items-center gap-1.5" id="onboarding-step-dots">
+              <span class="w-6 h-1.5 rounded-full bg-emerald-400 transition-all" id="onboarding-dot-1"></span>
+              <span class="w-2 h-1.5 rounded-full bg-white/20 transition-all" id="onboarding-dot-2"></span>
+              <span class="w-2 h-1.5 rounded-full bg-white/20 transition-all" id="onboarding-dot-3"></span>
+            </div>
           </div>
 
-          <!-- Description -->
-          <div class="space-y-3 text-sm text-slate-300 leading-relaxed">
-            <p>
-              Чтобы YouTube, Discord и заблокированные сайты работали на максимальной скорости и без зависаний, рекомендуется выполнить экспресс-подбор лучшей стратегии под вашего провайдера (~15 секунд).
-            </p>
-            
-            <div class="p-3.5 rounded-2xl bg-white/[0.04] text-xs text-slate-400 space-y-1.5">
-              <div class="flex items-center gap-2 text-slate-200 font-semibold">
-                <svg class="w-4 h-4 text-emerald-400 stroke-current stroke-2 fill-none flex-shrink-0" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
-                </svg>
-                <span>Уведомление появляется только один раз</span>
+          <!-- ═════ STEP 1: Подбор стратегии обхода ═════ -->
+          <div id="onboarding-step-1" class="space-y-5">
+            <div class="space-y-1.5">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Шаг 1 из 3 · Тест сети
               </div>
-              <p>
-                Если вы закроете это окно, программа больше не будет его показывать. В дальнейшем вы сможете запустить подбор самостоятельно в любое время кнопкой <strong class="text-emerald-400 font-semibold">«Подобрать»</strong> в блоке <strong class="text-slate-300">«Если есть сбои»</strong>.
+              <h3 class="text-lg font-black text-white tracking-tight">Подбор лучшей стратегии</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                У каждого интернет-провайдера настроены свои методы блокировок. Давайте автоматически определим стратегию, с которой <strong class="text-white">YouTube и Discord</strong> будут работать стабильно и быстро.
               </p>
             </div>
+
+            <!-- State 1A: До запуска подбора -->
+            <div id="onboarding-probe-idle" class="space-y-4">
+              <div class="inner-panel rounded-2xl p-4 flex items-center gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-5 h-5 text-emerald-400 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-white">Авто-проверка займёт ~15 секунд</h4>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Тестируются основные методы обхода для вашего оператора связи</p>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between gap-3 pt-2">
+                <button type="button" onclick="skipOnboardingProbe()" class="h-10 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer active:scale-95 transition-all">
+                  Пропустить
+                </button>
+                <button type="button" onclick="startOnboardingProbe()" class="h-10 px-6 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)] flex items-center gap-2 cursor-pointer active:scale-95 transition-all">
+                  <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  <span>Подобрать сейчас (~15 сек)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- State 1B: В процессе подбора -->
+            <div id="onboarding-probe-running" class="hidden space-y-4">
+              <div class="inner-panel rounded-2xl p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span id="onboarding-probe-status-text" class="text-xs font-bold text-white">Тестирование стратегий...</span>
+                  <span id="onboarding-probe-timer" class="font-mono text-xs font-bold text-emerald-400">00:00</span>
+                </div>
+                <div class="w-full bg-[#141923] h-2 rounded-full overflow-hidden border border-white/5">
+                  <div id="onboarding-probe-progress-bar" class="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full w-0 transition-all duration-300"></div>
+                </div>
+                <p id="onboarding-probe-details" class="text-[11px] font-mono text-slate-400 truncate">Подготовка к проверке...</p>
+              </div>
+            </div>
+
+            <!-- State 1C: Подбор завершён (результат) -->
+            <div id="onboarding-probe-done" class="hidden space-y-4">
+              <div class="inner-panel rounded-2xl p-4 border-emerald-500/35 bg-emerald-500/[0.06] space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="text-xs font-bold text-emerald-300 uppercase tracking-wider">Лучшая стратегия найдена!</span>
+                  </div>
+                  <span id="onboarding-winner-ping" class="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30"></span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-base font-bold text-white font-mono" id="onboarding-winner-name">general (ALT)</span>
+                  <span class="text-[11px] text-slate-300">· YouTube и Discord разблокированы</span>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end pt-2">
+                <button type="button" onclick="goToOnboardingStep(2)" class="h-10 px-6 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] flex items-center gap-2 cursor-pointer active:scale-95 transition-all">
+                  <span>Далее</span>
+                  <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+            </div>
+
           </div>
 
-          <!-- Actions: Only action button ("Позже" removed) -->
-          <div class="flex items-center justify-end pt-2">
-            <button onclick="startFirstLaunchProbe()" type="button" class="h-11 px-7 rounded-2xl text-xs font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-[0_2px_14px_rgba(16,185,129,0.35)] cursor-pointer active:scale-95 transition-all flex items-center gap-2">
-              <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <span>Подобрать сейчас (~15 сек)</span>
-            </button>
+          <!-- ═════ STEP 2: Удобство и автозапуск ═════ -->
+          <div id="onboarding-step-2" class="hidden space-y-5">
+            <div class="space-y-1.5">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Шаг 2 из 3 · Параметры
+              </div>
+              <h3 class="text-lg font-black text-white tracking-tight">Параметры запуска</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Настройте поведение программы под себя. Эти параметры всегда можно изменить во вкладке «Настройки».
+              </p>
+            </div>
+
+            <div class="inner-panel rounded-2xl p-4 space-y-4">
+              <!-- Switch 1: Автозапуск с Windows -->
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <span class="text-xs font-bold text-white block">Запуск вместе с Windows</span>
+                  <span class="text-[11px] text-slate-400 block mt-0.5 leading-snug">Обход будет тихо стартовать в фоне при включении ПК</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                  <input type="checkbox" id="onboarding-toggle-autostart" class="sr-only peer">
+                  <div class="w-9 h-5 bg-[#1b2230] border border-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+
+              <div class="h-[1px] bg-white/5"></div>
+
+              <!-- Switch 2: Сворачивать в трей при закрытии -->
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <span class="text-xs font-bold text-white block">Сворачивать в трей при закрытии</span>
+                  <span class="text-[11px] text-slate-400 block mt-0.5 leading-snug">При нажатии на крестик окно сворачивается к часам</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                  <input type="checkbox" id="onboarding-toggle-tray" checked class="sr-only peer">
+                  <div class="w-9 h-5 bg-[#1b2230] border border-white/15 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+              <button type="button" onclick="goToOnboardingStep(1)" class="h-10 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer active:scale-95 transition-all">
+                ← Назад
+              </button>
+              <button type="button" onclick="goToOnboardingStep(3)" class="h-10 px-6 rounded-xl text-xs font-bold text-white bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] flex items-center gap-2 cursor-pointer active:scale-95 transition-all">
+                <span>Далее</span>
+                <svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- ═════ STEP 3: Всё готово к работе! ═════ -->
+          <div id="onboarding-step-3" class="hidden space-y-5">
+            <div class="space-y-1.5">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Шаг 3 из 3 · Готово
+              </div>
+              <h3 class="text-lg font-black text-white tracking-tight">Всё настроено!</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Zapret.NET готов к работе. Нажмите кнопку ниже, чтобы включить обход и открыть главное окно программы.
+              </p>
+            </div>
+
+            <div class="inner-panel rounded-2xl p-4 space-y-2.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400">Стратегия:</span>
+                <span class="font-mono font-bold text-white" id="onboarding-final-strategy">general (ALT)</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400">YouTube и Discord:</span>
+                <span class="font-bold text-emerald-400">Готовы к работе</span>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400">Встроенный Telegram прокси:</span>
+                <span class="font-bold text-sky-400">Доступен в 1 клик</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+              <button type="button" onclick="goToOnboardingStep(2)" class="h-10 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer active:scale-95 transition-all">
+                ← Назад
+              </button>
+              <button type="button" onclick="finishOnboardingAndLaunch()" class="h-11 px-7 rounded-2xl text-xs font-bold text-white bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] border border-emerald-500/30 shadow-[0_4px_16px_rgba(5,150,105,0.35)] hover:shadow-[0_6px_20px_rgba(5,150,105,0.45)] flex items-center gap-2 cursor-pointer active:scale-95 transition-all">
+                <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>Включить обход и начать</span>
+              </button>
+            </div>
           </div>
 
         </div>

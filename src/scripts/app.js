@@ -7,11 +7,11 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // Unified State
 let state = {
-  appVersion: '2.0.7',
+  appVersion: '2.0.8',
   activeTab: 'home',
   zapret: {
     running: false,
-    activeStrategy: 'general.bat',
+    activeStrategy: 'general (ALT).bat',
     strategies: [],
     busy: false
   },
@@ -77,7 +77,7 @@ function toast(message, kind = 'success') {
 
   const toastEl = document.createElement('div');
   const borderCol = kind === 'error' ? 'border-rose-500/40 bg-rose-950/80 text-rose-200' :
-                    kind === 'info' ? 'border-teal-500/40 bg-slate-900/90 text-teal-200' :
+                    kind === 'info' ? 'border-emerald-500/40 bg-slate-900/90 text-emerald-200' :
                     'border-emerald-500/40 bg-slate-900/90 text-emerald-200';
 
   toastEl.className = `px-4 py-2.5 rounded-2xl text-xs font-semibold border shadow-lg backdrop-blur-md transition-all duration-300 pointer-events-auto flex items-center gap-2 ${borderCol}`;
@@ -129,30 +129,37 @@ function navigateTo(pageId) {
 
 // ─── Mutual Exclusion Conflict Modal ───
 let pendingConflictAction = null;
+let pendingConflictStorageKey = null;
 let suppressConflictModal = false;
+let suppressVpnRefreshNotify = false;
 try {
   suppressConflictModal = localStorage.getItem('zapret_suppress_conflict_modal') === 'true';
+  suppressVpnRefreshNotify = localStorage.getItem('zapret_suppress_vpn_refresh_notify') === 'true';
 } catch(e) {}
 
-function showConflictModal(title, text, action, fromService, toService) {
+function showConflictModal(title, text, action, fromService, toService, toBadge = 'Включится', storageKey = null) {
   pendingConflictAction = action;
+  pendingConflictStorageKey = storageKey;
   const modal = $('#conflict-modal-backdrop');
   const titleEl = $('#conflict-modal-title');
   const textEl = $('#conflict-modal-text');
   const fromEl = $('#conflict-from-service');
   const toEl = $('#conflict-to-service');
+  const toBadgeEl = $('#conflict-to-badge');
   const checkEl = $('#conflict-dont-show');
 
   if (titleEl) titleEl.innerText = title;
   if (textEl) textEl.innerText = text;
   if (fromEl) fromEl.innerText = fromService;
   if (toEl) toEl.innerText = toService;
+  if (toBadgeEl) toBadgeEl.innerText = toBadge;
   if (checkEl) checkEl.checked = false;
   if (modal) modal.classList.remove('hidden');
 }
 
 function cancelConflictSwitch() {
   pendingConflictAction = null;
+  pendingConflictStorageKey = null;
   const modal = $('#conflict-modal-backdrop');
   if (modal) modal.classList.add('hidden');
 }
@@ -160,8 +167,15 @@ function cancelConflictSwitch() {
 function confirmConflictSwitch() {
   const checkEl = $('#conflict-dont-show');
   if (checkEl && checkEl.checked) {
-    suppressConflictModal = true;
-    try { localStorage.setItem('zapret_suppress_conflict_modal', 'true'); } catch(e){}
+    if (pendingConflictStorageKey) {
+      if (pendingConflictStorageKey === 'zapret_suppress_vpn_refresh_notify') {
+        suppressVpnRefreshNotify = true;
+      }
+      try { localStorage.setItem(pendingConflictStorageKey, 'true'); } catch(e){}
+    } else {
+      suppressConflictModal = true;
+      try { localStorage.setItem('zapret_suppress_conflict_modal', 'true'); } catch(e){}
+    }
   }
 
   const modal = $('#conflict-modal-backdrop');
@@ -170,6 +184,7 @@ function confirmConflictSwitch() {
   if (pendingConflictAction) {
     const act = pendingConflictAction;
     pendingConflictAction = null;
+    pendingConflictStorageKey = null;
     act();
   }
 }
@@ -229,7 +244,7 @@ function formatReleaseBody(content = '') {
   function formatInline(str) {
     if (!str) return '';
     return str
-      .replace(/`([^`]+)`/g, '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>')
+      .replace(/`([^`]+)`/g, '<code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-white">$1</strong>')
       .replace(/__([^_]+)__/g, '<strong class="font-bold text-white">$1</strong>');
   }
@@ -254,7 +269,7 @@ function formatReleaseBody(content = '') {
     html = html.replace(/<pre[^>]*><code>([\s\S]*?)<\/code><\/pre>/gi, 
       '<pre class="bg-black/50 text-emerald-300 p-2.5 rounded-lg text-xs font-mono my-2 overflow-x-auto">$1</pre>');
     html = html.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, 
-      '<code class="bg-white/5 text-teal-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>');
+      '<code class="bg-white/5 text-emerald-300 px-1.5 py-0.5 rounded font-mono text-[11px] select-all">$1</code>');
 
     // Bold text accents
     html = html.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '<strong class="font-bold text-white">$1</strong>');
@@ -270,7 +285,7 @@ function formatReleaseBody(content = '') {
     html = html.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (match, body) => {
       const cleanBody = body.replace(/<\/?p[^>]*>/gi, '').trim();
       if (!cleanBody) return '';
-      return `<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${cleanBody}</span></li>`;
+      return `<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${cleanBody}</span></li>`;
     });
 
     // Remaining standalone <p> elements
@@ -345,9 +360,9 @@ function formatReleaseBody(content = '') {
       text = formatInline(text);
 
       if (inList) {
-        result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${text}</span></li>`);
+        result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${text}</span></li>`);
       } else {
-        result.push(`<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${text}</div></div>`);
+        result.push(`<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${text}</div></div>`);
       }
       continue;
     }
@@ -356,9 +371,9 @@ function formatReleaseBody(content = '') {
     let formattedText = formatInline(line);
 
     if (inList) {
-      result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${formattedText}</span></li>`);
+      result.push(`<li class="flex items-start gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span><span class="flex-1">${formattedText}</span></li>`);
     } else {
-      result.push(`<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${formattedText}</div></div>`);
+      result.push(`<div class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed my-1.5 pl-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span><div class="flex-1">${formattedText}</div></div>`);
     }
   }
 
@@ -370,7 +385,7 @@ function formatReleaseBody(content = '') {
 }
 
 function updateAppVersionUI(ver) {
-  const v = String(ver || state.appVersion || '2.0.7').replace(/^v/i, '');
+  const v = String(ver || state.appVersion || '2.0.8').replace(/^v/i, '');
   state.appVersion = v;
   const settingsBadge = $('#app-settings-version');
   if (settingsBadge) settingsBadge.innerText = `v${v}`;
@@ -410,7 +425,7 @@ async function loadChangelogFromGithub(force = false) {
     const container = $('#changelog-container');
     if (!container) return;
 
-    const currentAppVersion = (state.appVersion || state.version || '2.0.7').replace(/^v/i, '');
+    const currentAppVersion = (state.appVersion || state.version || '2.0.8').replace(/^v/i, '');
 
     const blocks = releases.map((rel, idx) => {
       const tag = (rel.tag_name || '').replace(/^v/i, '');
@@ -422,7 +437,7 @@ async function loadChangelogFromGithub(force = false) {
 
       let badge = '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/10 text-slate-400">Релиз</span>';
       if (isCurrent) {
-        badge = '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-teal-500/20 text-teal-300">Установлена</span>';
+        badge = '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300">Установлена</span>';
       } else if (isNew) {
         badge = '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400">Новая версия</span>';
       }
@@ -490,8 +505,8 @@ function showHubUpdateModal(updateInfo) {
   const progressEl = $('#update-progress-section');
   const closeBtn = $('#btn-close-update-modal');
 
-  const local = (updateInfo?.local || state.appVersion || '2.0.7').replace(/^v/i, '');
-  const remote = (updateInfo?.remote || '2.0.7').replace(/^v/i, '');
+  const local = (updateInfo?.local || state.appVersion || '2.0.8').replace(/^v/i, '');
+  const remote = (updateInfo?.remote || '2.0.8').replace(/^v/i, '');
 
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
@@ -528,7 +543,10 @@ async function executeHubUpdate() {
   if (progressEl) progressEl.classList.remove('hidden');
   if (closeBtn) closeBtn.classList.add('hidden');
 
-  if (bar) bar.style.width = '0%';
+  if (bar) {
+    bar.style.width = '0%';
+    bar.style.background = 'linear-gradient(90deg, #059669, #10b981)';
+  }
   if (pctText) pctText.innerText = '0%';
   if (label) label.innerText = 'Подключение к GitHub…';
 
@@ -658,6 +676,8 @@ async function selectStrategy(name) {
     if (state.zapret.running) {
       toast(`Перезапуск с «${name.replace(/\.bat$/i, '')}»...`, 'info');
       await api('restart', name);
+      const vStatus = await api('vlessGetStatus').catch(() => null);
+      if (vStatus) updateVpnUI(vStatus);
     } else {
       await api('setStrategy', name);
       toast(`Выбрана стратегия «${name.replace(/\.bat$/i, '')}»`, 'success');
@@ -726,12 +746,24 @@ async function toggleZapret() {
 async function doStartZapret() {
   if (state.zapret.busy) return;
   state.zapret.busy = true;
+
+  // Ensure a valid activeStrategy is selected
+  if (!state.zapret.activeStrategy && state.zapret.strategies?.length > 0) {
+    const first = state.zapret.strategies[0];
+    state.zapret.activeStrategy = typeof first === 'string' ? first : (first.file || first.name);
+  }
+  if (!state.zapret.activeStrategy) {
+    state.zapret.activeStrategy = 'general (ALT).bat';
+  }
+
   setPowerBtnLoading('btn-zapret-power', 'zapret-power-icon', 'zapret-power-text', 'ВКЛЮЧЕНИЕ...');
   toast('Включение обхода...', 'info');
   try {
     const status = await api('start', state.zapret.activeStrategy);
     state.zapret.busy = false;
     updateZapretUI(status || await api('getStatus'));
+    const vStatus = await api('vlessGetStatus').catch(() => null);
+    if (vStatus) updateVpnUI(vStatus);
   } catch (e) {
     state.zapret.busy = false;
     toast(e.message, 'error');
@@ -967,6 +999,8 @@ async function doConnectServer(serverIdx) {
     }
     state.vpn.busy = false;
     updateVpnUI(status || await api('vlessGetStatus'));
+    const zStatus = await api('getStatus').catch(() => null);
+    if (zStatus) updateZapretUI(zStatus);
     toast(`Подключено: ${cleanServerName(status?.activeServer?.name || srvName)}`, 'success');
   } catch (e) {
     state.vpn.busy = false;
@@ -980,6 +1014,24 @@ async function vpnSmartConnect() {
   if (state.vpn.servers.length === 0) {
     toast('Список серверов пуст — обновите подписку', 'error');
     return;
+  }
+
+  if (state.zapret.running) {
+    if (!suppressConflictModal) {
+      showConflictModal(
+        'Переключение на VPN',
+        'При включении VPN закроется подключение Обхода YouTube и Discord, чтобы избежать конфликта маршрутизации.',
+        async () => {
+          await doStopZapret();
+          await vpnSmartConnect();
+        },
+        'Обход (Zapret DPI)',
+        'VPN (VLESS Reality)'
+      );
+      return;
+    } else {
+      await doStopZapret();
+    }
   }
 
   const btnText = $('#vpn-smart-text');
@@ -997,7 +1049,7 @@ async function vpnSmartConnect() {
       pingBadge.innerText = `${best.ping} мс`;
     }
     toast(`Лучший узел: ${cleanServerName(best.name)} (${best.ping} мс)`, 'info');
-    await connectServer(best.idx);
+    await doConnectServer(best.idx);
     return;
   }
 
@@ -1038,7 +1090,7 @@ async function vpnSmartConnect() {
     }
 
     toast(`Лучший узел: ${cleanServerName(best.name)} (${best.ping} мс)`, 'success');
-    await connectServer(best.idx);
+    await doConnectServer(best.idx);
   } catch (e) {
     toast(e.message || 'Ошибка поиска лучшего узла', 'error');
   } finally {
@@ -1340,6 +1392,26 @@ async function confirmVpnSub() {
     return;
   }
 
+  if (state.zapret.running) {
+    if (!suppressVpnRefreshNotify) {
+      showConflictModal(
+        'Отключение обхода при обновлении',
+        'Для стабильного обновления списка серверов и проверки пинга будет выполнено автоматическое отключение обхода Zapret DPI в системе.',
+        async () => {
+          await doStopZapret();
+          await confirmVpnSub();
+        },
+        'Обход (Zapret DPI)',
+        'Подключение подписки VPN',
+        'Выполняется',
+        'zapret_suppress_vpn_refresh_notify'
+      );
+      return;
+    } else {
+      await doStopZapret();
+    }
+  }
+
   const confirmGroup = $('#vpn-sub-confirm-group');
   const btnConfirm = $('#btn-confirm-sub');
   const iconConfirmCheck = $('#icon-confirm-sub-check');
@@ -1438,6 +1510,26 @@ async function refreshVpnServers() {
     return;
   }
 
+  if (state.zapret.running) {
+    if (!suppressVpnRefreshNotify) {
+      showConflictModal(
+        'Отключение обхода при обновлении',
+        'Для стабильного обновления списка серверов и проверки пинга будет выполнено автоматическое отключение обхода Zapret DPI в системе.',
+        async () => {
+          await doStopZapret();
+          await refreshVpnServers();
+        },
+        'Обход (Zapret DPI)',
+        'Обновление и замер узлов VPN',
+        'Выполняется',
+        'zapret_suppress_vpn_refresh_notify'
+      );
+      return;
+    } else {
+      await doStopZapret();
+    }
+  }
+
   const btn = $('#btn-update-sub');
   const btnText = $('#btn-update-sub-text');
   const icon = $('#update-sub-icon');
@@ -1480,6 +1572,26 @@ window.updateVpnSub = refreshVpnServers;
 window.vpnUpdateSub = refreshVpnServers;
 
 async function vpnTestAll() {
+  if (state.zapret.running) {
+    if (!suppressVpnRefreshNotify) {
+      showConflictModal(
+        'Отключение обхода при замере пинга',
+        'Для точного и стабильного замера пинга узлов VPN будет выполнено автоматическое отключение обхода Zapret DPI в системе.',
+        async () => {
+          await doStopZapret();
+          await vpnTestAll();
+        },
+        'Обход (Zapret DPI)',
+        'Замер пинга серверов VPN',
+        'Выполняется',
+        'zapret_suppress_vpn_refresh_notify'
+      );
+      return;
+    } else {
+      await doStopZapret();
+    }
+  }
+
   const btn = $('#btn-test-servers');
   const btnText = $('#btn-test-servers-text');
   const dial = $('#test-servers-dial') || $('#test-servers-icon');
@@ -1566,6 +1678,10 @@ let probeTimerInterval = null;
 let probeStartTime = 0;
 
 async function runStrategyProbeFlow() {
+  if (state.vpn.running) {
+    await doStopVpn();
+  }
+
   const modal = $('#strategyProbeProgressModal');
   const textEl = $('#strategyProbeProgressText');
   const fillEl = $('#strategyProbeProgressFill');
@@ -1632,14 +1748,14 @@ function renderStrategyProbeResults(top3, durationSec) {
     const isFirst = idx === 0;
     const badgeBg = isFirst
       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/35'
-      : (idx === 1 ? 'bg-teal-500/20 text-teal-300 border-teal-500/35' : 'bg-slate-500/20 text-slate-300 border-slate-500/30');
+      : (idx === 1 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' : 'bg-slate-500/20 text-slate-300 border-slate-500/30');
 
     const cardBorder = isFirst
       ? 'border-emerald-500/50 bg-[#141b25] shadow-[0_0_16px_rgba(16,185,129,0.12)] ring-1 ring-emerald-500/30'
       : 'border-white/10 bg-[#131720]/80 hover:border-white/20';
 
     const btnStyle = isFirst
-      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold shadow-[0_2px_10px_rgba(16,185,129,0.3)]'
+      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold shadow-[0_2px_10px_rgba(16,185,129,0.3)]'
       : 'bg-white/10 hover:bg-white/15 text-slate-200 hover:text-white font-semibold border border-white/10';
 
     const ytBadge = strat.ytOk
@@ -1709,23 +1825,213 @@ async function cancelStrategyProbe() {
 }
 window.cancelStrategyProbe = cancelStrategyProbe;
 
-// ─── First Launch Strategy Probe Offer ───
-async function dismissFirstLaunchProbeModal() {
-  $('#firstLaunchProbeModal')?.classList.add('hidden');
-  try {
-    localStorage.setItem('zapret_first_probe_dismissed', 'true');
-  } catch {}
-  try {
-    await api('setFirstProbeDismissed');
-  } catch {}
-}
-window.dismissFirstLaunchProbeModal = dismissFirstLaunchProbeModal;
+// ─── Onboarding Setup Wizard ───
+let onboardingWinner = 'general (ALT).bat';
+let onboardingProbeTimer = null;
+let onboardingProbeStart = 0;
 
-async function startFirstLaunchProbe() {
-  await dismissFirstLaunchProbeModal();
-  runStrategyProbeFlow();
+function showOnboardingModal() {
+  const modal = $('#onboardingModal');
+  if (!modal) return;
+  goToOnboardingStep(1);
+  modal.classList.remove('hidden');
 }
-window.startFirstLaunchProbe = startFirstLaunchProbe;
+window.showOnboardingModal = showOnboardingModal;
+
+function hideOnboardingModal() {
+  const modal = $('#onboardingModal');
+  if (modal) modal.classList.add('hidden');
+  if (onboardingProbeTimer) {
+    clearInterval(onboardingProbeTimer);
+    onboardingProbeTimer = null;
+  }
+}
+window.hideOnboardingModal = hideOnboardingModal;
+
+function goToOnboardingStep(step) {
+  const step1 = $('#onboarding-step-1');
+  const step2 = $('#onboarding-step-2');
+  const step3 = $('#onboarding-step-3');
+
+  const dot1 = $('#onboarding-dot-1');
+  const dot2 = $('#onboarding-dot-2');
+  const dot3 = $('#onboarding-dot-3');
+
+  if (step === 1) {
+    step1?.classList.remove('hidden');
+    step2?.classList.add('hidden');
+    step3?.classList.add('hidden');
+
+    if (dot1) dot1.className = 'w-6 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot2) dot2.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+    if (dot3) dot3.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+  } else if (step === 2) {
+    step1?.classList.add('hidden');
+    step2?.classList.remove('hidden');
+    step3?.classList.add('hidden');
+
+    if (dot1) dot1.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+    if (dot2) dot2.className = 'w-6 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot3) dot3.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+  } else if (step === 3) {
+    step1?.classList.add('hidden');
+    step2?.classList.add('hidden');
+    step3?.classList.remove('hidden');
+
+    if (dot1) dot1.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+    if (dot2) dot2.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+    if (dot3) dot3.className = 'w-6 h-1.5 rounded-full bg-emerald-400 transition-all';
+
+    const finalStratEl = $('#onboarding-final-strategy');
+    if (finalStratEl) {
+      finalStratEl.innerText = onboardingWinner.replace(/\.bat$/i, '');
+    }
+  }
+}
+window.goToOnboardingStep = goToOnboardingStep;
+
+async function startOnboardingProbe() {
+  const idleEl = $('#onboarding-probe-idle');
+  const runningEl = $('#onboarding-probe-running');
+  const doneEl = $('#onboarding-probe-done');
+  const barEl = $('#onboarding-probe-progress-bar');
+  const timerEl = $('#onboarding-probe-timer');
+  const statusEl = $('#onboarding-probe-status-text');
+  const detailsEl = $('#onboarding-probe-details');
+
+  idleEl?.classList.add('hidden');
+  runningEl?.classList.remove('hidden');
+  doneEl?.classList.add('hidden');
+
+  if (barEl) barEl.style.width = '0%';
+  if (timerEl) timerEl.innerText = '00:00';
+  if (statusEl) statusEl.innerText = 'Тестирование стратегий...';
+  if (detailsEl) detailsEl.innerText = 'Подготовка к проверке...';
+
+  if (state.vpn.running) {
+    await doStopVpn().catch(() => {});
+  }
+
+  onboardingProbeStart = Date.now();
+  if (onboardingProbeTimer) clearInterval(onboardingProbeTimer);
+  onboardingProbeTimer = setInterval(() => {
+    const elapsedSec = Math.floor((Date.now() - onboardingProbeStart) / 1000);
+    const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+    const secs = String(elapsedSec % 60).padStart(2, '0');
+    if (timerEl) timerEl.innerText = `${mins}:${secs}`;
+  }, 500);
+
+  try {
+    const result = await api('runStrategyProbe');
+    if (onboardingProbeTimer) {
+      clearInterval(onboardingProbeTimer);
+      onboardingProbeTimer = null;
+    }
+
+    if (result && result.top3 && result.top3.length > 0) {
+      const winner = result.top3[0];
+      const stratName = winner.name.endsWith('.bat') ? winner.name : `${winner.name}.bat`;
+      onboardingWinner = stratName;
+      await selectStrategy(stratName).catch(() => {});
+
+      const nameEl = $('#onboarding-winner-name');
+      const pingEl = $('#onboarding-winner-ping');
+      if (nameEl) nameEl.innerText = winner.name.replace(/\.bat$/i, '');
+      if (pingEl) pingEl.innerText = winner.ping ? `${winner.ping} мс` : 'Доступно';
+    } else {
+      onboardingWinner = 'general (ALT).bat';
+      await selectStrategy(onboardingWinner).catch(() => {});
+      const nameEl = $('#onboarding-winner-name');
+      const pingEl = $('#onboarding-winner-ping');
+      if (nameEl) nameEl.innerText = 'general (ALT)';
+      if (pingEl) pingEl.innerText = 'Рекомендована';
+    }
+  } catch (err) {
+    console.error('Onboarding probe error:', err);
+    if (onboardingProbeTimer) {
+      clearInterval(onboardingProbeTimer);
+      onboardingProbeTimer = null;
+    }
+    onboardingWinner = 'general (ALT).bat';
+    await selectStrategy(onboardingWinner).catch(() => {});
+    const nameEl = $('#onboarding-winner-name');
+    const pingEl = $('#onboarding-winner-ping');
+    if (nameEl) nameEl.innerText = 'general (ALT)';
+    if (pingEl) pingEl.innerText = 'Рекомендована';
+  }
+
+  runningEl?.classList.add('hidden');
+  doneEl?.classList.remove('hidden');
+}
+window.startOnboardingProbe = startOnboardingProbe;
+
+async function skipOnboardingProbe() {
+  if (onboardingProbeTimer) {
+    clearInterval(onboardingProbeTimer);
+    onboardingProbeTimer = null;
+    try {
+      await api('cancelStrategyProbe');
+    } catch {}
+  }
+  onboardingWinner = 'general (ALT).bat';
+  await selectStrategy(onboardingWinner).catch(() => {});
+  goToOnboardingStep(2);
+}
+window.skipOnboardingProbe = skipOnboardingProbe;
+
+async function finishOnboardingAndLaunch() {
+  const autostart = Boolean($('#onboarding-toggle-autostart')?.checked);
+  const tray = Boolean($('#onboarding-toggle-tray')?.checked);
+
+  try {
+    state.settings.autostartZapret = autostart;
+    const autoToggle = $('#toggle-autostart-zapret');
+    if (autoToggle) autoToggle.checked = autostart;
+    await api('setAutostartZapret', autostart).catch(() => {});
+
+    const closeMode = tray ? 'tray' : 'quit';
+    state.settings.closeBehavior = closeMode;
+    ['ask', 'tray', 'quit'].forEach(m => {
+      const btn = $(`#btn-close-${m}`);
+      if (btn) {
+        if (m === closeMode) {
+          btn.className = 'flex-1 py-1 px-1.5 rounded-lg text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 transition-colors';
+        } else {
+          btn.className = 'flex-1 py-1 px-1.5 rounded-lg text-[10px] font-semibold text-slate-400 hover:text-slate-200 border border-transparent transition-colors';
+        }
+      }
+    });
+    await api('setCloseBehavior', closeMode).catch(() => {});
+
+    await selectStrategy(onboardingWinner).catch(() => {});
+
+    await api('setOnboardingCompleted', true).catch(() => {});
+    try {
+      localStorage.setItem('zapret_onboarding_completed', 'true');
+    } catch {}
+    await api('setFirstProbeDismissed').catch(() => {});
+    try {
+      localStorage.setItem('zapret_first_probe_dismissed', 'true');
+    } catch {}
+  } catch (e) {
+    console.error('Error saving onboarding settings:', e);
+  }
+
+  hideOnboardingModal();
+  toast('Настройка завершена! Включаем обход...', 'success');
+
+  try {
+    await doStartZapret();
+  } catch (err) {
+    console.error('Failed to auto-start zapret after onboarding:', err);
+    toast(err.message || 'Ошибка запуска обхода', 'error');
+  }
+}
+window.finishOnboardingAndLaunch = finishOnboardingAndLaunch;
+
+// Backward-compatibility aliases
+window.dismissFirstLaunchProbeModal = hideOnboardingModal;
+window.startFirstLaunchProbe = startOnboardingProbe;
 
 // ─── Sites Management ───
 function sanitizeDomain(raw) {
@@ -2002,15 +2308,15 @@ function updateBundleAutocomplete(containerId, query) {
     return `
       <div onclick="addServiceBundle('${b.key}')" class="h-8 px-2.5 rounded-lg ${isAdded ? 'bg-white/[0.02]' : 'hover:bg-white/[0.08]'} flex items-center justify-between gap-2 cursor-pointer transition-all group select-none">
         <div class="flex items-center gap-2 min-w-0 flex-1">
-          <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
-          <span class="text-xs font-bold ${isAdded ? 'text-teal-200' : 'text-white group-hover:text-teal-300'} transition-colors whitespace-nowrap">${b.name}</span>
+          <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-emerald-400' : 'bg-slate-500 group-hover:bg-emerald-400'} transition-all flex-shrink-0"></span>
+          <span class="text-xs font-bold ${isAdded ? 'text-emerald-300' : 'text-white group-hover:text-emerald-300'} transition-colors whitespace-nowrap">${b.name}</span>
           <span class="text-[11px] font-mono text-slate-400 truncate">${b.mainDomain}</span>
         </div>
         <div class="flex items-center gap-1.5 flex-shrink-0">
-          <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${isAdded ? 'bg-teal-500/10 text-teal-400/80 border-teal-500/20' : 'bg-teal-500/15 text-teal-300 border-teal-500/25'} border whitespace-nowrap">
+          <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${isAdded ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'} border whitespace-nowrap">
             ${badgeText}
           </span>
-          <span class="text-[10px] font-semibold ${isAdded ? 'text-teal-400/80' : 'text-teal-400 group-hover:text-emerald-300'} transition-colors whitespace-nowrap">
+          <span class="text-[10px] font-semibold ${isAdded ? 'text-emerald-400/80' : 'text-emerald-400 group-hover:text-emerald-300'} transition-colors whitespace-nowrap">
             ${statusLabel}
           </span>
         </div>
@@ -2119,7 +2425,7 @@ function setSitesListMode(mode) {
       btnBypass.className = 'sites-mode-btn sites-mode-btn-active flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap';
     }
     if (dotBypass) {
-      dotBypass.className = 'w-2 h-2 rounded-full bg-teal-400';
+      dotBypass.className = 'w-2 h-2 rounded-full bg-emerald-400';
     }
     if (pillBypass) {
       pillBypass.className = 'sites-mode-badge sites-mode-badge-active px-2 py-0.5 text-[11px] font-bold';
@@ -2137,14 +2443,14 @@ function setSitesListMode(mode) {
     if (summary) summary.innerText = 'Маршрутизация: Kyber / Fake TLS активна';
     if (input) input.placeholder = 'Добавить домен или сервис (напр. youtube.com)...';
     if (tipContent) {
-      tipContent.innerHTML = '<span class="font-semibold text-slate-300">Подсказка:</span> Можно вставлять ссылки в любом виде (с <code class="text-teal-400">https://</code>, путями или префиксами) — программа сама очистит их до домена. Поддомены перехватываются автоматически.';
+      tipContent.innerHTML = '<span class="font-semibold text-slate-300">Подсказка:</span> Можно вставлять ссылки в любом виде (с <code class="text-emerald-400">https://</code>, путями или префиксами) — программа сама очистит их до домена. Поддомены перехватываются автоматически.';
     }
   } else {
     if (btnWhitelist) {
       btnWhitelist.className = 'sites-mode-btn sites-mode-btn-active flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap';
     }
     if (dotWhitelist) {
-      dotWhitelist.className = 'w-2 h-2 rounded-full bg-teal-400';
+      dotWhitelist.className = 'w-2 h-2 rounded-full bg-emerald-400';
     }
     if (pillWhitelist) {
       pillWhitelist.className = 'sites-mode-badge sites-mode-badge-active px-2 py-0.5 text-[11px] font-bold';
@@ -2188,17 +2494,17 @@ function renderQuickAddServices() {
       if (!b) return '';
       const isAdded = b.domains.every(d => targetSet.has(d));
       const actionIcon = isAdded
-        ? `<span class="w-5 h-5 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center transition-all flex-shrink-0" title="Уже в списке">
+        ? `<span class="w-5 h-5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center transition-all flex-shrink-0" title="Уже в списке">
              <svg class="w-3 h-3 stroke-current stroke-[2.5] fill-none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
            </span>`
-        : `<span class="w-5 h-5 rounded-lg bg-white/[0.04] group-hover:bg-teal-500/20 border border-white/5 group-hover:border-teal-500/30 text-slate-400 group-hover:text-teal-300 flex items-center justify-center transition-all flex-shrink-0">
+        : `<span class="w-5 h-5 rounded-lg bg-white/[0.04] group-hover:bg-emerald-500/20 border border-white/5 group-hover:border-emerald-500/30 text-slate-400 group-hover:text-emerald-300 flex items-center justify-center transition-all flex-shrink-0">
              <svg class="w-3 h-3 stroke-current stroke-2 fill-none pointer-events-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
            </span>`;
 
       return `
-        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-teal-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${isAdded ? `${b.name} (уже в списке)` : `Добавить ${b.name} (${b.domains.length} доменов)`}">
+        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-emerald-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${isAdded ? `${b.name} (уже в списке)` : `Добавить ${b.name} (${b.domains.length} доменов)`}">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
+            <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-emerald-400' : 'bg-slate-500 group-hover:bg-emerald-400'} transition-all flex-shrink-0"></span>
             <span class="text-xs font-semibold ${isAdded ? 'text-slate-300' : 'text-slate-200 group-hover:text-white'} transition-colors truncate">${b.name}</span>
           </div>
           ${actionIcon}
@@ -2218,17 +2524,17 @@ function renderQuickAddServices() {
         ? `${b.name} (${k === 'youtube' ? 'встроенный обход Zapret.NET' : 'уже в списке'})`
         : `Добавить ${b.name} (${b.domains.length} доменов)`;
       const actionIcon = isAdded
-        ? `<span class="w-5 h-5 rounded-lg bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center transition-all flex-shrink-0" title="${tooltip}">
+        ? `<span class="w-5 h-5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center transition-all flex-shrink-0" title="${tooltip}">
              <svg class="w-3 h-3 stroke-current stroke-[2.5] fill-none" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
            </span>`
-        : `<span class="w-5 h-5 rounded-lg bg-white/[0.04] group-hover:bg-teal-500/20 border border-white/5 group-hover:border-teal-500/30 text-slate-400 group-hover:text-teal-300 flex items-center justify-center transition-all flex-shrink-0">
+        : `<span class="w-5 h-5 rounded-lg bg-white/[0.04] group-hover:bg-emerald-500/20 border border-white/5 group-hover:border-emerald-500/30 text-slate-400 group-hover:text-emerald-300 flex items-center justify-center transition-all flex-shrink-0">
              <svg class="w-3 h-3 stroke-current stroke-2 fill-none pointer-events-none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
            </span>`;
 
       return `
-        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-teal-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${tooltip}">
+        <button onclick="addServiceBundle('${k}')" class="h-9 px-3 rounded-xl ${isAdded ? 'bg-white/[0.02] border-white/5' : 'bg-white/[0.04] border-white/10 hover:border-emerald-400/40 hover:bg-white/[0.08]'} text-left flex items-center justify-between transition-all cursor-pointer group active:scale-95 shadow-sm" title="${tooltip}">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.6)]' : 'bg-slate-500 group-hover:bg-teal-400'} transition-all flex-shrink-0"></span>
+            <span class="w-1.5 h-1.5 rounded-full ${isAdded ? 'bg-emerald-400' : 'bg-slate-500 group-hover:bg-emerald-400'} transition-all flex-shrink-0"></span>
             <span class="text-xs font-semibold ${isAdded ? 'text-slate-300' : 'text-slate-200 group-hover:text-white'} transition-colors truncate">${b.name}</span>
           </div>
           ${actionIcon}
@@ -2539,7 +2845,7 @@ function renderSites() {
   container.innerHTML = filtered.map(site => `
     <div class="inner-panel rounded-xl px-3 py-2 flex items-center justify-between gap-2 group hover:border-white/20 transition-all">
       <div class="flex items-center gap-2 min-w-0">
-        <span class="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0"></span>
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span>
         <span class="text-xs font-mono text-slate-200 truncate select-text">${site}</span>
       </div>
       <button data-site="${encodeURIComponent(site)}" class="text-slate-500 hover:text-rose-400 p-1 rounded-md transition-colors cursor-pointer" title="Удалить домен">
@@ -2566,7 +2872,7 @@ async function setCloseBehavior(mode) {
     const btn = $(`#btn-close-${m}`);
     if (btn) {
       if (m === mode) {
-        btn.className = 'h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center';
+        btn.className = 'h-7 rounded-lg text-xs font-semibold text-white bg-white/15 border border-white/20 transition-all cursor-pointer flex items-center justify-center shadow-sm';
       } else {
         btn.className = 'h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center';
       }
@@ -2607,7 +2913,7 @@ function renderIpsetButtons(modeRaw) {
     const btn = $(`#btn-ipset-${m}`);
     if (btn) {
       if (m === mode) {
-        btn.className = 'h-7 rounded-lg text-xs font-semibold text-emerald-400 bg-white/10 border border-emerald-500/30 transition-all cursor-pointer flex items-center justify-center';
+        btn.className = 'h-7 rounded-lg text-xs font-semibold text-white bg-white/15 border border-white/20 transition-all cursor-pointer flex items-center justify-center shadow-sm';
       } else {
         btn.className = 'h-7 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent transition-all cursor-pointer flex items-center justify-center';
       }
@@ -2647,7 +2953,7 @@ async function checkAllUpdatesSim() {
     } else if (all?.hub?.error) {
       toast(`Не удалось проверить обновления: ${all.hub.error}`, 'error');
     } else {
-      const currentVer = (all?.hub?.local || state.appVersion || '2.0.7').replace(/^v/i, '');
+      const currentVer = (all?.hub?.local || state.appVersion || '2.0.8').replace(/^v/i, '');
       toast(`У вас установлена последняя версия Zapret.NET (v${currentVer})`, 'success');
     }
   } catch (e) {
@@ -2806,6 +3112,32 @@ async function startSelfHealingFlow() {
 }
 window.startSelfHealingFlow = startSelfHealingFlow;
 
+async function exportDiagnosticsLogs() {
+  const btn = $('#btn-settings-export-logs');
+  const text = $('#btn-settings-export-logs-text');
+  const icon = $('#settings-export-logs-icon');
+
+  try {
+    if (btn) btn.disabled = true;
+    if (text) text.innerText = 'Сбор логов...';
+    if (icon) icon.classList.add('animate-bounce');
+
+    const res = await api('exportLogsDialog');
+    if (res?.saved && res.filePath) {
+      const fileName = res.filePath.split(/[\\/]/).pop();
+      toast(`Логи успешно выгружены: ${fileName}`, 'success');
+    }
+  } catch (err) {
+    console.error('Export logs failed:', err);
+    toast(err.message || 'Ошибка выгрузки логов', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (text) text.innerText = 'Выгрузить логи';
+    if (icon) icon.classList.remove('animate-bounce');
+  }
+}
+window.exportDiagnosticsLogs = exportDiagnosticsLogs;
+
 // ─── UI Renderers ───
 function updateZapretUI(status) {
   if (status?.appVersion) {
@@ -2909,10 +3241,10 @@ function updateSitesCardUI() {
 
   const isRunning = Boolean(state.zapret.running);
   if (isRunning) {
-    if (dotEl) dotEl.className = 'w-1.5 h-1.5 rounded-full bg-teal-400';
-    if (badgeEl) badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center gap-1 group-hover:bg-teal-500/30 transition-colors';
+    if (dotEl) dotEl.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+    if (badgeEl) badgeEl.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 group-hover:bg-emerald-500/30 transition-colors';
     if (statusTextEl) {
-      statusTextEl.className = 'text-xs text-teal-400 block whitespace-nowrap font-medium leading-tight mt-1';
+      statusTextEl.className = 'text-xs text-emerald-400 block whitespace-nowrap font-medium leading-tight mt-1';
       statusTextEl.innerText = 'Список активен';
     }
   } else {
@@ -3134,7 +3466,7 @@ function buildVpnPingBadge(srv) {
   if (srv.status === 'blocked') {
     return '<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium text-rose-400 bg-rose-500/10 px-2.5 rounded-lg border border-rose-500/20">Блок</span>';
   } else if (typeof srv.ping === 'number' && srv.ping > 0) {
-    const pingCol = srv.ping < 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : (srv.ping < 160 ? 'text-teal-400 bg-teal-500/10 border-teal-500/20' : 'text-slate-400 bg-white/[0.04] border-white/5');
+    const pingCol = srv.ping < 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : (srv.ping < 160 ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-400 bg-white/[0.04] border-white/5');
     return `<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium ${pingCol} px-2.5 rounded-lg border">${srv.ping} мс</span>`;
   }
   return '<span class="inline-flex items-center justify-center min-w-[58px] h-7 text-xs font-mono font-medium text-slate-400 bg-white/[0.04] px-2.5 rounded-lg border border-white/5">—</span>';
@@ -3321,10 +3653,7 @@ function updateFooterStatus() {
     pingEl.innerText = activePing || '—';
   }
 
-  if (state.zapret.running && state.vpn.running) {
-    if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 transition-colors';
-    if (desc) desc.innerText = 'Zapret и VPN активны';
-  } else if (state.zapret.running) {
+  if (state.zapret.running) {
     if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 transition-colors';
     if (desc) desc.innerText = 'Обход Zapret DPI активен';
   } else if (state.vpn.running) {
@@ -3386,6 +3715,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Strategies
     if (strategies && strategies.length > 0) {
       state.zapret.strategies = strategies;
+      const hasActive = state.zapret.strategies.some(s => {
+        const f = typeof s === 'string' ? s : (s.file || s.name || '');
+        return f === state.zapret.activeStrategy;
+      });
+      if (!hasActive) {
+        const first = state.zapret.strategies[0];
+        state.zapret.activeStrategy = typeof first === 'string' ? first : (first.file || first.name || 'general (ALT).bat');
+      }
+      const activeEl = $('#active-strategy-name');
+      if (activeEl) activeEl.innerText = state.zapret.activeStrategy.replace(/\.bat$/i, '');
       renderStrategyDropdown();
     }
 
@@ -3442,17 +3781,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Custom Lists
     loadCustomLists().catch(() => {});
 
-    // First Launch Strategy Probe Check
+    // First Launch Setup Wizard Check
     try {
       const cfg = await api('getConfig').catch(() => null);
-      const isDismissedConfig = Boolean(cfg?.firstProbePromptDismissed);
-      let isDismissedLocal = false;
+      const isOnboardingCompletedConfig = Boolean(cfg?.onboardingCompleted);
+      let isOnboardingCompletedLocal = false;
       try {
-        isDismissedLocal = localStorage.getItem('zapret_first_probe_dismissed') === 'true';
+        isOnboardingCompletedLocal = localStorage.getItem('zapret_onboarding_completed') === 'true';
       } catch {}
-      if (!isDismissedConfig && !isDismissedLocal) {
+
+      if (!isOnboardingCompletedConfig && !isOnboardingCompletedLocal) {
         setTimeout(() => {
-          $('#firstLaunchProbeModal')?.classList.remove('hidden');
+          showOnboardingModal();
         }, 500);
       }
     } catch {}
@@ -3509,7 +3849,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const label = $('#update-progress-label');
     const pct = Math.min(100, Math.max(0, data.percent || 0));
 
-    if (bar) bar.style.width = `${pct}%`;
+    if (bar) {
+      bar.style.width = `${pct}%`;
+      bar.style.background = 'linear-gradient(90deg, #059669, #10b981)';
+    }
     if (pctText) pctText.innerText = `${pct}%`;
     if (label && data.message) label.innerText = data.message;
   });
@@ -3528,6 +3871,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (data.strategyName && sumEl) {
       sumEl.innerText = `Тестирование: ${data.strategyName} (YouTube / Discord / Web)`;
+    }
+
+    // Onboarding modal probe update
+    const onbBar = $('#onboarding-probe-progress-bar');
+    const onbStatus = $('#onboarding-probe-status-text');
+    const onbDetails = $('#onboarding-probe-details');
+    if (onbBar && typeof data.percent === 'number') {
+      onbBar.style.width = `${Math.min(100, Math.max(0, data.percent))}%`;
+    }
+    if (onbStatus && data.strategyName) {
+      onbStatus.innerText = `Тестирование: ${data.strategyName}`;
+    }
+    if (onbDetails && data.message) {
+      onbDetails.innerText = data.message;
     }
   });
   window.zapretAPI?.onVlessPingUpdate?.((data) => {

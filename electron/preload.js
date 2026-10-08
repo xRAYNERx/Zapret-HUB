@@ -91,6 +91,7 @@ const api = {
   setCloseBehavior: (mode) => ipcRenderer.invoke('set-close-behavior', mode),
   setOnboardingCompleted: (completed) => ipcRenderer.invoke('set-onboarding-completed', completed),
   readClipboardText: () => ipcRenderer.invoke('read-clipboard-text'),
+  exportLogsDialog: () => ipcRenderer.invoke('export-logs-dialog'),
   exportSitesDialog: (options) => ipcRenderer.invoke('export-sites-dialog', options),
   importSitesDialog: (options) => ipcRenderer.invoke('import-sites-dialog', options),
   importSitesText: (payload) => ipcRenderer.invoke('import-sites-text', payload),

@@ -1253,6 +1253,21 @@ class VlessService {
   }
 
   async connect(index = null) {
+    // 100% Mutual Exclusion: Stop Zapret and ensure WinDivert is unloaded
+    if (this.zapretService) {
+      try {
+        const zStatus = await this.zapretService.getStatus();
+        if (zStatus.running || (await this.zapretService.isProcessRunning('winws.exe'))) {
+          await this.zapretService.stop();
+        }
+      } catch (err) {
+        console.warn('[VlessService] Error stopping zapret before connect:', err);
+      }
+    }
+    try {
+      await execAsync('taskkill /IM winws.exe /F /T', { windowsHide: true, timeout: 2500 });
+    } catch {}
+
     this._seedFromBundled();
     if (!fs.existsSync(this.exePath)) {
       throw new Error('Ядро Xray не найдено. Проверьте установку.');
