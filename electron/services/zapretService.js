@@ -128,14 +128,37 @@ class ZapretService {
     const defaults = JSON.parse(
       fs.readFileSync(path.join(this.appPath, 'config.default.json'), 'utf8')
     );
-    if (fs.existsSync(this.configPath)) {
+    const configExists = fs.existsSync(this.configPath);
+    if (configExists) {
       try {
-        return { ...defaults, ...JSON.parse(fs.readFileSync(this.configPath, 'utf8')) };
+        const userConfig = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+        const currentVersion = appPkg.version || '2.0.9';
+
+        // An existing config.json indicates the app has already run on this system previously.
+        // If the user upgraded to this version (or updated via in-app patch/updater):
+        // 1. isUpgrade: config has an older appVersion or no appVersion at all.
+        // 2. onboardingCompleted is undefined or not a boolean (from <= 2.0.8 legacy configs).
+        // Under all upgrade and existing-user conditions, the onboarding wizard MUST NEVER appear.
+        const isUpgrade = !userConfig.appVersion || userConfig.appVersion !== currentVersion;
+        if (this.isPackaged && (isUpgrade || typeof userConfig.onboardingCompleted !== 'boolean')) {
+          userConfig.onboardingCompleted = true;
+          userConfig.appVersion = currentVersion;
+          try {
+            fs.writeFileSync(this.configPath, JSON.stringify({ ...defaults, ...userConfig }, null, 2), 'utf8');
+          } catch {}
+        } else if (!this.isPackaged && typeof userConfig.onboardingCompleted !== 'boolean') {
+          userConfig.onboardingCompleted = true;
+        }
+
+        return { ...defaults, ...userConfig };
       } catch {
         return defaults;
       }
     }
-    return defaults;
+
+    // Fresh install from scratch: config.json does NOT exist yet!
+    // defaults.onboardingCompleted is false, so wizard will show on first launch.
+    return { ...defaults, appVersion: appPkg.version || '2.0.9' };
   }
 
   saveConfig() {
@@ -1183,6 +1206,7 @@ class ZapretService {
 
   setOnboardingCompleted(completed = true) {
     this.config.onboardingCompleted = Boolean(completed);
+    this.config.appVersion = appPkg.version || '2.0.9';
     this.saveConfig();
     return { onboardingCompleted: this.config.onboardingCompleted };
   }

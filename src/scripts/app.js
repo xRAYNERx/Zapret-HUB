@@ -551,6 +551,10 @@ async function executeHubUpdate() {
   if (label) label.innerText = 'Подключение к GitHub…';
 
   try {
+    try {
+      localStorage.setItem('zapret_onboarding_completed', 'true');
+    } catch {}
+    await api('setOnboardingCompleted', true).catch(() => {});
     toast('Загрузка обновления Zapret.NET...', 'info');
     await api('applyHubUpdate');
   } catch (err) {
@@ -1938,6 +1942,10 @@ function hideOnboardingModal() {
   }
   try {
     api('cancelStrategyProbe').catch(() => {});
+  } catch {}
+  api('setOnboardingCompleted', true).catch(() => {});
+  try {
+    localStorage.setItem('zapret_onboarding_completed', 'true');
   } catch {}
 }
 window.hideOnboardingModal = hideOnboardingModal;

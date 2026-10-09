@@ -37,6 +37,15 @@ function ensureUserDataPath() {
       if (!fs.existsSync(legacy)) continue;
       try {
         fs.cpSync(legacy, netData, { recursive: true });
+        const legacyCfg = path.join(netData, 'config.json');
+        if (fs.existsSync(legacyCfg)) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(legacyCfg, 'utf8'));
+            parsed.onboardingCompleted = true;
+            parsed.appVersion = appPkg.version || '2.0.9';
+            fs.writeFileSync(legacyCfg, JSON.stringify(parsed, null, 2), 'utf8');
+          } catch {}
+        }
         break;
       } catch {
         app.setPath('userData', legacy);
@@ -991,6 +1000,10 @@ async function stopServicesBeforeHubInstall() {
 }
 
 async function applyHubPatch(patchZipPath, onProgress) {
+  try {
+    zapret?.setOnboardingCompleted(true);
+  } catch {}
+
   if (typeof onProgress === 'function') {
     onProgress({ percent: 90, message: 'Распаковка быстрого обновления…' });
   }
@@ -1065,6 +1078,10 @@ exit
 }
 
 async function launchHubInstaller(installerPath, onProgress) {
+  try {
+    zapret?.setOnboardingCompleted(true);
+  } catch {}
+
   if (typeof onProgress === 'function') {
     onProgress({ percent: 100, message: 'Запуск обновления и перезапуск…' });
   }
@@ -1125,6 +1142,9 @@ exit
 }
 
 async function applyHubUpdate(onProgress) {
+  try {
+    zapret?.setOnboardingCompleted(true);
+  } catch {}
   const release = await resolveHubRemoteRelease();
   const { patch, installer } = resolveHubAssets(release);
 
