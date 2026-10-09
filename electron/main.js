@@ -826,36 +826,8 @@ async function resolveHubRemoteRelease() {
             browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretNet-Patch-${version}.zip`
           },
           {
-            name: `ZapretPrime-Patch-${version}.zip`,
-            browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretPrime-Patch-${version}.zip`
-          },
-          {
-            name: `ZapretHub-Patch-${version}.zip`,
-            browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretHub-Patch-${version}.zip`
-          },
-          {
             name: `ZapretNet-Setup-${version}.exe`,
             browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretNet-Setup-${version}.exe`
-          },
-          {
-            name: `ZapretPrime-Setup-${version}.exe`,
-            browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretPrime-Setup-${version}.exe`
-          },
-          {
-            name: `ZapretHub-Setup-${version}.exe`,
-            browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretHub-Setup-${version}.exe`
-          },
-          {
-            name: `ZapretNet-Portable-${version}.exe`,
-            browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretNet-Portable-${version}.exe`
-          },
-          {
-            name: `ZapretPrime-Portable-${version}.exe`,
-            browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretPrime-Portable-${version}.exe`
-          },
-          {
-            name: `ZapretHub-Portable-${version}.exe`,
-            browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretHub-Portable-${version}.exe`
           }
         ],
         _source: 'atom-fallback'
@@ -876,24 +848,8 @@ async function resolveHubRemoteRelease() {
         browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretNet-Patch-${version}.zip`
       },
       {
-        name: `ZapretPrime-Patch-${version}.zip`,
-        browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretPrime-Patch-${version}.zip`
-      },
-      {
-        name: `ZapretHub-Patch-${version}.zip`,
-        browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretHub-Patch-${version}.zip`
-      },
-      {
         name: `ZapretNet-Setup-${version}.exe`,
         browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretNet-Setup-${version}.exe`
-      },
-      {
-        name: `ZapretPrime-Setup-${version}.exe`,
-        browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretPrime-Setup-${version}.exe`
-      },
-      {
-        name: `ZapretHub-Setup-${version}.exe`,
-        browser_download_url: `https://github.com/xRAYNERx/Zapret-NET/releases/download/v${version}/ZapretHub-Setup-${version}.exe`
       }
     ],
     _source: 'page-fallback'

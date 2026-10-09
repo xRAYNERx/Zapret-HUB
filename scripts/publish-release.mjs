@@ -115,15 +115,27 @@ async function main() {
     console.log(`Created release: ID ${release.id}`);
   }
 
-  const setupNet = path.join(rootDir, 'dist', `ZapretNet-Setup-${version}.exe`);
-  const setupPrime = path.join(rootDir, 'dist', `ZapretPrime-Setup-${version}.exe`);
-  const setupHub = path.join(rootDir, 'dist', `ZapretHub-Setup-${version}.exe`);
-  const patchNet = path.join(rootDir, 'dist', `ZapretNet-Patch-${version}.zip`);
-  const patchPrime = path.join(rootDir, 'dist', `ZapretPrime-Patch-${version}.zip`);
-  const patchHub = path.join(rootDir, 'dist', `ZapretHub-Patch-${version}.zip`);
+  const setupFile = path.join(rootDir, 'dist', `ZapretNet-Setup-${version}.exe`);
+  const patchFile = path.join(rootDir, 'dist', `ZapretNet-Patch-${version}.zip`);
 
-  const setupFile = fs.existsSync(setupNet) ? setupNet : (fs.existsSync(setupPrime) ? setupPrime : setupHub);
-  const patchFile = fs.existsSync(patchNet) ? patchNet : (fs.existsSync(patchPrime) ? patchPrime : patchHub);
+  // Delete legacy alias assets if present on release
+  const legacyAliases = [
+    `ZapretPrime-Setup-${version}.exe`,
+    `ZapretPrime-Patch-${version}.zip`,
+    `ZapretHub-Setup-${version}.exe`,
+    `ZapretHub-Patch-${version}.zip`
+  ];
+
+  for (const legacyName of legacyAliases) {
+    const existing = release.assets?.find(a => a.name === legacyName);
+    if (existing) {
+      console.log(`Deleting legacy alias asset ${legacyName} (ID: ${existing.id})...`);
+      await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${existing.id}`, {
+        method: 'DELETE',
+        headers
+      });
+    }
+  }
 
   const assetsToUpload = [
     {
@@ -133,26 +145,6 @@ async function main() {
     },
     {
       name: `ZapretNet-Patch-${version}.zip`,
-      filePath: patchFile,
-      contentType: 'application/zip'
-    },
-    {
-      name: `ZapretPrime-Setup-${version}.exe`,
-      filePath: setupFile,
-      contentType: 'application/vnd.microsoft.portable-executable'
-    },
-    {
-      name: `ZapretPrime-Patch-${version}.zip`,
-      filePath: patchFile,
-      contentType: 'application/zip'
-    },
-    {
-      name: `ZapretHub-Setup-${version}.exe`,
-      filePath: setupFile,
-      contentType: 'application/vnd.microsoft.portable-executable'
-    },
-    {
-      name: `ZapretHub-Patch-${version}.zip`,
       filePath: patchFile,
       contentType: 'application/zip'
     }
