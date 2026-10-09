@@ -55,6 +55,10 @@ function Stop-AllAppProcesses {
         Write-Host 'Closing previous Zapret.NET and background processes...'
         Start-Sleep -Milliseconds 800
     }
+    $lockDir = Join-Path $env:APPDATA 'TgWsProxy'
+    if (Test-Path $lockDir) {
+        Get-ChildItem -Path $lockDir -Filter '*.lock' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $sourcePaths = @(

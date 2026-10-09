@@ -7,7 +7,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // Unified State
 let state = {
-  appVersion: '2.0.8',
+  appVersion: '2.0.9',
   activeTab: 'home',
   zapret: {
     running: false,
@@ -385,7 +385,7 @@ function formatReleaseBody(content = '') {
 }
 
 function updateAppVersionUI(ver) {
-  const v = String(ver || state.appVersion || '2.0.8').replace(/^v/i, '');
+  const v = String(ver || state.appVersion || '2.0.9').replace(/^v/i, '');
   state.appVersion = v;
   const settingsBadge = $('#app-settings-version');
   if (settingsBadge) settingsBadge.innerText = `v${v}`;
@@ -425,7 +425,7 @@ async function loadChangelogFromGithub(force = false) {
     const container = $('#changelog-container');
     if (!container) return;
 
-    const currentAppVersion = (state.appVersion || state.version || '2.0.8').replace(/^v/i, '');
+    const currentAppVersion = (state.appVersion || state.version || '2.0.9').replace(/^v/i, '');
 
     const blocks = releases.map((rel, idx) => {
       const tag = (rel.tag_name || '').replace(/^v/i, '');
@@ -505,8 +505,8 @@ function showHubUpdateModal(updateInfo) {
   const progressEl = $('#update-progress-section');
   const closeBtn = $('#btn-close-update-modal');
 
-  const local = (updateInfo?.local || state.appVersion || '2.0.8').replace(/^v/i, '');
-  const remote = (updateInfo?.remote || '2.0.8').replace(/^v/i, '');
+  const local = (updateInfo?.local || state.appVersion || '2.0.9').replace(/^v/i, '');
+  const remote = (updateInfo?.remote || '2.0.9').replace(/^v/i, '');
 
   if (currentVerEl) currentVerEl.innerText = `v${local}`;
   if (remoteVerEl) remoteVerEl.innerText = `v${remote}`;
@@ -1657,11 +1657,12 @@ window.openTg1Click = openTg1Click;
 async function copyTgProxyLink() {
   try {
     const res = await api('copyTgProxyLink');
-    let link = res?.link;
+    let link = res?.link || res?.url || state.tg.proxyUrl;
     if (!link) {
       const host = state.tg.host || '127.0.0.1';
       const port = state.tg.port || 1443;
-      link = `tg://proxy?server=${host}&port=${port}&secret=ee000000000000000000000000000000007777772e636c6f7564666c6172652e636f6d`;
+      const secret = state.tg.secret;
+      link = secret ? `tg://proxy?server=${host}&port=${port}&secret=${secret}` : `tg://proxy?server=${host}&port=${port}`;
     }
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(link);
@@ -1676,6 +1677,9 @@ window.copyTgProxyLink = copyTgProxyLink;
 // ─── Strategy Probe ───
 let probeTimerInterval = null;
 let probeStartTime = 0;
+let lastProbeWasRunning = false;
+let lastProbeOriginalStrategy = null;
+let probeStrategyApplied = false;
 
 async function runStrategyProbeFlow() {
   if (state.vpn.running) {
@@ -1716,6 +1720,13 @@ async function runStrategyProbeFlow() {
     if (modal) modal.classList.add('hidden');
 
     if (result && result.top3 && result.top3.length > 0) {
+      lastProbeWasRunning = Boolean(result.wasRunning);
+      lastProbeOriginalStrategy = result.originalStrategy || state.zapret.activeStrategy;
+      probeStrategyApplied = false;
+
+      const currStatus = await api('getStatus').catch(() => null);
+      if (currStatus) updateZapretUI(currStatus);
+
       const elapsed = result.totalTimeSec || Math.max(1, Math.round((Date.now() - probeStartTime) / 1000));
       renderStrategyProbeResults(result.top3, elapsed);
       const resModal = $('#strategyProbeResultsModal');
@@ -1747,24 +1758,38 @@ function renderStrategyProbeResults(top3, durationSec) {
   container.innerHTML = top3.map((strat, idx) => {
     const isFirst = idx === 0;
     const badgeBg = isFirst
-      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/35'
-      : (idx === 1 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' : 'bg-slate-500/20 text-slate-300 border-slate-500/30');
+      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+      : (idx === 1 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' : 'bg-white/5 text-slate-300 border-white/10');
 
     const cardBorder = isFirst
-      ? 'border-emerald-500/50 bg-[#141b25] shadow-[0_0_16px_rgba(16,185,129,0.12)] ring-1 ring-emerald-500/30'
-      : 'border-white/10 bg-[#131720]/80 hover:border-white/20';
+      ? 'border-emerald-500/40 ring-1 ring-emerald-500/30 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
+      : 'border-white/10 hover:border-white/20';
 
     const btnStyle = isFirst
-      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold shadow-[0_2px_10px_rgba(16,185,129,0.3)]'
-      : 'bg-white/10 hover:bg-white/15 text-slate-200 hover:text-white font-semibold border border-white/10';
+      ? 'bg-gradient-to-b from-[#059669] to-[#047857] hover:from-[#10b981] hover:to-[#059669] text-white font-bold border border-emerald-500/30 shadow-[0_2px_8px_rgba(5,150,105,0.25)] hover:shadow-[0_4px_14px_rgba(5,150,105,0.35)]'
+      : 'bg-[#2b3548] hover:bg-[#354157] text-slate-200 hover:text-white font-semibold border border-white/10';
 
-    const ytBadge = strat.ytOk
-      ? '<span class="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">YouTube: OK</span>'
-      : '<span class="text-[11px] font-medium text-slate-500 bg-white/[0.03] px-2 py-0.5 rounded border border-white/5">YouTube: —</span>';
+    const passedSites = typeof strat.passedSites === 'number'
+      ? strat.passedSites
+      : ((strat.ytOk ? 1 : 0) + (strat.dcOk ? 1 : 0) + (strat.genOk ? 1 : 0));
+    const totalSites = typeof strat.totalSites === 'number'
+      ? strat.totalSites
+      : (strat.ytOk !== undefined ? 3 : 0);
 
-    const dcBadge = strat.dcOk
-      ? '<span class="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Discord: OK</span>'
-      : '<span class="text-[11px] font-medium text-slate-500 bg-white/[0.03] px-2 py-0.5 rounded border border-white/5">Discord: —</span>';
+    const isAllOk = passedSites === totalSites && totalSites > 0;
+    const sitesBadge = totalSites > 0
+      ? `
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold ${isAllOk ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'} px-2.5 py-0.5 rounded-lg border">
+          <span class="w-1.5 h-1.5 rounded-full ${isAllOk ? 'bg-emerald-400' : 'bg-amber-400'}"></span>
+          <span>${passedSites}/${totalSites} сайтов доступно</span>
+        </span>
+      `
+      : `
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 bg-white/5 px-2.5 py-0.5 rounded-lg border border-white/10">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+          <span>Проверка завершена</span>
+        </span>
+      `;
 
     const pingText = strat.avgPing ? `${strat.avgPing} мс` : '—';
 
@@ -1772,7 +1797,7 @@ function renderStrategyProbeResults(top3, durationSec) {
       <div class="inner-panel rounded-2xl p-3.5 border transition-all ${cardBorder}">
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2.5 min-w-0">
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${badgeBg}">
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${badgeBg}">
               ${strat.badge}
             </span>
             <span class="text-sm font-bold text-white truncate" title="${strat.name}">${strat.name}</span>
@@ -1785,10 +1810,7 @@ function renderStrategyProbeResults(top3, durationSec) {
         <p class="text-xs text-slate-400 mt-1.5 line-clamp-1" title="${strat.desc || ''}">${strat.desc || 'Оптимизированный профиль обхода блокировок'}</p>
 
         <div class="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2">
-            ${ytBadge}
-            ${dcBadge}
-          </div>
+          ${sitesBadge}
           <div class="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
             <span>Пинг:</span>
             <span class="text-emerald-400 font-bold">${pingText}</span>
@@ -1801,14 +1823,39 @@ function renderStrategyProbeResults(top3, durationSec) {
 window.renderStrategyProbeResults = renderStrategyProbeResults;
 
 async function applyProbedStrategy(stratFile) {
+  probeStrategyApplied = true;
   closeStrategyProbeResults();
-  await selectStrategy(stratFile);
-  toast(`Применена стратегия: ${stratFile.replace(/\.bat$/i, '')}`, 'success');
+
+  try {
+    state.zapret.activeStrategy = stratFile;
+    const stratName = stratFile.replace(/\.bat$/i, '');
+    const nameEl = $('#active-strategy-name');
+    if (nameEl) nameEl.innerText = stratName;
+    renderStrategyDropdown();
+
+    toast(`Применение стратегии «${stratName}»...`, 'info');
+    await api('start', stratFile);
+    const newStatus = await api('getStatus');
+    updateZapretUI(newStatus);
+    const vStatus = await api('vlessGetStatus').catch(() => null);
+    if (vStatus) updateVpnUI(vStatus);
+    toast(`Стратегия «${stratName}» успешно включена`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 window.applyProbedStrategy = applyProbedStrategy;
 
 function closeStrategyProbeResults() {
   $('#strategyProbeResultsModal')?.classList.add('hidden');
+  if (lastProbeWasRunning && !probeStrategyApplied && lastProbeOriginalStrategy) {
+    const restoreStrat = lastProbeOriginalStrategy;
+    lastProbeWasRunning = false;
+    toast(`Восстановление стратегии «${restoreStrat.replace(/\.bat$/i, '')}»...`, 'info');
+    api('start', restoreStrat)
+      .then(s => updateZapretUI(s))
+      .catch(() => {});
+  }
 }
 window.closeStrategyProbeResults = closeStrategyProbeResults;
 
@@ -1820,6 +1867,8 @@ async function cancelStrategyProbe() {
   $('#strategyProbeProgressModal')?.classList.add('hidden');
   try {
     await api('cancelStrategyProbe');
+    const currStatus = await api('getStatus').catch(() => null);
+    if (currStatus) updateZapretUI(currStatus);
   } catch {}
   toast('Подбор стратегий отменён', 'info');
 }
@@ -1830,9 +1879,51 @@ let onboardingWinner = 'general (ALT).bat';
 let onboardingProbeTimer = null;
 let onboardingProbeStart = 0;
 
+function syncOnboardingSwitchesWithSettings() {
+  const onbAuto = $('#onboarding-toggle-autostart');
+  const autoToggle = $('#toggle-autostart-zapret');
+  if (onbAuto) {
+    const isAutostart = autoToggle ? autoToggle.checked : Boolean(state.settings?.autostartZapret);
+    onbAuto.checked = isAutostart;
+  }
+
+  const onbTray = $('#onboarding-toggle-tray');
+  if (onbTray) {
+    onbTray.checked = state.settings?.closeBehavior === 'tray';
+  }
+}
+window.syncOnboardingSwitchesWithSettings = syncOnboardingSwitchesWithSettings;
+
+function initOnboardingEventListeners() {
+  const onbAuto = $('#onboarding-toggle-autostart');
+  if (onbAuto && !onbAuto.dataset.bound) {
+    onbAuto.dataset.bound = 'true';
+    onbAuto.addEventListener('change', async (e) => {
+      const isChecked = Boolean(e.target.checked);
+      state.settings.autostartZapret = isChecked;
+      const autoToggle = $('#toggle-autostart-zapret');
+      if (autoToggle) autoToggle.checked = isChecked;
+      await api('setAutostartZapret', isChecked).catch(() => {});
+    });
+  }
+
+  const onbTray = $('#onboarding-toggle-tray');
+  if (onbTray && !onbTray.dataset.bound) {
+    onbTray.dataset.bound = 'true';
+    onbTray.addEventListener('change', async (e) => {
+      const isChecked = Boolean(e.target.checked);
+      const closeMode = isChecked ? 'tray' : 'quit';
+      await setCloseBehavior(closeMode, true).catch(() => {});
+    });
+  }
+}
+window.initOnboardingEventListeners = initOnboardingEventListeners;
+
 function showOnboardingModal() {
   const modal = $('#onboardingModal');
   if (!modal) return;
+  initOnboardingEventListeners();
+  syncOnboardingSwitchesWithSettings();
   goToOnboardingStep(1);
   modal.classList.remove('hidden');
 }
@@ -1845,6 +1936,9 @@ function hideOnboardingModal() {
     clearInterval(onboardingProbeTimer);
     onboardingProbeTimer = null;
   }
+  try {
+    api('cancelStrategyProbe').catch(() => {});
+  } catch {}
 }
 window.hideOnboardingModal = hideOnboardingModal;
 
@@ -1853,34 +1947,39 @@ function goToOnboardingStep(step) {
   const step2 = $('#onboarding-step-2');
   const step3 = $('#onboarding-step-3');
 
+  const stepBadge = $('#onboarding-step-badge');
   const dot1 = $('#onboarding-dot-1');
   const dot2 = $('#onboarding-dot-2');
   const dot3 = $('#onboarding-dot-3');
+
+  if (stepBadge) stepBadge.innerText = `Шаг ${step} из 3`;
 
   if (step === 1) {
     step1?.classList.remove('hidden');
     step2?.classList.add('hidden');
     step3?.classList.add('hidden');
 
-    if (dot1) dot1.className = 'w-6 h-1.5 rounded-full bg-emerald-400 transition-all';
-    if (dot2) dot2.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
-    if (dot3) dot3.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+    if (dot1) dot1.className = 'w-5 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot2) dot2.className = 'w-5 h-1.5 rounded-full bg-white/15 transition-all';
+    if (dot3) dot3.className = 'w-5 h-1.5 rounded-full bg-white/15 transition-all';
   } else if (step === 2) {
     step1?.classList.add('hidden');
     step2?.classList.remove('hidden');
     step3?.classList.add('hidden');
 
-    if (dot1) dot1.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
-    if (dot2) dot2.className = 'w-6 h-1.5 rounded-full bg-emerald-400 transition-all';
-    if (dot3) dot3.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+    if (dot1) dot1.className = 'w-5 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot2) dot2.className = 'w-5 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot3) dot3.className = 'w-5 h-1.5 rounded-full bg-white/15 transition-all';
+
+    syncOnboardingSwitchesWithSettings();
   } else if (step === 3) {
     step1?.classList.add('hidden');
     step2?.classList.add('hidden');
     step3?.classList.remove('hidden');
 
-    if (dot1) dot1.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
-    if (dot2) dot2.className = 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
-    if (dot3) dot3.className = 'w-6 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot1) dot1.className = 'w-5 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot2) dot2.className = 'w-5 h-1.5 rounded-full bg-emerald-400 transition-all';
+    if (dot3) dot3.className = 'w-5 h-1.5 rounded-full bg-emerald-400 transition-all';
 
     const finalStratEl = $('#onboarding-final-strategy');
     if (finalStratEl) {
@@ -1990,18 +2089,7 @@ async function finishOnboardingAndLaunch() {
     await api('setAutostartZapret', autostart).catch(() => {});
 
     const closeMode = tray ? 'tray' : 'quit';
-    state.settings.closeBehavior = closeMode;
-    ['ask', 'tray', 'quit'].forEach(m => {
-      const btn = $(`#btn-close-${m}`);
-      if (btn) {
-        if (m === closeMode) {
-          btn.className = 'flex-1 py-1 px-1.5 rounded-lg text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 transition-colors';
-        } else {
-          btn.className = 'flex-1 py-1 px-1.5 rounded-lg text-[10px] font-semibold text-slate-400 hover:text-slate-200 border border-transparent transition-colors';
-        }
-      }
-    });
-    await api('setCloseBehavior', closeMode).catch(() => {});
+    await setCloseBehavior(closeMode, true).catch(() => {});
 
     await selectStrategy(onboardingWinner).catch(() => {});
 
@@ -2866,7 +2954,7 @@ function renderSites() {
 }
 
 // ─── Settings Controls ───
-async function setCloseBehavior(mode) {
+async function setCloseBehavior(mode, suppressToast = false) {
   state.settings.closeBehavior = mode;
   ['ask', 'tray', 'quit'].forEach(m => {
     const btn = $(`#btn-close-${m}`);
@@ -2878,11 +2966,17 @@ async function setCloseBehavior(mode) {
       }
     }
   });
+  const onbTray = $('#onboarding-toggle-tray');
+  if (onbTray) {
+    onbTray.checked = (mode === 'tray');
+  }
   try {
     await api('setCloseBehavior', mode);
-    toast(`Режим закрытия: ${mode === 'tray' ? 'В трей' : mode === 'ask' ? 'Спрашивать' : 'Закрывать'}`, 'info');
+    if (!suppressToast) {
+      toast(`Режим закрытия: ${mode === 'tray' ? 'В трей' : mode === 'ask' ? 'Спрашивать' : 'Закрывать'}`, 'info');
+    }
   } catch (e) {
-    toast(e.message, 'error');
+    if (!suppressToast) toast(e.message, 'error');
   }
 }
 
@@ -2893,6 +2987,8 @@ async function toggleSetting(key, checked) {
       await api('setStartMinimized', checked);
     } else if (key === 'autostartZapret') {
       state.settings.autostartZapret = checked;
+      const onbAuto = $('#onboarding-toggle-autostart');
+      if (onbAuto) onbAuto.checked = checked;
       await api('setAutostartZapret', checked);
     } else if (key === 'autostartTg') {
       state.settings.autostartTg = checked;
@@ -2953,7 +3049,7 @@ async function checkAllUpdatesSim() {
     } else if (all?.hub?.error) {
       toast(`Не удалось проверить обновления: ${all.hub.error}`, 'error');
     } else {
-      const currentVer = (all?.hub?.local || state.appVersion || '2.0.8').replace(/^v/i, '');
+      const currentVer = (all?.hub?.local || state.appVersion || '2.0.9').replace(/^v/i, '');
       toast(`У вас установлена последняя версия Zapret.NET (v${currentVer})`, 'success');
     }
   } catch (e) {
@@ -3568,6 +3664,9 @@ function updateTgProxyUI(status) {
   state.tg.running = Boolean(status?.running);
   state.tg.installed = Boolean(status?.installed);
   state.tg.proxyUrl = status?.proxyUrl || null;
+  state.tg.host = status?.host || '127.0.0.1';
+  state.tg.port = status?.port || 1443;
+  state.tg.secret = status?.secret || null;
 
   const card = $('#tg-card');
   const badge = $('#tg-status-badge');
@@ -3699,6 +3798,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Set initial app version and card display
   updateAppVersionUI(state.appVersion);
   updateSitesCardUI();
+  initOnboardingEventListeners();
 
   // Initial Data Fetch
   try {

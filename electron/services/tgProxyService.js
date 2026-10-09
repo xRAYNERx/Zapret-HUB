@@ -194,7 +194,18 @@ class TgProxyService {
 
     this._ensureConfig();
 
+    // Clean up any stale lock files from previously abruptly terminated processes
+    try {
+      if (fs.existsSync(this.tgConfigDir)) {
+        const lockFiles = fs.readdirSync(this.tgConfigDir).filter(f => f.endsWith('.lock'));
+        for (const lf of lockFiles) {
+          try { fs.unlinkSync(path.join(this.tgConfigDir, lf)); } catch {}
+        }
+      }
+    } catch (_) {}
+
     this._child = spawn(exePath, [], {
+      cwd: path.dirname(exePath),
       windowsHide: true,
       detached: false,
       stdio: ['ignore', 'ignore', 'ignore']
@@ -205,7 +216,7 @@ class TgProxyService {
       this._running = false;
     });
 
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 120));
       const ok = await this.checkPortOpen(TG_PORT, TG_HOST, 200);
       if (ok) {
@@ -213,6 +224,11 @@ class TgProxyService {
         sendProgress?.({ stage: 'ready', message: 'Telegram Proxy готов к работе' });
         return this.getStatus();
       }
+    }
+
+    const finalOk = await this.checkPortOpen(TG_PORT, TG_HOST, 300);
+    if (!finalOk) {
+      throw new Error('Не удалось запустить Telegram Proxy (порт 1443 не отвечает).');
     }
 
     return this.getStatus();
@@ -235,6 +251,15 @@ class TgProxyService {
 
     try {
       await execAsync(`taskkill /F /IM ${EXE_NAME} /T`, { windowsHide: true });
+    } catch (_) {}
+
+    try {
+      if (fs.existsSync(this.tgConfigDir)) {
+        const lockFiles = fs.readdirSync(this.tgConfigDir).filter(f => f.endsWith('.lock'));
+        for (const lf of lockFiles) {
+          try { fs.unlinkSync(path.join(this.tgConfigDir, lf)); } catch {}
+        }
+      }
     } catch (_) {}
 
     this._running = false;
@@ -289,7 +314,12 @@ class TgProxyService {
     if (clipboardModule) {
       clipboardModule.writeText(status.proxyUrl);
     }
-    return { ok: true, url: status.proxyUrl };
+    return {
+      ok: true,
+      data: { link: status.proxyUrl, url: status.proxyUrl },
+      link: status.proxyUrl,
+      url: status.proxyUrl
+    };
   }
 
   openSettings(shellModule) {

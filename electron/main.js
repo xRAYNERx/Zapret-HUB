@@ -1409,7 +1409,7 @@ function registerIpc() {
     'run-diagnostics': () => zapret.runDiagnostics(),
     'run-self-healing': async () => {
       const zapretStatus = await zapret.getStatus().catch(() => ({ running: false }));
-      const tgStatus = tgProxy ? tgProxy.getStatus() : { running: false };
+      const tgStatus = tgProxy ? await tgProxy.getStatus().catch(() => ({ running: false })) : { running: false };
       const vlessStatus = vless ? await vless.getStatus().catch(() => ({ running: false })) : { running: false };
       return zapret.runSelfHealing({
         zapretRunning: Boolean(zapretStatus?.running),

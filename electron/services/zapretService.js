@@ -3,12 +3,33 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const net = require('net');
 const { exec, execSync, spawn } = require('child_process');
 const { promisify } = require('util');
 
 const execAsync = promisify(exec);
 const { fetchGithubRelease, fetchUrl } = require('../helpers/httpFetch');
 const appPkg = require('../../package.json');
+
+function isPortOpen(port, host = '127.0.0.1', timeoutMs = 300) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.once('error', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.connect(port, host);
+  });
+}
 
 const VERSION_URL =
   'https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/version.txt';
@@ -1520,8 +1541,6 @@ class ZapretService {
       `$winwsArgs = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${argsB64}'))`,
       "$ErrorActionPreference = 'SilentlyContinue'",
       'netsh interface tcp set global timestamps=enabled',
-      'sc stop WinDivert 2>$null',
-      'sc stop WinDivert14 2>$null',
       'sc stop zapret 2>$null',
       'sc delete zapret 2>$null',
       '$psi = New-Object System.Diagnostics.ProcessStartInfo',
@@ -1690,6 +1709,7 @@ class ZapretService {
 
       if (winwsRunning || serviceState === 'RUNNING') {
         await this.stop();
+        await new Promise(r => setTimeout(r, 400));
       }
 
       this.setLastStrategy(targetStrategy);
@@ -1712,6 +1732,7 @@ class ZapretService {
     const serviceState = await this.getServiceState('zapret');
     if (winwsRunning || serviceState === 'RUNNING') {
       await this.stop();
+      await new Promise(r => setTimeout(r, 400));
     }
     return this.start(strategyFile);
   }
@@ -1740,9 +1761,7 @@ class ZapretService {
       serviceActive(zapretState) ||
       (zapretState !== 'NOT_FOUND' && !keepService) ||
       serviceActive(windivertState) ||
-      windivertState !== 'NOT_FOUND' ||
-      serviceActive(windivert14State) ||
-      windivert14State !== 'NOT_FOUND';
+      serviceActive(windivert14State);
 
     const stillRunning = await this.isProcessRunning('winws.exe');
 
@@ -1768,20 +1787,17 @@ class ZapretService {
     if (serviceActive(windivertState)) {
       stopLines.push('sc stop WinDivert 2>$null');
     }
-    if (windivertState !== 'NOT_FOUND') {
-      stopLines.push('sc delete WinDivert 2>$null');
-    }
 
     if (serviceActive(windivert14State)) {
       stopLines.push('sc stop WinDivert14 2>$null');
     }
-    if (windivert14State !== 'NOT_FOUND') {
-      stopLines.push('sc delete WinDivert14 2>$null');
-    }
 
     stopLines.push('exit 0');
 
-    await this.runElevatedScript(stopLines.join('; '));
+    if (stopLines.length > 1) {
+      await this.runElevatedScript(stopLines.join('; '));
+      await new Promise(r => setTimeout(r, 300));
+    }
     await this.waitForProcessExit('winws.exe', 2000);
 
     if (await this.isProcessRunning('winws.exe')) {
@@ -2193,11 +2209,31 @@ class ZapretService {
 
     // 1. Проверка и очистка зависших процессов ядра
     try {
+      let isTgActive = tgRunning;
+      if (!isTgActive) {
+        // Дополнительная прямая проверка: если порт 1443 открыт и отвечает, прокси живой и рабочий!
+        try {
+          isTgActive = await isPortOpen(1443, '127.0.0.1', 300);
+        } catch {}
+      }
+
+      let isZapretActive = zapretRunning;
+      if (!isZapretActive && this.child && !this.child.killed) {
+        isZapretActive = true;
+      }
+
+      let isVlessActive = vlessRunning;
+      if (!isVlessActive) {
+        try {
+          isVlessActive = (await isPortOpen(10808, '127.0.0.1', 200)) || (await isPortOpen(10809, '127.0.0.1', 200));
+        } catch {}
+      }
+
       const processDefinitions = [
-        { name: 'winws.exe', isLegitimate: zapretRunning, label: 'Zapret DPI' },
-        { name: 'xray.exe', isLegitimate: vlessRunning, label: 'VPN Xray' },
-        { name: 'sing-box.exe', isLegitimate: vlessRunning, label: 'VPN sing-box' },
-        { name: 'ZapretTgProxy.exe', isLegitimate: tgRunning, label: 'Telegram Proxy' }
+        { name: 'winws.exe', isLegitimate: isZapretActive, label: 'Zapret DPI' },
+        { name: 'xray.exe', isLegitimate: isVlessActive, label: 'VPN Xray' },
+        { name: 'sing-box.exe', isLegitimate: isVlessActive, label: 'VPN sing-box' },
+        { name: 'ZapretTgProxy.exe', isLegitimate: isTgActive, label: 'Telegram Proxy' }
       ];
 
       const killed = [];
@@ -2211,15 +2247,10 @@ class ZapretService {
 
           if (count > 0) {
             if (def.isLegitimate) {
-              if (count > 1) {
-                // Если процессов больше одного (задвоение) — убиваем лишние дубликаты
-                await execAsync(`taskkill /F /IM ${def.name} /T`, { windowsHide: true });
-                killed.push(`${def.name} (устранено дубликатов: ${count})`);
-              } else {
-                activeLegit.push(def.label);
-              }
+              // Служба активна в приложении или слушает порт — работает штатно, не трогаем её!
+              activeLegit.push(def.label);
             } else {
-              // Служба в приложении выключена, но процесс остался висеть — зависший зомби-хвост!
+              // Служба в приложении выключена и порт закрыт, но процесс остался висеть — зависший зомби-хвост!
               await execAsync(`taskkill /F /IM ${def.name} /T`, { windowsHide: true });
               killed.push(def.name);
             }
@@ -2496,13 +2527,16 @@ class ZapretService {
 
     // 1. Candidate strategies: prioritize the most effective and diverse strategies
     const candidateFiles = [
+      'general (ALT11).bat',
+      'general (FAKE TLS AUTO ALT).bat',
+      'general (FAKE TLS AUTO).bat',
       'general (ALT).bat',
       'general (ALT2).bat',
       'general (ALT3).bat',
       'general (ALT4).bat',
       'general (ALT5).bat',
-      'general.bat',
-      'general (FAKE TLS AUTO).bat'
+      'general (ALT9).bat',
+      'general.bat'
     ];
 
     // Ensure user's current strategy is included if valid
@@ -2570,11 +2604,14 @@ class ZapretService {
           continue;
         }
 
-        // Test YouTube, Discord, and General site in parallel with 2.2s timeout
+        // Test key blocked targets in parallel with 2.2s timeout
         const testTargets = [
-          { name: 'youtube', url: 'https://www.youtube.com/generate_204' },
-          { name: 'discord', url: 'https://discord.com' },
-          { name: 'general', url: 'https://ntc.party' }
+          { name: 'youtube_api', url: 'https://www.youtube.com/generate_204' },
+          { name: 'youtube_cdn', url: 'https://i.ytimg.com/generate_204' },
+          { name: 'discord_web', url: 'https://discord.com' },
+          { name: 'discord_cdn', url: 'https://cdn.discordapp.com' },
+          { name: 'discord_gw', url: 'https://gateway.discord.gg' },
+          { name: 'ntc_party', url: 'https://ntc.party' }
         ];
 
         const targetResults = await Promise.all(testTargets.map(async t => {
@@ -2593,9 +2630,11 @@ class ZapretService {
           }
         }));
 
-        const ytRes = targetResults[0];
-        const dcRes = targetResults[1];
-        const genRes = targetResults[2];
+        const ytRes = { ok: targetResults[0].ok || targetResults[1].ok };
+        const dcRes = { ok: targetResults[2].ok || targetResults[3].ok || targetResults[4].ok };
+        const genRes = targetResults[5];
+        const passedCount = targetResults.filter(r => r.ok).length;
+        const totalCount = testTargets.length;
 
         // Stop this candidate's winws + WinDivert
         try {
@@ -2605,11 +2644,13 @@ class ZapretService {
         try {
           await execAsync('sc stop WinDivert 2>nul', { windowsHide: true, timeout: 2000 });
         } catch {}
+        await new Promise(r => setTimeout(r, 250));
 
         let score = 0;
-        if (ytRes.ok) score += 40;
-        if (dcRes.ok) score += 40;
-        if (genRes.ok) score += 20;
+        if (ytRes.ok) score += 35;
+        if (dcRes.ok) score += 35;
+        if (genRes.ok) score += 10;
+        score += Math.round((passedCount / totalCount) * 20);
 
         const passedLatencies = targetResults.filter(r => r.ok).map(r => r.latency);
         const avgPing = passedLatencies.length > 0
@@ -2621,6 +2662,8 @@ class ZapretService {
           name: cand.name,
           desc: cand.desc,
           score,
+          passedSites: passedCount,
+          totalSites: totalCount,
           ytOk: ytRes.ok,
           dcOk: dcRes.ok,
           genOk: genRes.ok,
@@ -2652,12 +2695,15 @@ class ZapretService {
         top3
       });
 
-      // Restore previous Zapret state if it was running
-      if (wasRunning) {
-        try {
-          await this.start(originalStrategy);
-        } catch {}
-      }
+      // Ensure winws and WinDivert are cleanly stopped so applying the chosen strategy starts instantly without conflicts
+      try {
+        await execAsync('taskkill /IM winws.exe /F /T', { windowsHide: true, timeout: 3000 });
+        await this.waitForProcessExit('winws.exe', 600);
+      } catch {}
+      try {
+        await execAsync('sc stop WinDivert 2>nul', { windowsHide: true, timeout: 2000 });
+      } catch {}
+      await new Promise(r => setTimeout(r, 400));
 
       const probeResult = {
         ok: true,
@@ -2665,7 +2711,9 @@ class ZapretService {
         top3,
         totalTested: results.length,
         totalTimeSec,
-        strategies: results
+        strategies: results,
+        wasRunning: Boolean(wasRunning),
+        originalStrategy
       };
 
       this.saveLastStrategyProbe(probeResult);
